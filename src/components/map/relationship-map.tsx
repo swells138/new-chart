@@ -155,22 +155,24 @@ export function RelationshipMap({ users, relationships }: Props) {
         return;
       }
 
-      setAllRelationships((prev) => [...prev, body.relationship as Relationship]);
+      const relationship = body.relationship;
+
+      setAllRelationships((prev) => [...prev, relationship]);
       setSelectedId(connection.source);
       setEdges((prev) =>
         addEdge(
           {
-            id: body.relationship.id,
-            source: body.relationship.source,
-            target: body.relationship.target,
-            label: body.relationship.type,
+            id: relationship.id,
+            source: relationship.source,
+            target: relationship.target,
+            label: relationship.type,
             style: {
-              stroke: relationColors[body.relationship.type],
+              stroke: relationColors[relationship.type],
               strokeWidth: 2,
             },
             labelStyle: {
               fontSize: 10,
-              fill: relationColors[body.relationship.type],
+              fill: relationColors[relationship.type],
               textTransform: "uppercase",
             },
           },
