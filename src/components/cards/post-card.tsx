@@ -1,11 +1,8 @@
 import { Heart, MessageCircle } from "lucide-react";
-import { userById } from "@/lib/data";
-import type { Post } from "@/types/models";
+import type { Post, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 
-export function PostCard({ post }: { post: Post }) {
-  const author = userById.get(post.userId);
-  if (!author) return null;
+export function PostCard({ post, author }: { post: Post; author: Pick<User, "name" | "handle"> }) {
 
   return (
     <article className="paper-card rounded-2xl p-5 transition hover:-translate-y-0.5">

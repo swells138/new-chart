@@ -1,8 +1,12 @@
 import { MemberDirectory } from "@/components/members/member-directory";
 import { SectionHeader } from "@/components/ui/section-header";
-import { posts, relationships, users } from "@/lib/data";
+import { getMemberDirectoryData } from "@/lib/prisma-queries";
 
-export default function MembersPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MembersPage() {
+  const { users, posts, relationships } = await getMemberDirectoryData();
+
   return (
     <div className="space-y-4">
       <SectionHeader

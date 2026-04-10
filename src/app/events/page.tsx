@@ -1,8 +1,12 @@
 import { EventCard } from "@/components/cards/event-card";
 import { SectionHeader } from "@/components/ui/section-header";
-import { events } from "@/lib/data";
+import { getAllEvents } from "@/lib/prisma-queries";
 
-export default function EventsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function EventsPage() {
+  const events = await getAllEvents();
+
   return (
     <div className="space-y-4">
       <SectionHeader

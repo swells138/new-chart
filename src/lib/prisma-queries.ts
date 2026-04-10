@@ -1,0 +1,402 @@
+/**
+ * Database query helpers using Prisma
+ *
+ * Replace the static JSON imports in data.ts with these dynamic queries
+ * as you migrate to the database.
+ */
+
+import { prisma } from "./prisma";
+import type { User, Post, Event, Article, Relationship } from "@/types/models";
+
+function formatRelativeTime(timestamp: Date) {
+  const differenceInMs = Date.now() - timestamp.getTime();
+  const differenceInHours = Math.max(1, Math.round(differenceInMs / (1000 * 60 * 60)));
+
+  if (differenceInHours < 24) {
+    return `${differenceInHours}h ago`;
+  }
+
+  const differenceInDays = Math.round(differenceInHours / 24);
+  return `${differenceInDays}d ago`;
+}
+
+function formatCalendarDate(timestamp: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(timestamp);
+}
+
+function normalizeUser(user: {
+  id: string;
+  name: string | null;
+  handle: string | null;
+  pronouns: string | null;
+  bio: string | null;
+  interests: string[];
+  relationshipStatus: string | null;
+  location: string | null;
+  links: unknown;
+  featured: boolean;
+}): User {
+  const links =
+    user.links && typeof user.links === "object" && !Array.isArray(user.links)
+      ? (user.links as User["links"])
+      : {};
+
+  return {
+    id: user.id,
+    name: user.name ?? "Unnamed member",
+    handle: user.handle ?? "pending-handle",
+    pronouns: user.pronouns ?? "",
+    bio: user.bio ?? "No bio yet.",
+    interests: user.interests,
+    relationshipStatus: user.relationshipStatus ?? "unspecified",
+    location: user.location ?? "Unknown",
+    links,
+    featured: user.featured,
+  };
+}
+
+function normalizePost(post: {
+  id: string;
+  userId: string;
+  content: string;
+  timestamp: Date;
+  tags: string[];
+  likes: number;
+  comments: number;
+}): Post {
+  return {
+    id: post.id,
+    userId: post.userId,
+    content: post.content,
+    timestamp: formatRelativeTime(post.timestamp),
+    tags: post.tags,
+    likes: post.likes,
+    comments: post.comments,
+  };
+}
+
+function normalizeRelationship(relationship: {
+  id: string;
+  user1Id: string;
+  user2Id: string;
+  type: string;
+  note?: string | null;
+}): Relationship {
+  return {
+    id: relationship.id,
+    source: relationship.user1Id,
+    target: relationship.user2Id,
+    type: relationship.type as Relationship["type"],
+    note: relationship.note ?? "",
+  };
+}
+
+function normalizeEvent(event: {
+  id: string;
+  title: string;
+  date: Date;
+  location: string | null;
+  description: string | null;
+  type: string | null;
+}, attendees: number): Event {
+  return {
+    id: event.id,
+    title: event.title,
+    date: formatCalendarDate(event.date),
+    location: event.location ?? "TBD",
+    description: event.description ?? "",
+    attendees,
+    type: event.type ?? "community",
+  };
+}
+
+function normalizeArticle(article: {
+  id: string;
+  title: string;
+  excerpt: string | null;
+  authorId: string;
+  category: string | null;
+  createdAt: Date;
+}): Article {
+  return {
+    id: article.id,
+    title: article.title,
+    excerpt: article.excerpt ?? "",
+    authorId: article.authorId,
+    category: article.category ?? "general",
+    readTime: "5 min",
+    publishedAt: formatCalendarDate(article.createdAt),
+  };
+}
+
+export async function getMemberDirectoryData(): Promise<{
+  users: User[];
+  posts: Post[];
+  relationships: Relationship[];
+}> {
+  const [users, posts, relationships] = await Promise.all([
+    prisma.user.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "asc" }] }),
+    prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
+    prisma.relationship.findMany(),
+  ]);
+
+  return {
+    users: users.map(normalizeUser),
+    posts: posts.map(normalizePost),
+    relationships: relationships.map(normalizeRelationship),
+  };
+}
+
+export async function getAllRelationships(): Promise<Relationship[]> {
+  const relationships = await prisma.relationship.findMany();
+  return relationships.map(normalizeRelationship);
+}
+
+// ===== USERS =====
+
+export async function getAllUsers(): Promise<User[]> {
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+  return users.map(normalizeUser);
+}
+
+export async function getUserById(id: string): Promise<User | null> {
+  const user = await prisma.user.findUnique({
+    where: { id },
+  });
+  return user ? normalizeUser(user) : null;
+}
+
+export async function getUserByHandle(handle: string): Promise<User | null> {
+  const user = await prisma.user.findUnique({
+    where: { handle },
+  });
+  return user ? normalizeUser(user) : null;
+}
+
+export async function getUserByClerkId(clerkId: string): Promise<User | null> {
+  const user = await prisma.user.findUnique({
+    where: { clerkId },
+  });
+  return user ? normalizeUser(user) : null;
+}
+
+export async function createUser(data: {
+  clerkId: string;
+  email?: string;
+  name?: string;
+}): Promise<User> {
+  const user = await prisma.user.create({
+    data: {
+      clerkId: data.clerkId,
+      email: data.email,
+      name: data.name,
+    },
+  });
+  return normalizeUser(user);
+}
+
+export async function updateUser(
+  id: string,
+  data: Partial<Omit<User, "id" | "clerkId">>
+): Promise<User> {
+  const user = await prisma.user.update({
+    where: { id },
+    data: {
+      ...data,
+      links: data.links,
+    },
+  });
+  return normalizeUser(user);
+}
+
+// ===== POSTS =====
+
+export async function getAllPosts(): Promise<Post[]> {
+  const posts = await prisma.post.findMany({
+    orderBy: { timestamp: "desc" },
+  });
+  return posts.map(normalizePost);
+}
+
+export async function getPostsByUser(userId: string): Promise<Post[]> {
+  const posts = await prisma.post.findMany({
+    where: { userId },
+    orderBy: { timestamp: "desc" },
+  });
+  return posts.map(normalizePost);
+}
+
+export async function createPost(data: {
+  userId: string;
+  content: string;
+  tags?: string[];
+}): Promise<Post> {
+  const post = await prisma.post.create({
+    data: {
+      userId: data.userId,
+      content: data.content,
+      tags: data.tags || [],
+    },
+  });
+  return normalizePost(post);
+}
+
+export async function deletePost(id: string): Promise<void> {
+  await prisma.post.delete({
+    where: { id },
+  });
+}
+
+// ===== EVENTS =====
+
+export async function getAllEvents(): Promise<Event[]> {
+  const events = (await prisma.event.findMany({
+    orderBy: { date: "asc" },
+    include: {
+      _count: { select: { attendees: true } },
+    },
+  })) as Array<{
+    id: string;
+    title: string;
+    date: Date;
+    location: string | null;
+    description: string | null;
+    type: string | null;
+    _count: {
+      attendees: number;
+    };
+  }>;
+
+  return events.map((event) => normalizeEvent(event, event._count.attendees));
+}
+
+export async function getEventById(id: string): Promise<Event | null> {
+  const event = await prisma.event.findUnique({
+    where: { id },
+    include: {
+      attendees: { include: { user: true } },
+    },
+  });
+  return event ? normalizeEvent(event, event.attendees.length) : null;
+}
+
+export async function createEvent(data: {
+  title: string;
+  description?: string;
+  date: Date;
+  location?: string;
+  type?: string;
+  createdBy: string;
+}): Promise<Event> {
+  const event = await prisma.event.create({
+    data,
+  });
+  return normalizeEvent(event, 0);
+}
+
+// ===== ARTICLES =====
+
+export async function getAllArticles(): Promise<Article[]> {
+  const articles = await prisma.article.findMany({
+    where: { published: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return articles.map(normalizeArticle);
+}
+
+export async function getArticlesByAuthor(authorId: string): Promise<Article[]> {
+  const articles = await prisma.article.findMany({
+    where: { authorId, published: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return articles.map(normalizeArticle);
+}
+
+export async function createArticle(data: {
+  title: string;
+  excerpt?: string;
+  content?: string;
+  authorId: string;
+  category?: string;
+}): Promise<Article> {
+  const article = await prisma.article.create({
+    data: {
+      ...data,
+      published: false, // Draft by default
+    },
+  });
+  return normalizeArticle(article);
+}
+
+// ===== RELATIONSHIPS =====
+
+export async function getRelationshipsByUser(userId: string): Promise<Relationship[]> {
+  const relationships = await prisma.relationship.findMany({
+    where: {
+      OR: [
+        { user1Id: userId },
+        { user2Id: userId },
+      ],
+    },
+  });
+  return relationships.map(normalizeRelationship);
+}
+
+export async function createRelationship(data: {
+  user1Id: string;
+  user2Id: string;
+  type: string;
+  note?: string;
+}): Promise<Relationship> {
+  const relationship = await prisma.relationship.create({
+    data,
+  });
+  return normalizeRelationship(relationship);
+}
+
+export async function deleteRelationship(user1Id: string, user2Id: string): Promise<void> {
+  await prisma.relationship.deleteMany({
+    where: {
+      OR: [
+        { user1Id, user2Id },
+        { user1Id: user2Id, user2Id: user1Id },
+      ],
+    },
+  });
+}
+
+// ===== MESSAGES =====
+
+export async function getMessages(userId: string): Promise<any[]> {
+  const messages = await prisma.message.findMany({
+    where: {
+      OR: [
+        { senderId: userId },
+        { recipientId: userId },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      sender: true,
+      recipient: true,
+    },
+  });
+  return messages;
+}
+
+export async function createMessage(data: {
+  senderId: string;
+  recipientId: string;
+  content: string;
+}): Promise<any> {
+  const message = await prisma.message.create({
+    data,
+  });
+  return message;
+}

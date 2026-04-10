@@ -1,14 +1,14 @@
-import { userById } from "@/lib/data";
 import type { Article } from "@/types/models";
 
 export function ArticleCard({
   article,
   compact = false,
+  authorName,
 }: {
   article: Article;
   compact?: boolean;
+  authorName?: string;
 }) {
-  const author = userById.get(article.authorId);
   return (
     <article className="paper-card rounded-2xl p-5 transition hover:-translate-y-0.5">
       <p className="text-xs font-semibold tracking-[0.14em] uppercase text-[var(--accent)]">
@@ -19,7 +19,7 @@ export function ArticleCard({
         <p className="mt-2 text-sm text-black/75 dark:text-white/80">{article.excerpt}</p>
       ) : null}
       <p className="mt-3 text-xs text-black/60 dark:text-white/70">
-        {article.publishedAt} · {article.readTime} · by {author?.name ?? "Community"}
+        {article.publishedAt} · {article.readTime} · by {authorName ?? "Community"}
       </p>
     </article>
   );

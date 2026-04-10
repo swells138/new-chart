@@ -1,8 +1,12 @@
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { SectionHeader } from "@/components/ui/section-header";
-import { relationships, users } from "@/lib/data";
+import { getAllRelationships, getAllUsers } from "@/lib/prisma-queries";
 
-export default function MapPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MapPage() {
+  const [users, relationships] = await Promise.all([getAllUsers(), getAllRelationships()]);
+
   return (
     <div className="space-y-4">
       <SectionHeader

@@ -1,14 +1,29 @@
 import Link from "next/link";
-import { users, posts, articles, relationships } from "@/lib/data";
 import { MemberCard } from "@/components/cards/member-card";
 import { PostCard } from "@/components/cards/post-card";
 import { ArticleCard } from "@/components/cards/article-card";
 import { SectionHeader } from "@/components/ui/section-header";
+import {
+  getAllArticles,
+  getAllPosts,
+  getAllRelationships,
+  getAllUsers,
+} from "@/lib/prisma-queries";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const [users, posts, articles, relationships] = await Promise.all([
+    getAllUsers(),
+    getAllPosts(),
+    getAllArticles(),
+    getAllRelationships(),
+  ]);
+
   const featuredMembers = users.filter((user) => user.featured).slice(0, 3);
   const featuredPosts = posts.slice(0, 3);
   const featuredStories = articles.slice(0, 2);
+  const userById = new Map(users.map((user) => [user.id, user]));
 
   return (
     <div className="space-y-12 pb-8">
@@ -60,9 +75,12 @@ export default function Home() {
             title="Latest from the Feed"
             subtitle="Personal updates, tiny wins, and late-night thoughts."
           />
-          {featuredPosts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+          {featuredPosts.map((post) => {
+            const author = userById.get(post.userId);
+            if (!author) return null;
+
+            return <PostCard key={post.id} post={post} author={author} />;
+          })}
         </div>
         <aside className="space-y-4">
           <SectionHeader
@@ -91,9 +109,11 @@ export default function Home() {
               Explore full map
             </Link>
           </div>
-          {featuredStories.map((story) => (
-            <ArticleCard key={story.id} article={story} compact />
-          ))}
+          {featuredStories.map((story) => {
+            const author = userById.get(story.authorId);
+
+            return <ArticleCard key={story.id} article={story} compact authorName={author?.name} />;
+          })}
         </aside>
       </section>
     </div>
