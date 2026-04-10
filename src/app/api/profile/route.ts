@@ -1,6 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const hasClerkKeys =
@@ -162,11 +161,12 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ profile: shapeProfile(updated) });
   } catch (error) {
+    const prismaError = error as { code?: string; meta?: { target?: unknown } };
+
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002" &&
-      Array.isArray(error.meta?.target) &&
-      error.meta?.target.includes("handle")
+      prismaError.code === "P2002" &&
+      Array.isArray(prismaError.meta?.target) &&
+      prismaError.meta?.target.includes("handle")
     ) {
       return NextResponse.json({ error: "That handle is already taken." }, { status: 409 });
     }
