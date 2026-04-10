@@ -1,0 +1,38 @@
+[
+  {
+    "id": "e1",
+    "title": "Porch Session: Acoustic Night",
+    "date": "Apr 18, 2026 · 7:30 PM",
+    "location": "Maple Porch Collective",
+    "description": "A low-key unplugged set with open signups, tea, and zine swaps.",
+    "attendees": 42,
+    "type": "music"
+  },
+  {
+    "id": "e2",
+    "title": "Neighborhood Story Lab",
+    "date": "Apr 22, 2026 · 6:00 PM",
+    "location": "Dockside Studio B",
+    "description": "Bring one memory and leave with a mini audio postcard made together.",
+    "attendees": 26,
+    "type": "workshop"
+  },
+  {
+    "id": "e3",
+    "title": "Open Air Film Picnic",
+    "date": "Apr 28, 2026 · 8:15 PM",
+    "location": "Luna Park Lawn",
+    "description": "Community shorts screening under string lights. Blankets encouraged.",
+    "attendees": 69,
+    "type": "film"
+  },
+  {
+    "id": "e4",
+    "title": "Craft + Care Sunday",
+    "date": "May 3, 2026 · 1:00 PM",
+    "location": "East Market Hall",
+    "description": "Mending circle, collage station, and a gentle skills-share on burnout recovery.",
+    "attendees": 31,
+    "type": "community"
+  }
+]

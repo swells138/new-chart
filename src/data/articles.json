@@ -1,0 +1,38 @@
+[
+  {
+    "id": "a1",
+    "title": "How Our DIY Venues Became Care Infrastructure",
+    "excerpt": "From pop-up screenings to mutual aid drop tables, local creative spaces are evolving into dependable support systems.",
+    "authorId": "u2",
+    "category": "culture",
+    "readTime": "6 min",
+    "publishedAt": "Apr 8, 2026"
+  },
+  {
+    "id": "a2",
+    "title": "Five Tiny Rituals for Keeping Friendships Warm",
+    "excerpt": "A practical list from members who maintain deep connection across packed calendars and late-night schedules.",
+    "authorId": "u1",
+    "category": "lifestyle",
+    "readTime": "4 min",
+    "publishedAt": "Apr 6, 2026"
+  },
+  {
+    "id": "a3",
+    "title": "Inside the Community Poster Archive",
+    "excerpt": "A look at flyer design trends, neighborhood memory, and why ephemera deserves long-term care.",
+    "authorId": "u5",
+    "category": "art",
+    "readTime": "8 min",
+    "publishedAt": "Apr 2, 2026"
+  },
+  {
+    "id": "a4",
+    "title": "Event Recap: Rooftop Letters + Lantern Night",
+    "excerpt": "Highlights, photos, and participant reflections from last weekend's open-mic and letter exchange.",
+    "authorId": "u6",
+    "category": "events",
+    "readTime": "5 min",
+    "publishedAt": "Mar 30, 2026"
+  }
+]

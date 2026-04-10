@@ -1,0 +1,58 @@
+[
+  {
+    "id": "r1",
+    "source": "u1",
+    "target": "u2",
+    "type": "friends",
+    "note": "Met through community radio"
+  },
+  {
+    "id": "r2",
+    "source": "u1",
+    "target": "u3",
+    "type": "collaborators",
+    "note": "Worked on two short-film sets"
+  },
+  {
+    "id": "r3",
+    "source": "u2",
+    "target": "u4",
+    "type": "friends",
+    "note": "Hosts open writing nights together"
+  },
+  {
+    "id": "r4",
+    "source": "u3",
+    "target": "u5",
+    "type": "roommates",
+    "note": "Share a studio loft"
+  },
+  {
+    "id": "r5",
+    "source": "u4",
+    "target": "u6",
+    "type": "crushes",
+    "note": "Flirty text thread, still undefined"
+  },
+  {
+    "id": "r6",
+    "source": "u2",
+    "target": "u3",
+    "type": "exes",
+    "note": "Ended kindly, still close"
+  },
+  {
+    "id": "r7",
+    "source": "u5",
+    "target": "u6",
+    "type": "collaborators",
+    "note": "Co-host the oral history booth"
+  },
+  {
+    "id": "r8",
+    "source": "u1",
+    "target": "u6",
+    "type": "mentors",
+    "note": "Monthly planning check-ins"
+  }
+]

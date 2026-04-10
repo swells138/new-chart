@@ -1,0 +1,92 @@
+[
+  {
+    "id": "u1",
+    "name": "Mara Sol",
+    "handle": "marasol",
+    "pronouns": "she/they",
+    "bio": "Community radio host, analog photo collector, and brunch playlist obsessive.",
+    "interests": ["zines", "city biking", "synth pop"],
+    "relationshipStatus": "single",
+    "location": "North Harbor",
+    "links": {
+      "website": "https://example.com/mara",
+      "social": "@marasol"
+    },
+    "featured": true
+  },
+  {
+    "id": "u2",
+    "name": "Rey Navarro",
+    "handle": "reynotes",
+    "pronouns": "they/them",
+    "bio": "Poet, barista, and organizer of tiny living-room film nights.",
+    "interests": ["poetry", "slow cinema", "espresso"],
+    "relationshipStatus": "seeing someone",
+    "location": "River District",
+    "links": {
+      "website": "https://example.com/rey",
+      "social": "@reynotes"
+    },
+    "featured": true
+  },
+  {
+    "id": "u3",
+    "name": "Ivy Mercer",
+    "handle": "ivyframes",
+    "pronouns": "she/her",
+    "bio": "Freelance set designer building dreamy spaces from thrifted treasures.",
+    "interests": ["set design", "thrifting", "indie rock"],
+    "relationshipStatus": "complicated",
+    "location": "Old Quarter",
+    "links": {
+      "website": "https://example.com/ivy",
+      "social": "@ivyframes"
+    },
+    "featured": true
+  },
+  {
+    "id": "u4",
+    "name": "Noa Kline",
+    "handle": "nokline",
+    "pronouns": "he/they",
+    "bio": "Tattoo apprentice with a soft spot for maximalist cookbooks and rooftop gardens.",
+    "interests": ["tattoo art", "gardening", "supper clubs"],
+    "relationshipStatus": "single",
+    "location": "West Hills",
+    "links": {
+      "website": "https://example.com/noa",
+      "social": "@nokline"
+    },
+    "featured": false
+  },
+  {
+    "id": "u5",
+    "name": "Jules Vance",
+    "handle": "julesv",
+    "pronouns": "they/she",
+    "bio": "Audio engineer and night-walk diarist. Known for perfecting cozy show flyers.",
+    "interests": ["audio", "flyer design", "late-night walks"],
+    "relationshipStatus": "single",
+    "location": "East Market",
+    "links": {
+      "website": "https://example.com/jules",
+      "social": "@julesv"
+    },
+    "featured": false
+  },
+  {
+    "id": "u6",
+    "name": "Dani Park",
+    "handle": "danipark",
+    "pronouns": "she/her",
+    "bio": "Frequent host of maker nights and keeper of the neighborhood events calendar.",
+    "interests": ["event planning", "DIY", "urban sketching"],
+    "relationshipStatus": "partnered",
+    "location": "Sunset Row",
+    "links": {
+      "website": "https://example.com/dani",
+      "social": "@danipark"
+    },
+    "featured": false
+  }
+]

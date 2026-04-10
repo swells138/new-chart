@@ -1,0 +1,56 @@
+[
+  {
+    "id": "p1",
+    "userId": "u1",
+    "content": "Opened my old film contact sheets and found photos from our first rooftop reading. Should we do a reunion night?",
+    "timestamp": "2h ago",
+    "tags": ["memories", "film", "community"],
+    "likes": 41,
+    "comments": 9
+  },
+  {
+    "id": "p2",
+    "userId": "u2",
+    "content": "Tonight's writing prompt: describe a room that changed your life in seven lines or less.",
+    "timestamp": "4h ago",
+    "tags": ["poetry", "writingclub"],
+    "likes": 58,
+    "comments": 16
+  },
+  {
+    "id": "p3",
+    "userId": "u3",
+    "content": "Making a neon-and-lace set for a local short film. Looking for old desk lamps and odd wallpaper scraps.",
+    "timestamp": "7h ago",
+    "tags": ["setdesign", "collab", "film"],
+    "likes": 33,
+    "comments": 12
+  },
+  {
+    "id": "p4",
+    "userId": "u4",
+    "content": "Finished my first apprentice flash sheet. Very proud, very nervous, taking celebratory soup suggestions.",
+    "timestamp": "10h ago",
+    "tags": ["tattoo", "milestone"],
+    "likes": 64,
+    "comments": 20
+  },
+  {
+    "id": "p5",
+    "userId": "u5",
+    "content": "Recorded six voices for the oral-history booth. Editing this weekend if anyone wants to help with transcripts.",
+    "timestamp": "1d ago",
+    "tags": ["audio", "history", "volunteer"],
+    "likes": 29,
+    "comments": 7
+  },
+  {
+    "id": "p6",
+    "userId": "u6",
+    "content": "Updated the event wall with spring dates. RSVP links are live and yes, there will be snacks.",
+    "timestamp": "1d ago",
+    "tags": ["events", "planning"],
+    "likes": 48,
+    "comments": 11
+  }
+]
