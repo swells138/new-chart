@@ -17,6 +17,63 @@ const relationshipTypes: RelationshipType[] = [
   "mentors",
 ];
 
+type ApprovalStatus = "approved" | "pending";
+
+const metaPrefix = "[[meta:";
+const metaSuffix = "]]";
+
+interface RelationshipMeta {
+  status: ApprovalStatus;
+  requesterId: string;
+  responderId: string;
+}
+
+function parseRelationshipNote(input: string | null | undefined): {
+  meta: RelationshipMeta | null;
+  note: string;
+} {
+  const raw = input ?? "";
+
+  if (!raw.startsWith(metaPrefix)) {
+    return { meta: null, note: raw.trim() };
+  }
+
+  const endIndex = raw.indexOf(metaSuffix);
+  if (endIndex === -1) {
+    return { meta: null, note: raw.trim() };
+  }
+
+  const metadataText = raw.slice(metaPrefix.length, endIndex);
+  const note = raw.slice(endIndex + metaSuffix.length).trim();
+
+  try {
+    const parsed = JSON.parse(metadataText) as Partial<RelationshipMeta>;
+    if (
+      (parsed.status === "approved" || parsed.status === "pending") &&
+      typeof parsed.requesterId === "string" &&
+      typeof parsed.responderId === "string"
+    ) {
+      return {
+        meta: {
+          status: parsed.status,
+          requesterId: parsed.requesterId,
+          responderId: parsed.responderId,
+        },
+        note,
+      };
+    }
+  } catch {
+    return { meta: null, note: raw.trim() };
+  }
+
+  return { meta: null, note: raw.trim() };
+}
+
+function buildRelationshipNote(meta: RelationshipMeta, note: string) {
+  const cleanNote = note.trim();
+  return `${metaPrefix}${JSON.stringify(meta)}${metaSuffix}${cleanNote ? ` ${cleanNote}` : ""}`;
+}
+
 function normalizeRelationship(relationship: {
   id: string;
   user1Id: string;
@@ -45,19 +102,33 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
 
   const clerk = await currentUser();
   const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-  const email = clerk?.emailAddresses?.[0]?.emailAddress;
 
-  const created = await prisma.user.create({
-    data: {
-      clerkId,
-      name: fullName || clerk?.username || "New member",
-      email,
-      handle: clerk?.username || null,
-    },
-    select: { id: true },
-  });
+  try {
+    const created = await prisma.user.create({
+      data: {
+        clerkId,
+        name: fullName || clerk?.username || "New member",
+      },
+      select: { id: true },
+    });
 
-  return created.id;
+    return created.id;
+  } catch (error) {
+    const prismaError = error as { code?: string };
+
+    if (prismaError.code === "P2002") {
+      const retry = await prisma.user.findUnique({
+        where: { clerkId },
+        select: { id: true },
+      });
+
+      if (retry) {
+        return retry.id;
+      }
+    }
+
+    throw error;
+  }
 }
 
 async function getAuthenticatedDbUserId() {
@@ -114,6 +185,8 @@ export async function POST(request: Request) {
   }
 
   const [user1Id, user2Id] = [source, target].sort();
+  const requesterId = currentDbUserId;
+  const responderId = source === currentDbUserId ? target : source;
 
   const users = await prisma.user.findMany({
     where: {
@@ -145,7 +218,14 @@ export async function POST(request: Request) {
         user1Id,
         user2Id,
         type,
-        ...(note ? { note } : {}),
+        note: buildRelationshipNote(
+          {
+            status: "pending",
+            requesterId,
+            responderId,
+          },
+          note
+        ),
       },
     });
 
@@ -174,18 +254,16 @@ export async function PATCH(request: Request) {
     id?: unknown;
     type?: unknown;
     note?: unknown;
+    action?: unknown;
   };
 
   const id = typeof payload.id === "string" ? payload.id.trim() : "";
   const type = typeof payload.type === "string" ? payload.type.trim() : "";
   const note = typeof payload.note === "string" ? payload.note.trim() : undefined;
+  const action = typeof payload.action === "string" ? payload.action.trim() : "";
 
   if (!id) {
     return NextResponse.json({ error: "A relationship id is required." }, { status: 400 });
-  }
-
-  if (!type || !relationshipTypes.includes(type as RelationshipType)) {
-    return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
   }
 
   const existing = await prisma.relationship.findUnique({
@@ -203,12 +281,80 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const parsed = parseRelationshipNote(existing.note);
+  const meta =
+    parsed.meta ??
+    ({
+      status: "approved",
+      requesterId: existing.user1Id,
+      responderId: existing.user2Id,
+    } as RelationshipMeta);
+
+  if (meta.status === "pending") {
+    if (action === "approve") {
+      if (currentDbUserId !== meta.responderId) {
+        return NextResponse.json(
+          { error: "Only the invited user can approve this connection." },
+          { status: 403 }
+        );
+      }
+
+      const nextType = type || existing.type;
+      if (!relationshipTypes.includes(nextType as RelationshipType)) {
+        return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
+      }
+
+      try {
+        const updated = await prisma.relationship.update({
+          where: { id },
+          data: {
+            type: nextType,
+            note: buildRelationshipNote(
+              {
+                ...meta,
+                status: "approved",
+              },
+              note ?? parsed.note
+            ),
+          },
+        });
+
+        return NextResponse.json({ relationship: normalizeRelationship(updated) });
+      } catch (error) {
+        console.error("Failed to approve relationship", error);
+        return NextResponse.json({ error: "Failed to approve relationship." }, { status: 500 });
+      }
+    }
+
+    if (action === "reject") {
+      if (currentDbUserId !== meta.responderId && currentDbUserId !== meta.requesterId) {
+        return NextResponse.json(
+          { error: "You cannot decline this connection request." },
+          { status: 403 }
+        );
+      }
+
+      await prisma.relationship.delete({ where: { id } });
+      return NextResponse.json({ deleted: true, id });
+    }
+
+    return NextResponse.json(
+      { error: "Pending connections must be approved or declined." },
+      { status: 400 }
+    );
+  }
+
+  const nextType = type || existing.type;
+  if (!relationshipTypes.includes(nextType as RelationshipType)) {
+    return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
+  }
+
   try {
     const updated = await prisma.relationship.update({
       where: { id },
       data: {
-        type,
-        ...(note !== undefined ? { note } : {}),
+        type: nextType,
+        ...(note !== undefined ? { note: buildRelationshipNote(meta, note) } : {}),
       },
     });
 

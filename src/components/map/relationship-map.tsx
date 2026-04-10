@@ -33,6 +33,61 @@ interface Props {
   currentUserId: string | null;
 }
 
+type ApprovalStatus = "approved" | "pending";
+
+const metaPrefix = "[[meta:";
+const metaSuffix = "]]";
+
+function parseRelationshipNote(input: string): {
+  status: ApprovalStatus;
+  requesterId: string | null;
+  responderId: string | null;
+  note: string;
+} {
+  const raw = input ?? "";
+
+  if (!raw.startsWith(metaPrefix)) {
+    return {
+      status: "approved",
+      requesterId: null,
+      responderId: null,
+      note: raw,
+    };
+  }
+
+  const endIndex = raw.indexOf(metaSuffix);
+  if (endIndex === -1) {
+    return {
+      status: "approved",
+      requesterId: null,
+      responderId: null,
+      note: raw,
+    };
+  }
+
+  try {
+    const meta = JSON.parse(raw.slice(metaPrefix.length, endIndex)) as {
+      status?: string;
+      requesterId?: string;
+      responderId?: string;
+    };
+
+    return {
+      status: meta.status === "pending" ? "pending" : "approved",
+      requesterId: typeof meta.requesterId === "string" ? meta.requesterId : null,
+      responderId: typeof meta.responderId === "string" ? meta.responderId : null,
+      note: raw.slice(endIndex + metaSuffix.length).trim(),
+    };
+  } catch {
+    return {
+      status: "approved",
+      requesterId: null,
+      responderId: null,
+      note: raw,
+    };
+  }
+}
+
 export function RelationshipMap({ users, relationships, currentUserId }: Props) {
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "friends",
@@ -52,6 +107,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
   const [editingType, setEditingType] = useState<RelationshipType>("friends");
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
 
   useEffect(() => {
     setAllRelationships(relationships);
@@ -84,9 +140,14 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
     [activeTypes, allRelationships]
   );
 
+  const graphRelationships = useMemo(
+    () => filteredRelationships.filter((item) => parseRelationshipNote(item.note).status === "approved"),
+    [filteredRelationships]
+  );
+
   const mappedEdges: Edge[] = useMemo(
     () =>
-      filteredRelationships.map((item) => ({
+      graphRelationships.map((item) => ({
         id: item.id,
         source: item.source,
         target: item.target,
@@ -101,7 +162,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
           textTransform: "uppercase",
         },
       })),
-    [filteredRelationships]
+    [graphRelationships]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
@@ -171,26 +232,29 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
 
       setAllRelationships((prev) => [...prev, relationship]);
       setSelectedId(connection.source);
-      setEdges((prev) =>
-        addEdge(
-          {
-            id: relationship.id,
-            source: relationship.source,
-            target: relationship.target,
-            label: relationship.type,
-            style: {
-              stroke: relationColors[relationship.type],
-              strokeWidth: 2,
+
+      if (parseRelationshipNote(relationship.note).status === "approved") {
+        setEdges((prev) =>
+          addEdge(
+            {
+              id: relationship.id,
+              source: relationship.source,
+              target: relationship.target,
+              label: relationship.type,
+              style: {
+                stroke: relationColors[relationship.type],
+                strokeWidth: 2,
+              },
+              labelStyle: {
+                fontSize: 10,
+                fill: relationColors[relationship.type],
+                textTransform: "uppercase",
+              },
             },
-            labelStyle: {
-              fontSize: 10,
-              fill: relationColors[relationship.type],
-              textTransform: "uppercase",
-            },
-          },
-          prev
-        )
-      );
+            prev
+          )
+        );
+      }
     } catch (error) {
       console.error(error);
       setConnectionError("Could not create that connection.");
@@ -200,9 +264,10 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
   }
 
   function startEditing(item: Relationship) {
+    const parsed = parseRelationshipNote(item.note);
     setEditingRelationshipId(item.id);
     setEditingType(item.type);
-    setEditingNote(item.note);
+    setEditingNote(parsed.note);
     setConnectionError(null);
   }
 
@@ -247,6 +312,49 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
       setConnectionError("Could not update that connection.");
     } finally {
       setIsSavingEdit(false);
+    }
+  }
+
+  async function respondToConnection(id: string, action: "approve" | "reject") {
+    setIsRespondingId(id);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, action }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        deleted?: boolean;
+        relationship?: Relationship;
+        id?: string;
+      };
+
+      if (!response.ok) {
+        setConnectionError(body.error ?? "Could not update the request.");
+        return;
+      }
+
+      if (body.deleted && body.id) {
+        setAllRelationships((prev) => prev.filter((item) => item.id !== body.id));
+        return;
+      }
+
+      if (body.relationship) {
+        setAllRelationships((prev) =>
+          prev.map((item) => (item.id === body.relationship?.id ? body.relationship : item))
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not update the request.");
+    } finally {
+      setIsRespondingId(null);
     }
   }
 
@@ -349,8 +457,11 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
               {selectedConnections.map((item) => {
                 const targetId = item.source === selectedUser.id ? item.target : item.source;
                 const target = users.find((user) => user.id === targetId);
+                const parsed = parseRelationshipNote(item.note);
                 const canEdit = Boolean(
-                  currentUserId && (item.source === currentUserId || item.target === currentUserId)
+                  currentUserId &&
+                    parsed.status === "approved" &&
+                    (item.source === currentUserId || item.target === currentUserId)
                 );
                 const isEditing = editingRelationshipId === item.id;
 
@@ -399,7 +510,12 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
                     ) : (
                       <>
                         <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
-                        <p className="mt-1 text-xs text-black/65 dark:text-white/75">{item.note}</p>
+                        <p className="mt-1 text-xs text-black/65 dark:text-white/75">{parsed.note}</p>
+                        {parsed.status === "pending" ? (
+                          <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            Pending approval
+                          </p>
+                        ) : null}
                         {canEdit ? (
                           <button
                             type="button"
@@ -408,6 +524,30 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
                           >
                             Edit connection
                           </button>
+                        ) : null}
+                        {currentUserId && parsed.status === "pending" ? (
+                          <div className="mt-2 flex gap-2">
+                            {parsed.responderId === currentUserId ? (
+                              <button
+                                type="button"
+                                onClick={() => respondToConnection(item.id, "approve")}
+                                disabled={isRespondingId === item.id}
+                                className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                              >
+                                Approve
+                              </button>
+                            ) : null}
+                            {(parsed.responderId === currentUserId || parsed.requesterId === currentUserId) ? (
+                              <button
+                                type="button"
+                                onClick={() => respondToConnection(item.id, "reject")}
+                                disabled={isRespondingId === item.id}
+                                className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                              >
+                                {parsed.responderId === currentUserId ? "Decline" : "Cancel"}
+                              </button>
+                            ) : null}
+                          </div>
                         ) : null}
                       </>
                     )}

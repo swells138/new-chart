@@ -27,14 +27,11 @@ export default async function MapPage() {
       } else {
         const clerk = await currentUser();
         const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-        const email = clerk?.emailAddresses?.[0]?.emailAddress;
 
         const created = await prisma.user.create({
           data: {
             clerkId: userId,
             name: fullName || clerk?.username || "New member",
-            email,
-            handle: clerk?.username || null,
           },
           select: { id: true },
         });
