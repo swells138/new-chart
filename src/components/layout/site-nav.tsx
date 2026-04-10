@@ -6,6 +6,13 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+} from "@clerk/nextjs";
 
 const links = [
   { href: "/", label: "Home" },
@@ -52,6 +59,23 @@ export function SiteNav() {
               </Link>
             ))}
             <ThemeToggle />
+            <div className="ml-2 flex items-center gap-2 border-l border-[var(--border-soft)] pl-3">
+              <SignedOut>
+                <SignInButton mode="redirect">
+                  <button className="rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30">
+                    Sign in
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="redirect">
+                  <button className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95">
+                    Join
+                  </button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
@@ -84,6 +108,32 @@ export function SiteNav() {
                 {link.label}
               </Link>
             ))}
+            <div className="border-t border-[var(--border-soft)] pt-2">
+              <SignedOut>
+                <SignInButton mode="redirect">
+                  <button
+                    onClick={() => setMenuOpen(false)}
+                    className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30"
+                  >
+                    Sign in
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="redirect">
+                  <button
+                    onClick={() => setMenuOpen(false)}
+                    className="mt-1 block w-full rounded-xl bg-[var(--accent)] px-3 py-2 text-left text-sm font-semibold text-white transition hover:brightness-95"
+                  >
+                    Join — create account
+                  </button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <UserButton afterSignOutUrl="/" />
+                  <span className="text-sm font-semibold">My account</span>
+                </div>
+              </SignedIn>
+            </div>
           </div>
         )}
       </nav>
