@@ -19,6 +19,7 @@ import { Avatar } from "@/components/ui/avatar";
 
 const relationColors: Record<RelationshipType, string> = {
   friends: "#66b6a7",
+  married: "#e85d8d",
   exes: "#ff8f84",
   collaborators: "#7aa2ff",
   roommates: "#ffbb6f",
@@ -29,11 +30,13 @@ const relationColors: Record<RelationshipType, string> = {
 interface Props {
   users: User[];
   relationships: Relationship[];
+  currentUserId: string | null;
 }
 
-export function RelationshipMap({ users, relationships }: Props) {
+export function RelationshipMap({ users, relationships, currentUserId }: Props) {
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "friends",
+    "married",
     "exes",
     "collaborators",
     "roommates",
@@ -45,6 +48,10 @@ export function RelationshipMap({ users, relationships }: Props) {
   const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
+  const [editingType, setEditingType] = useState<RelationshipType>("friends");
+  const [editingNote, setEditingNote] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
     setAllRelationships(relationships);
@@ -129,6 +136,11 @@ export function RelationshipMap({ users, relationships }: Props) {
       return;
     }
 
+    if (!currentUserId || (connection.source !== currentUserId && connection.target !== currentUserId)) {
+      setConnectionError("You can only create connections that include your own profile.");
+      return;
+    }
+
     setIsConnecting(true);
     setConnectionError(null);
 
@@ -187,6 +199,57 @@ export function RelationshipMap({ users, relationships }: Props) {
     }
   }
 
+  function startEditing(item: Relationship) {
+    setEditingRelationshipId(item.id);
+    setEditingType(item.type);
+    setEditingNote(item.note);
+    setConnectionError(null);
+  }
+
+  function cancelEditing() {
+    setEditingRelationshipId(null);
+    setEditingNote("");
+  }
+
+  async function saveRelationshipEdit(id: string) {
+    setIsSavingEdit(true);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          type: editingType,
+          note: editingNote,
+        }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        relationship?: Relationship;
+      };
+
+      if (!response.ok || !body.relationship) {
+        setConnectionError(body.error ?? "Could not update that connection.");
+        return;
+      }
+
+      const updated = body.relationship;
+
+      setAllRelationships((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setEditingRelationshipId(null);
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not update that connection.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
   const selectedUser = users.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId
@@ -235,6 +298,11 @@ export function RelationshipMap({ users, relationships }: Props) {
         <p className="mb-3 text-xs text-black/65 dark:text-white/70">
           Drag from one node handle to another to create a new connection.
         </p>
+        {currentUserId ? null : (
+          <p className="mb-3 text-xs text-black/65 dark:text-white/70">
+            Sign in to create and edit your own connections.
+          </p>
+        )}
         {connectionError ? (
           <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
         ) : null}
@@ -281,11 +349,68 @@ export function RelationshipMap({ users, relationships }: Props) {
               {selectedConnections.map((item) => {
                 const targetId = item.source === selectedUser.id ? item.target : item.source;
                 const target = users.find((user) => user.id === targetId);
+                const canEdit = Boolean(
+                  currentUserId && (item.source === currentUserId || item.target === currentUserId)
+                );
+                const isEditing = editingRelationshipId === item.id;
+
                 return (
                   <div key={item.id} className="rounded-xl border border-[var(--border-soft)] p-3">
                     <p className="font-semibold">{target?.name}</p>
-                    <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
-                    <p className="mt-1 text-xs text-black/65 dark:text-white/75">{item.note}</p>
+                    {isEditing ? (
+                      <>
+                        <select
+                          value={editingType}
+                          onChange={(event) => setEditingType(event.target.value as RelationshipType)}
+                          className="mt-1 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs uppercase tracking-wide outline-none"
+                        >
+                          {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={editingNote}
+                          onChange={(event) => setEditingNote(event.target.value)}
+                          rows={2}
+                          className="mt-2 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs outline-none"
+                          placeholder="Add a note"
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => saveRelationshipEdit(item.id)}
+                            disabled={isSavingEdit}
+                            className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                          >
+                            {isSavingEdit ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditing}
+                            disabled={isSavingEdit}
+                            className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
+                        <p className="mt-1 text-xs text-black/65 dark:text-white/75">{item.note}</p>
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => startEditing(item)}
+                            className="mt-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                          >
+                            Edit connection
+                          </button>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 );
               })}

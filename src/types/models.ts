@@ -1,5 +1,6 @@
 export type RelationshipType =
   | "friends"
+  | "married"
   | "exes"
   | "collaborators"
   | "roommates"
