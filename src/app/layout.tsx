@@ -21,7 +21,7 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Signal Bloom",
+  title: "Meshy Links",
   description:
     "An original community-centered social platform concept focused on connections, stories, and shared creativity.",
 };

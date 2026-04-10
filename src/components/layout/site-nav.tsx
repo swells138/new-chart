@@ -27,11 +27,11 @@ export function SiteNav() {
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)]/90 text-lg font-bold text-white shadow-sm transition group-hover:rotate-6">
-              SB
+              ML
             </div>
             <div>
               {/* Customize this brand name/tagline for your own project identity. */}
-              <p className="text-base leading-none font-semibold">Signal Bloom</p>
+              <p className="text-base leading-none font-semibold">Meshy Links</p>
               <p className="script text-lg leading-none text-[var(--accent)]">community web</p>
             </div>
           </Link>
