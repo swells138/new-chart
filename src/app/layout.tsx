@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Caveat, Nunito, Playfair_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { SiteNav } from "@/components/layout/site-nav";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -20,7 +21,7 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Signal Bloom",
+  title: "Meshy Links",
   description:
     "An original community-centered social platform concept focused on connections, stories, and shared creativity.",
 };
@@ -46,6 +47,7 @@ export default function RootLayout({
             <SiteNav />
             <main className="pt-8">{children}</main>
           </div>
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>

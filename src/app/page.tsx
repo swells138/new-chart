@@ -21,7 +21,7 @@ export default function Home() {
           A softer web for chosen family.
         </p>
         <h1 className="mt-4 max-w-3xl text-4xl leading-tight font-semibold sm:text-6xl">
-          Signal Bloom is where friendships, stories, and messy lines between us come alive.
+          Meshy Links is where friendships, stories, and messy lines between us come alive.
         </h1>
         <p className="mt-5 max-w-2xl text-lg text-black/70 dark:text-white/80">
           Explore profiles, publish updates, trace connection arcs, and keep the community pulse close.

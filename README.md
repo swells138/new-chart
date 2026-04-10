@@ -1,4 +1,4 @@
-# Signal Bloom (Starter Workspace)
+# Meshy Links (Starter Workspace)
 
 Original social-community concept app built with Next.js App Router, React, Tailwind CSS, and TypeScript.
 
