@@ -151,6 +151,11 @@ export async function getMemberDirectoryData(): Promise<{
   };
 }
 
+export async function getAllRelationships(): Promise<Relationship[]> {
+  const relationships = await prisma.relationship.findMany();
+  return relationships.map(normalizeRelationship);
+}
+
 // ===== USERS =====
 
 export async function getAllUsers(): Promise<User[]> {

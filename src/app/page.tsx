@@ -1,11 +1,25 @@
 import Link from "next/link";
-import { users, posts, articles, relationships } from "@/lib/data";
 import { MemberCard } from "@/components/cards/member-card";
 import { PostCard } from "@/components/cards/post-card";
 import { ArticleCard } from "@/components/cards/article-card";
 import { SectionHeader } from "@/components/ui/section-header";
+import {
+  getAllArticles,
+  getAllPosts,
+  getAllRelationships,
+  getAllUsers,
+} from "@/lib/prisma-queries";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const [users, posts, articles, relationships] = await Promise.all([
+    getAllUsers(),
+    getAllPosts(),
+    getAllArticles(),
+    getAllRelationships(),
+  ]);
+
   const featuredMembers = users.filter((user) => user.featured).slice(0, 3);
   const featuredPosts = posts.slice(0, 3);
   const featuredStories = articles.slice(0, 2);
@@ -95,9 +109,11 @@ export default function Home() {
               Explore full map
             </Link>
           </div>
-          {featuredStories.map((story) => (
-            <ArticleCard key={story.id} article={story} compact />
-          ))}
+          {featuredStories.map((story) => {
+            const author = userById.get(story.authorId);
+
+            return <ArticleCard key={story.id} article={story} compact authorName={author?.name} />;
+          })}
         </aside>
       </section>
     </div>
