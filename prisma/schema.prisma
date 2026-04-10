@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Sync with Clerk user records
+model User {
+  id              String    @id @default(cuid()) // App user ID
+  clerkId         String    @unique            // Clerk user ID
+  name            String?
+  handle          String?   @unique
+  email           String?   @unique
+  pronouns        String?
+  bio             String?
+  location        String?
+  interests       String[]  @default([]) // Array of interests
+  relationshipStatus String?
+  featured        Boolean   @default(false)
+  profileImage    String?   // Profile picture URL
+  links           Json?     // { website?: string; social?: string }
+  
+  // Relations
+  posts           Post[]
+  events          Event[]
+  articles        Article[]
+  sentMessages    Message[] @relation("Sender")
+  receivedMessages Message[] @relation("Recipient")
+  relationships   Relationship[] @relation("User1")
+  reverseRelationships Relationship[] @relation("User2")
+  eventAttendees  EventAttendee[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Post {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  timestamp DateTime  @default(now())
+  tags      String[]
+  likes     Int       @default(0)
+  comments  Int       @default(0)
+  updatedAt DateTime  @updatedAt
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  date        DateTime
+  location    String?
+  type        String?
+  createdBy   String
+  organizer   User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  attendees   EventAttendee[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model EventAttendee {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime  @default(now())
+  
+  @@unique([eventId, userId])
+}
+
+model Article {
+  id        String    @id @default(cuid())
+  title     String
+  excerpt   String?
+  content   String?
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category  String?
+  published Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  senderId    String
+  sender      User      @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User      @relation("Recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  content     String
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model Relationship {
+  id              String    @id @default(cuid())
+  user1Id         String
+  user1           User      @relation("User1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id         String
+  user2           User      @relation("User2", fields: [user2Id], references: [id], onDelete: Cascade)
+  type            String    // "friends" | "exes" | "collaborators" | "roommates" | "crushes" | "mentors"
+  note            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([user1Id, user2Id])
+}
