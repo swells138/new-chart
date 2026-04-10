@@ -35,6 +35,14 @@ function formatTimestamp(timestamp: Date) {
   }).format(timestamp);
 }
 
+interface ProfilePost {
+  id: string;
+  content: string;
+  timestamp: Date;
+  likes: number;
+  comments: number;
+}
+
 async function getOrCreateProfile(clerkId: string) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
@@ -116,7 +124,7 @@ export default async function ProfilePage() {
             </p>
           ) : (
             <div className="mt-3 space-y-2">
-              {user.posts.map((post) => (
+              {user.posts.map((post: ProfilePost) => (
                 <article key={post.id} className="rounded-xl border border-[var(--border-soft)] p-3 text-sm">
                   <p>{post.content}</p>
                   <p className="mt-2 text-xs text-black/60 dark:text-white/70">
