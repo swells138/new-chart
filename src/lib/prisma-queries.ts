@@ -84,7 +84,7 @@ function normalizeRelationship(relationship: {
   user1Id: string;
   user2Id: string;
   type: string;
-  note: string | null;
+  note?: string | null;
 }): Relationship {
   return {
     id: relationship.id,
