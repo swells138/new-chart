@@ -1,5 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { prisma } from "../src/lib/prisma";
+import articlesData from "../src/data/articles.json";
+import eventsData from "../src/data/events.json";
 import postsData from "../src/data/posts.json";
 import relationshipsData from "../src/data/relationships.json";
 import usersData from "../src/data/users.json";
@@ -21,6 +23,14 @@ function parseRelativeTimestamp(timestamp: string) {
   }
 
   return new Date(now);
+}
+
+function parseEventDate(date: string) {
+  return new Date(date.replace(" · ", " "));
+}
+
+function parseArticleDate(date: string) {
+  return new Date(date);
 }
 
 async function main() {
@@ -89,14 +99,58 @@ async function main() {
         user1Id: relationship.source,
         user2Id: relationship.target,
         type: relationship.type,
-        note: relationship.note,
       },
       create: {
         id: relationship.id,
         user1Id: relationship.source,
         user2Id: relationship.target,
         type: relationship.type,
-        note: relationship.note,
+      },
+    });
+  }
+
+  for (const event of eventsData) {
+    await prisma.event.upsert({
+      where: { id: event.id },
+      update: {
+        title: event.title,
+        description: event.description,
+        date: parseEventDate(event.date),
+        location: event.location,
+        type: event.type,
+        createdBy: usersData[0].id,
+      },
+      create: {
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        date: parseEventDate(event.date),
+        location: event.location,
+        type: event.type,
+        createdBy: usersData[0].id,
+      },
+    });
+  }
+
+  for (const article of articlesData) {
+    await prisma.article.upsert({
+      where: { id: article.id },
+      update: {
+        title: article.title,
+        excerpt: article.excerpt,
+        authorId: article.authorId,
+        category: article.category,
+        published: true,
+        createdAt: parseArticleDate(article.publishedAt),
+      },
+      create: {
+        id: article.id,
+        title: article.title,
+        excerpt: article.excerpt,
+        authorId: article.authorId,
+        category: article.category,
+        published: true,
+        createdAt: parseArticleDate(article.publishedAt),
       },
     });
   }
