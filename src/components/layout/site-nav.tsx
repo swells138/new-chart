@@ -21,6 +21,7 @@ const links = [
   { href: "/articles", label: "Articles" },
   { href: "/events", label: "Events" },
   { href: "/inbox", label: "Inbox" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export function SiteNav() {

@@ -9,6 +9,7 @@ export default function Home() {
   const featuredMembers = users.filter((user) => user.featured).slice(0, 3);
   const featuredPosts = posts.slice(0, 3);
   const featuredStories = articles.slice(0, 2);
+  const userById = new Map(users.map((user) => [user.id, user]));
 
   return (
     <div className="space-y-12 pb-8">
@@ -60,9 +61,12 @@ export default function Home() {
             title="Latest from the Feed"
             subtitle="Personal updates, tiny wins, and late-night thoughts."
           />
-          {featuredPosts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+          {featuredPosts.map((post) => {
+            const author = userById.get(post.userId);
+            if (!author) return null;
+
+            return <PostCard key={post.id} post={post} author={author} />;
+          })}
         </div>
         <aside className="space-y-4">
           <SectionHeader

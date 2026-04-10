@@ -251,12 +251,23 @@ export async function deletePost(id: string): Promise<void> {
 // ===== EVENTS =====
 
 export async function getAllEvents(): Promise<Event[]> {
-  const events = await prisma.event.findMany({
+  const events = (await prisma.event.findMany({
     orderBy: { date: "asc" },
     include: {
       _count: { select: { attendees: true } },
     },
-  });
+  })) as Array<{
+    id: string;
+    title: string;
+    date: Date;
+    location: string | null;
+    description: string | null;
+    type: string | null;
+    _count: {
+      attendees: number;
+    };
+  }>;
+
   return events.map((event) => normalizeEvent(event, event._count.attendees));
 }
 

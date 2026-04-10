@@ -1,9 +1,14 @@
 import { MemberCard } from "@/components/cards/member-card";
 import { PostCard } from "@/components/cards/post-card";
 import { SectionHeader } from "@/components/ui/section-header";
-import { posts, users } from "@/lib/data";
+import { getAllPosts, getAllUsers } from "@/lib/prisma-queries";
 
-export default function FeedPage() {
+export const dynamic = "force-dynamic";
+
+export default async function FeedPage() {
+  const [posts, users] = await Promise.all([getAllPosts(), getAllUsers()]);
+  const userById = new Map(users.map((user) => [user.id, user]));
+
   const tagCounts = posts
     .flatMap((post) => post.tags)
     .reduce<Record<string, number>>((acc, tag) => {
@@ -24,9 +29,12 @@ export default function FeedPage() {
           title="Community Feed"
           subtitle="The pulse of daily updates, conversations, and collaborative sparks."
         />
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
-        ))}
+        {posts.map((post) => {
+          const author = userById.get(post.userId);
+          if (!author) return null;
+
+          return <PostCard key={post.id} post={post} author={author} />;
+        })}
       </section>
 
       <aside className="space-y-4">
