@@ -1,15 +1,19 @@
 "use client";
 
 import {
+  addEdge,
   Background,
+  type Connection,
   Controls,
   MiniMap,
   ReactFlow,
   type Edge,
   type Node,
+  useEdgesState,
+  useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -37,13 +41,16 @@ export function RelationshipMap({ users, relationships }: Props) {
     "mentors",
   ]);
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
+  const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
+  const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  const filteredRelationships = useMemo(
-    () => relationships.filter((item) => activeTypes.includes(item.type)),
-    [activeTypes, relationships]
-  );
+  useEffect(() => {
+    setAllRelationships(relationships);
+  }, [relationships]);
 
-  const nodes: Node[] = useMemo(
+  const mappedNodes: Node[] = useMemo(
     () =>
       users.map((user, index) => ({
         id: user.id,
@@ -65,7 +72,12 @@ export function RelationshipMap({ users, relationships }: Props) {
     [users]
   );
 
-  const edges: Edge[] = useMemo(
+  const filteredRelationships = useMemo(
+    () => allRelationships.filter((item) => activeTypes.includes(item.type)),
+    [activeTypes, allRelationships]
+  );
+
+  const mappedEdges: Edge[] = useMemo(
     () =>
       filteredRelationships.map((item) => ({
         id: item.id,
@@ -85,6 +97,94 @@ export function RelationshipMap({ users, relationships }: Props) {
     [filteredRelationships]
   );
 
+  const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(mappedEdges);
+
+  useEffect(() => {
+    setNodes(mappedNodes);
+  }, [mappedNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(mappedEdges);
+  }, [mappedEdges, setEdges]);
+
+  async function onConnect(connection: Connection) {
+    if (!connection.source || !connection.target) {
+      return;
+    }
+
+    if (connection.source === connection.target) {
+      setConnectionError("A user cannot connect to themselves.");
+      return;
+    }
+
+    const duplicate = allRelationships.some(
+      (item) =>
+        (item.source === connection.source && item.target === connection.target) ||
+        (item.source === connection.target && item.target === connection.source)
+    );
+
+    if (duplicate) {
+      setConnectionError("These users are already connected.");
+      return;
+    }
+
+    setIsConnecting(true);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source: connection.source,
+          target: connection.target,
+          type: connectionType,
+        }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        relationship?: Relationship;
+      };
+
+      if (!response.ok || !body.relationship) {
+        setConnectionError(body.error ?? "Could not create that connection.");
+        return;
+      }
+
+      setAllRelationships((prev) => [...prev, body.relationship as Relationship]);
+      setSelectedId(connection.source);
+      setEdges((prev) =>
+        addEdge(
+          {
+            id: body.relationship.id,
+            source: body.relationship.source,
+            target: body.relationship.target,
+            label: body.relationship.type,
+            style: {
+              stroke: relationColors[body.relationship.type],
+              strokeWidth: 2,
+            },
+            labelStyle: {
+              fontSize: 10,
+              fill: relationColors[body.relationship.type],
+              textTransform: "uppercase",
+            },
+          },
+          prev
+        )
+      );
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not create that connection.");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
   const selectedUser = users.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId
@@ -94,6 +194,20 @@ export function RelationshipMap({ users, relationships }: Props) {
     <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
       <section className="paper-card rounded-2xl p-4">
         <div className="mb-3 flex flex-wrap gap-2">
+          <label className="mr-2 flex items-center gap-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+            <span>New link</span>
+            <select
+              value={connectionType}
+              onChange={(event) => setConnectionType(event.target.value as RelationshipType)}
+              className="bg-transparent text-[11px] outline-none"
+            >
+              {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
           {(Object.keys(relationColors) as RelationshipType[]).map((type) => {
             const active = activeTypes.includes(type);
             return (
@@ -116,14 +230,24 @@ export function RelationshipMap({ users, relationships }: Props) {
             );
           })}
         </div>
+        <p className="mb-3 text-xs text-black/65 dark:text-white/70">
+          Drag from one node handle to another to create a new connection.
+        </p>
+        {connectionError ? (
+          <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
+        ) : null}
         <div className="h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white/40 dark:bg-black/20">
           <ReactFlow
             nodes={nodes}
             edges={edges}
             fitView
             onNodeClick={(_, node) => setSelectedId(node.id)}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
             minZoom={0.4}
             maxZoom={1.8}
+            connectOnClick={false}
           >
             <MiniMap pannable zoomable />
             <Controls showInteractive={false} />
@@ -149,6 +273,9 @@ export function RelationshipMap({ users, relationships }: Props) {
 
             <div className="mt-5 space-y-2">
               <h4 className="text-sm font-semibold uppercase tracking-wide">Active connections</h4>
+              {isConnecting ? (
+                <p className="text-xs text-black/65 dark:text-white/70">Saving new connection...</p>
+              ) : null}
               {selectedConnections.map((item) => {
                 const targetId = item.source === selectedUser.id ? item.target : item.source;
                 const target = users.find((user) => user.id === targetId);
