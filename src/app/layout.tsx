@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import {
-  ClerkProvider,
-} from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Caveat, Nunito, Playfair_Display } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
@@ -52,6 +50,7 @@ export default function RootLayout({
                 <div className="hero-blob absolute -top-28 -left-12 h-72 w-72 rounded-full bg-[var(--blob-1)] blur-3xl" />
                 <div className="hero-blob absolute top-36 right-0 h-72 w-72 rounded-full bg-[var(--blob-2)] blur-3xl" />
               </div>
+              <SiteNav />
               <main className="pt-8">{children}</main>
             </div>
             <Analytics />
