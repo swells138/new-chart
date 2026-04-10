@@ -1,20 +1,25 @@
 "use client";
 
 import {
+  addEdge,
   Background,
+  type Connection,
   Controls,
   MiniMap,
   ReactFlow,
   type Edge,
   type Node,
+  useEdgesState,
+  useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 
 const relationColors: Record<RelationshipType, string> = {
   friends: "#66b6a7",
+  married: "#e85d8d",
   exes: "#ff8f84",
   collaborators: "#7aa2ff",
   roommates: "#ffbb6f",
@@ -25,11 +30,68 @@ const relationColors: Record<RelationshipType, string> = {
 interface Props {
   users: User[];
   relationships: Relationship[];
+  currentUserId: string | null;
 }
 
-export function RelationshipMap({ users, relationships }: Props) {
+type ApprovalStatus = "approved" | "pending";
+
+const metaPrefix = "[[meta:";
+const metaSuffix = "]]";
+
+function parseRelationshipNote(input: string): {
+  status: ApprovalStatus;
+  requesterId: string | null;
+  responderId: string | null;
+  note: string;
+} {
+  const raw = input ?? "";
+
+  if (!raw.startsWith(metaPrefix)) {
+    return {
+      status: "approved",
+      requesterId: null,
+      responderId: null,
+      note: raw,
+    };
+  }
+
+  const endIndex = raw.indexOf(metaSuffix);
+  if (endIndex === -1) {
+    return {
+      status: "approved",
+      requesterId: null,
+      responderId: null,
+      note: raw,
+    };
+  }
+
+  try {
+    const meta = JSON.parse(raw.slice(metaPrefix.length, endIndex)) as {
+      status?: string;
+      requesterId?: string;
+      responderId?: string;
+    };
+
+    return {
+      status: meta.status === "pending" ? "pending" : "approved",
+      requesterId: typeof meta.requesterId === "string" ? meta.requesterId : null,
+      responderId: typeof meta.responderId === "string" ? meta.responderId : null,
+      note: raw.slice(endIndex + metaSuffix.length).trim(),
+    };
+  } catch {
+    return {
+      status: "approved",
+      requesterId: null,
+      responderId: null,
+      note: raw,
+    };
+  }
+}
+
+export function RelationshipMap({ users, relationships, currentUserId }: Props) {
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "friends",
+    "married",
     "exes",
     "collaborators",
     "roommates",
@@ -37,13 +99,21 @@ export function RelationshipMap({ users, relationships }: Props) {
     "mentors",
   ]);
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
+  const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
+  const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
+  const [editingType, setEditingType] = useState<RelationshipType>("friends");
+  const [editingNote, setEditingNote] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
 
-  const filteredRelationships = useMemo(
-    () => relationships.filter((item) => activeTypes.includes(item.type)),
-    [activeTypes, relationships]
-  );
+  useEffect(() => {
+    setAllRelationships(relationships);
+  }, [relationships]);
 
-  const nodes: Node[] = useMemo(
+  const mappedNodes: Node[] = useMemo(
     () =>
       users.map((user, index) => ({
         id: user.id,
@@ -61,13 +131,24 @@ export function RelationshipMap({ users, relationships }: Props) {
           whiteSpace: "pre-line",
           fontSize: "12px",
         },
+        draggable: currentUserId ? user.id === currentUserId : false,
       })),
-    [users]
+    [users, currentUserId]
   );
 
-  const edges: Edge[] = useMemo(
+  const filteredRelationships = useMemo(
+    () => allRelationships.filter((item) => activeTypes.includes(item.type)),
+    [activeTypes, allRelationships]
+  );
+
+  const graphRelationships = useMemo(
+    () => filteredRelationships.filter((item) => parseRelationshipNote(item.note).status === "approved"),
+    [filteredRelationships]
+  );
+
+  const mappedEdges: Edge[] = useMemo(
     () =>
-      filteredRelationships.map((item) => ({
+      graphRelationships.map((item) => ({
         id: item.id,
         source: item.source,
         target: item.target,
@@ -82,8 +163,212 @@ export function RelationshipMap({ users, relationships }: Props) {
           textTransform: "uppercase",
         },
       })),
-    [filteredRelationships]
+    [graphRelationships]
   );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(mappedEdges);
+
+  useEffect(() => {
+    setNodes(mappedNodes);
+  }, [mappedNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(mappedEdges);
+  }, [mappedEdges, setEdges]);
+
+  async function onConnect(connection: Connection) {
+    if (!connection.source || !connection.target) {
+      return;
+    }
+
+    if (connection.source === connection.target) {
+      setConnectionError("A user cannot connect to themselves.");
+      return;
+    }
+
+    if (!currentUserId) {
+      setConnectionError("Sign in to create connections.");
+      return;
+    }
+
+    if (connection.source !== currentUserId) {
+      setConnectionError("You can only create connections from your own node.");
+      return;
+    }
+
+    if (connection.target === currentUserId) {
+      setConnectionError("Choose another member to connect with.");
+      return;
+    }
+
+    const duplicate = allRelationships.some(
+      (item) =>
+        (item.source === connection.source && item.target === connection.target) ||
+        (item.source === connection.target && item.target === connection.source)
+    );
+
+    if (duplicate) {
+      setConnectionError("These users are already connected.");
+      return;
+    }
+
+    setIsConnecting(true);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source: connection.source,
+          target: connection.target,
+          type: connectionType,
+        }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        relationship?: Relationship;
+      };
+
+      if (!response.ok || !body.relationship) {
+        setConnectionError(body.error ?? "Could not create that connection.");
+        return;
+      }
+
+      const relationship = body.relationship;
+
+      setAllRelationships((prev) => [...prev, relationship]);
+      setSelectedId(connection.source);
+
+      if (parseRelationshipNote(relationship.note).status === "approved") {
+        setEdges((prev) =>
+          addEdge(
+            {
+              id: relationship.id,
+              source: relationship.source,
+              target: relationship.target,
+              label: relationship.type,
+              style: {
+                stroke: relationColors[relationship.type],
+                strokeWidth: 2,
+              },
+              labelStyle: {
+                fontSize: 10,
+                fill: relationColors[relationship.type],
+                textTransform: "uppercase",
+              },
+            },
+            prev
+          )
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not create that connection.");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
+  function startEditing(item: Relationship) {
+    const parsed = parseRelationshipNote(item.note);
+    setEditingRelationshipId(item.id);
+    setEditingType(item.type);
+    setEditingNote(parsed.note);
+    setConnectionError(null);
+  }
+
+  function cancelEditing() {
+    setEditingRelationshipId(null);
+    setEditingNote("");
+  }
+
+  async function saveRelationshipEdit(id: string) {
+    setIsSavingEdit(true);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          type: editingType,
+          note: editingNote,
+          actorNodeId: currentUserId,
+        }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        relationship?: Relationship;
+      };
+
+      if (!response.ok || !body.relationship) {
+        setConnectionError(body.error ?? "Could not update that connection.");
+        return;
+      }
+
+      const updated = body.relationship;
+
+      setAllRelationships((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setEditingRelationshipId(null);
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not update that connection.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  async function respondToConnection(id: string, action: "approve" | "reject") {
+    setIsRespondingId(id);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, action, actorNodeId: currentUserId }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        deleted?: boolean;
+        relationship?: Relationship;
+        id?: string;
+      };
+
+      if (!response.ok) {
+        setConnectionError(body.error ?? "Could not update the request.");
+        return;
+      }
+
+      if (body.deleted && body.id) {
+        setAllRelationships((prev) => prev.filter((item) => item.id !== body.id));
+        return;
+      }
+
+      if (body.relationship) {
+        setAllRelationships((prev) =>
+          prev.map((item) => (item.id === body.relationship?.id ? body.relationship : item))
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not update the request.");
+    } finally {
+      setIsRespondingId(null);
+    }
+  }
 
   const selectedUser = users.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
@@ -94,6 +379,20 @@ export function RelationshipMap({ users, relationships }: Props) {
     <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
       <section className="paper-card rounded-2xl p-4">
         <div className="mb-3 flex flex-wrap gap-2">
+          <label className="mr-2 flex items-center gap-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+            <span>New link</span>
+            <select
+              value={connectionType}
+              onChange={(event) => setConnectionType(event.target.value as RelationshipType)}
+              className="bg-transparent text-[11px] outline-none"
+            >
+              {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
           {(Object.keys(relationColors) as RelationshipType[]).map((type) => {
             const active = activeTypes.includes(type);
             return (
@@ -116,14 +415,29 @@ export function RelationshipMap({ users, relationships }: Props) {
             );
           })}
         </div>
+        <p className="mb-3 text-xs text-black/65 dark:text-white/70">
+          Drag from one node handle to another to create a new connection.
+        </p>
+        {currentUserId ? null : (
+          <p className="mb-3 text-xs text-black/65 dark:text-white/70">
+            Sign in to create and edit your own connections.
+          </p>
+        )}
+        {connectionError ? (
+          <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
+        ) : null}
         <div className="h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white/40 dark:bg-black/20">
           <ReactFlow
             nodes={nodes}
             edges={edges}
             fitView
             onNodeClick={(_, node) => setSelectedId(node.id)}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
             minZoom={0.4}
             maxZoom={1.8}
+            connectOnClick={false}
           >
             <MiniMap pannable zoomable />
             <Controls showInteractive={false} />
@@ -149,14 +463,107 @@ export function RelationshipMap({ users, relationships }: Props) {
 
             <div className="mt-5 space-y-2">
               <h4 className="text-sm font-semibold uppercase tracking-wide">Active connections</h4>
+              {isConnecting ? (
+                <p className="text-xs text-black/65 dark:text-white/70">Saving new connection...</p>
+              ) : null}
               {selectedConnections.map((item) => {
                 const targetId = item.source === selectedUser.id ? item.target : item.source;
                 const target = users.find((user) => user.id === targetId);
+                const parsed = parseRelationshipNote(item.note);
+                const canEdit = Boolean(
+                  currentUserId &&
+                    selectedUser.id === currentUserId &&
+                    parsed.status === "approved" &&
+                    (item.source === currentUserId || item.target === currentUserId)
+                );
+                const isEditing = editingRelationshipId === item.id;
+
                 return (
                   <div key={item.id} className="rounded-xl border border-[var(--border-soft)] p-3">
                     <p className="font-semibold">{target?.name}</p>
-                    <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
-                    <p className="mt-1 text-xs text-black/65 dark:text-white/75">{item.note}</p>
+                    {isEditing ? (
+                      <>
+                        <select
+                          value={editingType}
+                          onChange={(event) => setEditingType(event.target.value as RelationshipType)}
+                          className="mt-1 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs uppercase tracking-wide outline-none"
+                        >
+                          {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={editingNote}
+                          onChange={(event) => setEditingNote(event.target.value)}
+                          rows={2}
+                          className="mt-2 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs outline-none"
+                          placeholder="Add a note"
+                        />
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => saveRelationshipEdit(item.id)}
+                            disabled={isSavingEdit}
+                            className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                          >
+                            {isSavingEdit ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditing}
+                            disabled={isSavingEdit}
+                            className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
+                        <p className="mt-1 text-xs text-black/65 dark:text-white/75">{parsed.note}</p>
+                        {parsed.status === "pending" ? (
+                          <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            Pending approval
+                          </p>
+                        ) : null}
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => startEditing(item)}
+                            className="mt-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                          >
+                            Edit connection
+                          </button>
+                        ) : null}
+                        {currentUserId && parsed.status === "pending" ? (
+                          <div className="mt-2 flex gap-2">
+                            {selectedUser.id === currentUserId && parsed.responderId === currentUserId ? (
+                              <button
+                                type="button"
+                                onClick={() => respondToConnection(item.id, "approve")}
+                                disabled={isRespondingId === item.id}
+                                className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                              >
+                                Approve
+                              </button>
+                            ) : null}
+                            {selectedUser.id === currentUserId && (parsed.responderId === currentUserId || parsed.requesterId === currentUserId) ? (
+                              <button
+                                type="button"
+                                onClick={() => respondToConnection(item.id, "reject")}
+                                disabled={isRespondingId === item.id}
+                                className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                              >
+                                {parsed.responderId === currentUserId ? "Decline" : "Cancel"}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 );
               })}
