@@ -2,6 +2,37 @@
 
 import { useState } from "react";
 
+const PRONOUN_OPTIONS = [
+  "She/Her",
+  "He/Him",
+  "They/Them",
+  "She/They",
+  "He/They",
+  "Any/All",
+  "Prefer not to say",
+];
+
+const LOCATION_OPTIONS = {
+  states: ["California", "Florida", "New York", "Texas", "Washington"],
+  cities: [
+    "Austin, TX",
+    "Chicago, IL",
+    "Los Angeles, CA",
+    "Miami, FL",
+    "New York City, NY",
+    "San Francisco, CA",
+    "Seattle, WA",
+  ],
+};
+
+function withCurrentOption(options: string[], currentValue: string) {
+  if (!currentValue || options.includes(currentValue)) {
+    return options;
+  }
+
+  return [currentValue, ...options];
+}
+
 export interface ProfileFormData {
   name: string;
   handle: string;
@@ -22,6 +53,12 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const pronounOptions = withCurrentOption(PRONOUN_OPTIONS, formData.pronouns);
+  const locationOptions = withCurrentOption(
+    [...LOCATION_OPTIONS.states, ...LOCATION_OPTIONS.cities],
+    formData.location
+  );
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -34,7 +71,10 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          handle: undefined,
+        }),
       });
 
       const body = (await response.json()) as { error?: string; profile?: ProfileFormData };
@@ -79,9 +119,10 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
           </span>
           <input
             value={formData.handle}
-            onChange={(event) => setFormData((prev) => ({ ...prev, handle: event.target.value }))}
             placeholder="your.handle"
-            className="w-full rounded-xl border border-[var(--border-soft)] bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] dark:bg-black/20"
+            readOnly
+            title="Username cannot be changed"
+            className="w-full cursor-not-allowed rounded-xl border border-[var(--border-soft)] bg-white/60 px-3 py-2 text-sm outline-none dark:bg-black/20"
           />
         </label>
 
@@ -89,22 +130,52 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
           <span className="text-xs font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
             Pronouns
           </span>
-          <input
+          <select
             value={formData.pronouns}
             onChange={(event) => setFormData((prev) => ({ ...prev, pronouns: event.target.value }))}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] dark:bg-black/20"
-          />
+          >
+            <option value="">Select pronouns</option>
+            {pronounOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="space-y-1">
           <span className="text-xs font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
             Location
           </span>
-          <input
+          <select
             value={formData.location}
             onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] dark:bg-black/20"
-          />
+          >
+            <option value="">Select location</option>
+            {locationOptions
+              .filter((option) => !LOCATION_OPTIONS.states.includes(option) && !LOCATION_OPTIONS.cities.includes(option))
+              .map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            <optgroup label="States">
+              {LOCATION_OPTIONS.states.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Cities">
+              {LOCATION_OPTIONS.cities.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </optgroup>
+          </select>
         </label>
 
         <label className="space-y-1 md:col-span-2">

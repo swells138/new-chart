@@ -6,6 +6,31 @@ const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
+const ALLOWED_PRONOUNS = new Set([
+  "She/Her",
+  "He/Him",
+  "They/Them",
+  "She/They",
+  "He/They",
+  "Any/All",
+  "Prefer not to say",
+]);
+
+const ALLOWED_LOCATIONS = new Set([
+  "California",
+  "Florida",
+  "New York",
+  "Texas",
+  "Washington",
+  "Austin, TX",
+  "Chicago, IL",
+  "Los Angeles, CA",
+  "Miami, FL",
+  "New York City, NY",
+  "San Francisco, CA",
+  "Seattle, WA",
+]);
+
 function normalizeInterests(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
 
@@ -121,7 +146,6 @@ export async function PATCH(request: Request) {
   };
 
   const name = typeof payload.name === "string" ? payload.name.trim() : undefined;
-  const handle = typeof payload.handle === "string" ? payload.handle.trim() : undefined;
   const pronouns = typeof payload.pronouns === "string" ? payload.pronouns.trim() : undefined;
   const bio = typeof payload.bio === "string" ? payload.bio.trim() : undefined;
   const location = typeof payload.location === "string" ? payload.location.trim() : undefined;
@@ -130,14 +154,16 @@ export async function PATCH(request: Request) {
   const interests = payload.interests !== undefined ? normalizeInterests(payload.interests) : undefined;
   const links = payload.links !== undefined ? normalizeLinks(payload.links) : undefined;
 
-  if (handle !== undefined && handle.length > 0 && !/^[a-zA-Z0-9_.-]{3,30}$/.test(handle)) {
-    return NextResponse.json(
-      {
-        error:
-          "Handle must be 3-30 chars and can only include letters, numbers, underscore, dot, or dash.",
-      },
-      { status: 400 }
-    );
+  if (payload.handle !== undefined) {
+    return NextResponse.json({ error: "Username cannot be changed." }, { status: 400 });
+  }
+
+  if (pronouns !== undefined && pronouns.length > 0 && !ALLOWED_PRONOUNS.has(pronouns)) {
+    return NextResponse.json({ error: "Please select a valid pronouns option." }, { status: 400 });
+  }
+
+  if (location !== undefined && location.length > 0 && !ALLOWED_LOCATIONS.has(location)) {
+    return NextResponse.json({ error: "Please select a valid location option." }, { status: 400 });
   }
 
   try {
@@ -147,7 +173,6 @@ export async function PATCH(request: Request) {
       where: { clerkId: userId },
       data: {
         ...(name !== undefined ? { name: name || null } : {}),
-        ...(handle !== undefined ? { handle: handle || null } : {}),
         ...(pronouns !== undefined ? { pronouns: pronouns || null } : {}),
         ...(bio !== undefined ? { bio: bio || null } : {}),
         ...(location !== undefined ? { location: location || null } : {}),
@@ -161,16 +186,6 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ profile: shapeProfile(updated) });
   } catch (error) {
-    const prismaError = error as { code?: string; meta?: { target?: unknown } };
-
-    if (
-      prismaError.code === "P2002" &&
-      Array.isArray(prismaError.meta?.target) &&
-      prismaError.meta?.target.includes("handle")
-    ) {
-      return NextResponse.json({ error: "That handle is already taken." }, { status: 409 });
-    }
-
     console.error("Failed to update profile", error);
     return NextResponse.json({ error: "Failed to update profile." }, { status: 500 });
   }

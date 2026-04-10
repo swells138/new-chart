@@ -190,10 +190,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A user cannot connect to themselves." }, { status: 400 });
   }
 
-  if (source !== currentDbUserId && target !== currentDbUserId) {
+  if (source !== currentDbUserId) {
     return NextResponse.json(
-      { error: "You can only create connections that include your own profile." },
+      { error: "You can only create connections from your own node." },
       { status: 403 }
+    );
+  }
+
+  if (target === currentDbUserId) {
+    return NextResponse.json(
+      { error: "Choose another member to connect with." },
+      { status: 400 }
     );
   }
 
@@ -269,14 +276,23 @@ export async function PATCH(request: Request) {
     id?: unknown;
     type?: unknown;
     action?: unknown;
+    actorNodeId?: unknown;
   };
 
   const id = typeof payload.id === "string" ? payload.id.trim() : "";
   const type = typeof payload.type === "string" ? payload.type.trim() : "";
   const action = typeof payload.action === "string" ? payload.action.trim() : "";
+  const actorNodeId = typeof payload.actorNodeId === "string" ? payload.actorNodeId.trim() : "";
 
   if (!id) {
     return NextResponse.json({ error: "A relationship id is required." }, { status: 400 });
+  }
+
+  if (!actorNodeId || actorNodeId !== currentDbUserId) {
+    return NextResponse.json(
+      { error: "You can only update connections from your own node." },
+      { status: 403 }
+    );
   }
 
   const existing = await prisma.relationship.findUnique({

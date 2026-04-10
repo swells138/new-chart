@@ -131,8 +131,9 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
           whiteSpace: "pre-line",
           fontSize: "12px",
         },
+        draggable: currentUserId ? user.id === currentUserId : false,
       })),
-    [users]
+    [users, currentUserId]
   );
 
   const filteredRelationships = useMemo(
@@ -186,6 +187,21 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
       return;
     }
 
+    if (!currentUserId) {
+      setConnectionError("Sign in to create connections.");
+      return;
+    }
+
+    if (connection.source !== currentUserId) {
+      setConnectionError("You can only create connections from your own node.");
+      return;
+    }
+
+    if (connection.target === currentUserId) {
+      setConnectionError("Choose another member to connect with.");
+      return;
+    }
+
     const duplicate = allRelationships.some(
       (item) =>
         (item.source === connection.source && item.target === connection.target) ||
@@ -194,11 +210,6 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
 
     if (duplicate) {
       setConnectionError("These users are already connected.");
-      return;
-    }
-
-    if (!currentUserId || (connection.source !== currentUserId && connection.target !== currentUserId)) {
-      setConnectionError("You can only create connections that include your own profile.");
       return;
     }
 
@@ -290,6 +301,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
           id,
           type: editingType,
           note: editingNote,
+          actorNodeId: currentUserId,
         }),
       });
 
@@ -325,7 +337,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify({ id, action, actorNodeId: currentUserId }),
       });
 
       const body = (await response.json()) as {
@@ -460,6 +472,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
                 const parsed = parseRelationshipNote(item.note);
                 const canEdit = Boolean(
                   currentUserId &&
+                    selectedUser.id === currentUserId &&
                     parsed.status === "approved" &&
                     (item.source === currentUserId || item.target === currentUserId)
                 );
@@ -527,7 +540,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
                         ) : null}
                         {currentUserId && parsed.status === "pending" ? (
                           <div className="mt-2 flex gap-2">
-                            {parsed.responderId === currentUserId ? (
+                            {selectedUser.id === currentUserId && parsed.responderId === currentUserId ? (
                               <button
                                 type="button"
                                 onClick={() => respondToConnection(item.id, "approve")}
@@ -537,7 +550,7 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
                                 Approve
                               </button>
                             ) : null}
-                            {(parsed.responderId === currentUserId || parsed.requesterId === currentUserId) ? (
+                            {selectedUser.id === currentUserId && (parsed.responderId === currentUserId || parsed.requesterId === currentUserId) ? (
                               <button
                                 type="button"
                                 onClick={() => respondToConnection(item.id, "reject")}
