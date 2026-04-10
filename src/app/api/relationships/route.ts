@@ -21,6 +21,7 @@ type ApprovalStatus = "approved" | "pending";
 
 const metaPrefix = "[[meta:";
 const metaSuffix = "]]";
+const pendingTypePrefix = "pending::";
 
 interface RelationshipMeta {
   status: ApprovalStatus;
@@ -28,50 +29,46 @@ interface RelationshipMeta {
   responderId: string;
 }
 
-function parseRelationshipNote(input: string | null | undefined): {
-  meta: RelationshipMeta | null;
-  note: string;
-} {
-  const raw = input ?? "";
-
-  if (!raw.startsWith(metaPrefix)) {
-    return { meta: null, note: raw.trim() };
-  }
-
-  const endIndex = raw.indexOf(metaSuffix);
-  if (endIndex === -1) {
-    return { meta: null, note: raw.trim() };
-  }
-
-  const metadataText = raw.slice(metaPrefix.length, endIndex);
-  const note = raw.slice(endIndex + metaSuffix.length).trim();
-
-  try {
-    const parsed = JSON.parse(metadataText) as Partial<RelationshipMeta>;
-    if (
-      (parsed.status === "approved" || parsed.status === "pending") &&
-      typeof parsed.requesterId === "string" &&
-      typeof parsed.responderId === "string"
-    ) {
-      return {
-        meta: {
-          status: parsed.status,
-          requesterId: parsed.requesterId,
-          responderId: parsed.responderId,
-        },
-        note,
-      };
-    }
-  } catch {
-    return { meta: null, note: raw.trim() };
-  }
-
-  return { meta: null, note: raw.trim() };
+function encodePendingType(baseType: RelationshipType, requesterId: string, responderId: string) {
+  return `${pendingTypePrefix}${baseType}::${requesterId}::${responderId}`;
 }
 
-function buildRelationshipNote(meta: RelationshipMeta, note: string) {
-  const cleanNote = note.trim();
-  return `${metaPrefix}${JSON.stringify(meta)}${metaSuffix}${cleanNote ? ` ${cleanNote}` : ""}`;
+function parseStoredRelationshipType(
+  storedType: string,
+  fallbackRequesterId: string,
+  fallbackResponderId: string
+): {
+  status: ApprovalStatus;
+  baseType: RelationshipType;
+  requesterId: string;
+  responderId: string;
+} {
+  if (!storedType.startsWith(pendingTypePrefix)) {
+    return {
+      status: "approved",
+      baseType: relationshipTypes.includes(storedType as RelationshipType)
+        ? (storedType as RelationshipType)
+        : "friends",
+      requesterId: fallbackRequesterId,
+      responderId: fallbackResponderId,
+    };
+  }
+
+  const [, rawBaseType = "friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
+    storedType.split("::");
+
+  return {
+    status: "pending",
+    baseType: relationshipTypes.includes(rawBaseType as RelationshipType)
+      ? (rawBaseType as RelationshipType)
+      : "friends",
+    requesterId,
+    responderId,
+  };
+}
+
+function buildRelationshipMetaNote(meta: RelationshipMeta) {
+  return `${metaPrefix}${JSON.stringify(meta)}${metaSuffix}`;
 }
 
 function normalizeRelationship(relationship: {
@@ -79,14 +76,26 @@ function normalizeRelationship(relationship: {
   user1Id: string;
   user2Id: string;
   type: string;
-  note?: string | null;
 }) {
+  const parsed = parseStoredRelationshipType(
+    relationship.type,
+    relationship.user1Id,
+    relationship.user2Id
+  );
+
   return {
     id: relationship.id,
     source: relationship.user1Id,
     target: relationship.user2Id,
-    type: relationship.type as RelationshipType,
-    note: relationship.note ?? "",
+    type: parsed.baseType,
+    note:
+      parsed.status === "pending"
+        ? buildRelationshipMetaNote({
+            status: "pending",
+            requesterId: parsed.requesterId,
+            responderId: parsed.responderId,
+          })
+        : "",
   };
 }
 
@@ -157,13 +166,11 @@ export async function POST(request: Request) {
     source?: unknown;
     target?: unknown;
     type?: unknown;
-    note?: unknown;
   };
 
   const source = typeof payload.source === "string" ? payload.source.trim() : "";
   const target = typeof payload.target === "string" ? payload.target.trim() : "";
   const type = typeof payload.type === "string" ? payload.type.trim() : "";
-  const note = typeof payload.note === "string" ? payload.note.trim() : "";
 
   if (!source || !target) {
     return NextResponse.json({ error: "A source and target node are required." }, { status: 400 });
@@ -217,15 +224,7 @@ export async function POST(request: Request) {
       data: {
         user1Id,
         user2Id,
-        type,
-        note: buildRelationshipNote(
-          {
-            status: "pending",
-            requesterId,
-            responderId,
-          },
-          note
-        ),
+        type: encodePendingType(type as RelationshipType, requesterId, responderId),
       },
     });
 
@@ -253,13 +252,11 @@ export async function PATCH(request: Request) {
   const payload = (await request.json()) as {
     id?: unknown;
     type?: unknown;
-    note?: unknown;
     action?: unknown;
   };
 
   const id = typeof payload.id === "string" ? payload.id.trim() : "";
   const type = typeof payload.type === "string" ? payload.type.trim() : "";
-  const note = typeof payload.note === "string" ? payload.note.trim() : undefined;
   const action = typeof payload.action === "string" ? payload.action.trim() : "";
 
   if (!id) {
@@ -281,14 +278,12 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const parsed = parseRelationshipNote(existing.note);
-  const meta =
-    parsed.meta ??
-    ({
-      status: "approved",
-      requesterId: existing.user1Id,
-      responderId: existing.user2Id,
-    } as RelationshipMeta);
+  const parsed = parseStoredRelationshipType(existing.type, existing.user1Id, existing.user2Id);
+  const meta: RelationshipMeta = {
+    status: parsed.status,
+    requesterId: parsed.requesterId,
+    responderId: parsed.responderId,
+  };
 
   if (meta.status === "pending") {
     if (action === "approve") {
@@ -299,7 +294,7 @@ export async function PATCH(request: Request) {
         );
       }
 
-      const nextType = type || existing.type;
+      const nextType = type || parsed.baseType;
       if (!relationshipTypes.includes(nextType as RelationshipType)) {
         return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
       }
@@ -309,13 +304,6 @@ export async function PATCH(request: Request) {
           where: { id },
           data: {
             type: nextType,
-            note: buildRelationshipNote(
-              {
-                ...meta,
-                status: "approved",
-              },
-              note ?? parsed.note
-            ),
           },
         });
 
@@ -344,7 +332,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const nextType = type || existing.type;
+  const nextType = type || parsed.baseType;
   if (!relationshipTypes.includes(nextType as RelationshipType)) {
     return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
   }
@@ -354,7 +342,6 @@ export async function PATCH(request: Request) {
       where: { id },
       data: {
         type: nextType,
-        ...(note !== undefined ? { note: buildRelationshipNote(meta, note) } : {}),
       },
     });
 

@@ -8,6 +8,54 @@
 import { prisma } from "./prisma";
 import type { User, Post, Event, Article, Relationship } from "@/types/models";
 
+const relationshipTypes: Relationship["type"][] = [
+  "friends",
+  "married",
+  "exes",
+  "collaborators",
+  "roommates",
+  "crushes",
+  "mentors",
+];
+
+const pendingTypePrefix = "pending::";
+const metaPrefix = "[[meta:";
+const metaSuffix = "]]";
+
+function parseStoredRelationshipType(
+  storedType: string,
+  fallbackRequesterId: string,
+  fallbackResponderId: string
+): {
+  status: "approved" | "pending";
+  baseType: Relationship["type"];
+  requesterId: string;
+  responderId: string;
+} {
+  if (!storedType.startsWith(pendingTypePrefix)) {
+    return {
+      status: "approved",
+      baseType: relationshipTypes.includes(storedType as Relationship["type"])
+        ? (storedType as Relationship["type"])
+        : "friends",
+      requesterId: fallbackRequesterId,
+      responderId: fallbackResponderId,
+    };
+  }
+
+  const [, rawBaseType = "friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
+    storedType.split("::");
+
+  return {
+    status: "pending",
+    baseType: relationshipTypes.includes(rawBaseType as Relationship["type"])
+      ? (rawBaseType as Relationship["type"])
+      : "friends",
+    requesterId,
+    responderId,
+  };
+}
+
 function formatRelativeTime(timestamp: Date) {
   const differenceInMs = Date.now() - timestamp.getTime();
   const differenceInHours = Math.max(1, Math.round(differenceInMs / (1000 * 60 * 60)));
@@ -84,14 +132,26 @@ function normalizeRelationship(relationship: {
   user1Id: string;
   user2Id: string;
   type: string;
-  note?: string | null;
 }): Relationship {
+  const parsed = parseStoredRelationshipType(
+    relationship.type,
+    relationship.user1Id,
+    relationship.user2Id
+  );
+
   return {
     id: relationship.id,
     source: relationship.user1Id,
     target: relationship.user2Id,
-    type: relationship.type as Relationship["type"],
-    note: relationship.note ?? "",
+    type: parsed.baseType,
+    note:
+      parsed.status === "pending"
+        ? `${metaPrefix}${JSON.stringify({
+            status: "pending",
+            requesterId: parsed.requesterId,
+            responderId: parsed.responderId,
+          })}${metaSuffix}`
+        : "",
   };
 }
 
