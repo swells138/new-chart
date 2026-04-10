@@ -1,5 +1,13 @@
+import { auth } from "@clerk/nextjs/server";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+const hasClerkKeys =
+  Boolean(process.env.CLERK_SECRET_KEY) &&
+  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 const threads = [
   {
@@ -25,14 +33,49 @@ const threads = [
   },
 ];
 
-const notifications = [
-  "Ivy mentioned you in a post about film props.",
-  "New RSVP on Open Air Film Picnic.",
-  "Your article draft has 4 new comments.",
-  "Noa requested to connect as collaborator.",
-];
+function timeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
 
-export default function InboxPage() {
+export default async function InboxPage() {
+  let dbNotifications: { id: string; content: string; read: boolean; createdAt: Date; senderName: string | null }[] = [];
+
+  if (hasClerkKeys) {
+    const { userId } = await auth();
+
+    if (userId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      });
+
+      if (dbUser) {
+        const messages = await prisma.message.findMany({
+          where: { recipientId: dbUser.id },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          include: {
+            sender: { select: { name: true } },
+          },
+        });
+
+        dbNotifications = messages.map((m) => ({
+          id: m.id,
+          content: m.content,
+          read: m.read,
+          createdAt: m.createdAt,
+          senderName: m.sender.name,
+        }));
+      }
+    }
+  }
+
   return (
     <div className="space-y-4">
       <SectionHeader
@@ -72,15 +115,36 @@ export default function InboxPage() {
 
         <aside className="paper-card rounded-2xl p-5">
           <h3 className="text-lg font-semibold">Notifications</h3>
-          <ul className="mt-3 space-y-2 text-sm">
-            {notifications.map((note) => (
-              <li key={note} className="rounded-xl border border-[var(--border-soft)] p-3">
-                {note}
-              </li>
-            ))}
-          </ul>
+          {dbNotifications.length > 0 ? (
+            <ul className="mt-3 space-y-2 text-sm">
+              {dbNotifications.map((n) => (
+                <li
+                  key={n.id}
+                  className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                >
+                  <span className="flex-1">
+                    {n.senderName ? (
+                      <span className="font-medium">{n.senderName}: </span>
+                    ) : null}
+                    {n.content}
+                  </span>
+                  <span className="shrink-0 text-xs text-black/50 dark:text-white/50">
+                    {timeAgo(n.createdAt)}
+                  </span>
+                  {!n.read ? (
+                    <span className="shrink-0 inline-block rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white leading-none self-center">
+                      new
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-black/50 dark:text-white/50">No notifications yet.</p>
+          )}
         </aside>
       </div>
     </div>
   );
 }
+

@@ -99,6 +99,16 @@ function normalizeRelationship(relationship: {
   };
 }
 
+async function sendNotification(senderId: string, recipientId: string, content: string) {
+  try {
+    await prisma.message.create({
+      data: { senderId, recipientId, content },
+    });
+  } catch (err) {
+    console.error("Failed to send notification message", err);
+  }
+}
+
 async function getOrCreateCurrentDbUserId(clerkId: string) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
@@ -228,6 +238,12 @@ export async function POST(request: Request) {
       },
     });
 
+    await sendNotification(
+      requesterId,
+      responderId,
+      `You have a new connection request (${type}).`
+    );
+
     return NextResponse.json({ relationship: normalizeRelationship(relationship) }, { status: 201 });
   } catch (error) {
     const prismaError = error as { code?: string };
@@ -307,6 +323,12 @@ export async function PATCH(request: Request) {
           },
         });
 
+        await sendNotification(
+          currentDbUserId,
+          meta.requesterId,
+          `Your connection request was approved as "${nextType}".`
+        );
+
         return NextResponse.json({ relationship: normalizeRelationship(updated) });
       } catch (error) {
         console.error("Failed to approve relationship", error);
@@ -323,6 +345,15 @@ export async function PATCH(request: Request) {
       }
 
       await prisma.relationship.delete({ where: { id } });
+
+      const notifyUserId =
+        currentDbUserId === meta.requesterId ? meta.responderId : meta.requesterId;
+      const notifyContent =
+        currentDbUserId === meta.requesterId
+          ? "A connection request you sent was cancelled."
+          : "A connection request was declined.";
+      await sendNotification(currentDbUserId, notifyUserId, notifyContent);
+
       return NextResponse.json({ deleted: true, id });
     }
 
@@ -344,6 +375,14 @@ export async function PATCH(request: Request) {
         type: nextType,
       },
     });
+
+    const otherUserId =
+      existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
+    await sendNotification(
+      currentDbUserId,
+      otherUserId,
+      `Your connection has been updated to "${nextType}".`
+    );
 
     return NextResponse.json({ relationship: normalizeRelationship(updated) });
   } catch (error) {
