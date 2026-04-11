@@ -187,6 +187,19 @@ export async function getAllUsers(): Promise<User[]> {
   return users.map(normalizeUser);
 }
 
+export async function getUsersByLocation(location: string): Promise<User[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      location: {
+        equals: location,
+        mode: "insensitive",
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return users.map(normalizeUser);
+}
+
 export async function getUserById(id: string): Promise<User | null> {
   const user = await prisma.user.findUnique({
     where: { id },
@@ -249,6 +262,21 @@ export async function getAllPosts(): Promise<Post[]> {
 export async function getPostsByUser(userId: string): Promise<Post[]> {
   const posts = await prisma.post.findMany({
     where: { userId },
+    orderBy: { timestamp: "desc" },
+  });
+  return posts.map(normalizePost);
+}
+
+export async function getPostsByLocation(location: string): Promise<Post[]> {
+  const posts = await prisma.post.findMany({
+    where: {
+      user: {
+        location: {
+          equals: location,
+          mode: "insensitive",
+        },
+      },
+    },
     orderBy: { timestamp: "desc" },
   });
   return posts.map(normalizePost);

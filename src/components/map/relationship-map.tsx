@@ -31,6 +31,9 @@ interface Props {
   users: User[];
   relationships: Relationship[];
   currentUserId: string | null;
+  userConnections?: Relationship[];
+  areaUsers?: User[];
+  currentUserLocation?: string | null;
 }
 
 type ApprovalStatus = "approved" | "pending";
@@ -88,7 +91,7 @@ function parseRelationshipNote(input: string): {
   }
 }
 
-export function RelationshipMap({ users, relationships, currentUserId }: Props) {
+export function RelationshipMap({ users, relationships, currentUserId, userConnections, areaUsers, currentUserLocation }: Props) {
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "friends",
     "married",
@@ -98,6 +101,9 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
     "crushes",
     "mentors",
   ]);
+  const [showConnections, setShowConnections] = useState(
+    userConnections && userConnections.length > 0
+  );
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
   const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
   const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
@@ -113,9 +119,31 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
     setAllRelationships(relationships);
   }, [relationships]);
 
+  // Determine which users to display based on view mode
+  const displayedUsers = useMemo(() => {
+    // If user has connections and wants to see them, show all users
+    // but relationships will be filtered to just their connections
+    if (showConnections && userConnections && userConnections.length > 0) {
+      return users;
+    }
+    // If showing area view, use area users if available, otherwise show all
+    if (areaUsers && areaUsers.length > 0) {
+      return areaUsers;
+    }
+    return users;
+  }, [showConnections, users, areaUsers, userConnections]);
+
+  // Determine which relationships to display
+  const displayedRelationships = useMemo(() => {
+    if (showConnections && userConnections && userConnections.length > 0) {
+      return userConnections;
+    }
+    return [];
+  }, [showConnections, userConnections]);
+
   const mappedNodes: Node[] = useMemo(
     () =>
-      users.map((user, index) => ({
+      displayedUsers.map((user, index) => ({
         id: user.id,
         data: { label: `${user.name}\n@${user.handle}` },
         position: {
@@ -133,12 +161,15 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
         },
         draggable: currentUserId ? user.id === currentUserId : false,
       })),
-    [users, currentUserId]
+    [displayedUsers, currentUserId]
   );
 
   const filteredRelationships = useMemo(
-    () => allRelationships.filter((item) => activeTypes.includes(item.type)),
-    [activeTypes, allRelationships]
+    () => {
+      const relationsToFilter = displayedRelationships.length > 0 ? displayedRelationships : allRelationships;
+      return relationsToFilter.filter((item) => activeTypes.includes(item.type));
+    },
+    [activeTypes, allRelationships, displayedRelationships]
   );
 
   const graphRelationships = useMemo(
@@ -379,6 +410,16 @@ export function RelationshipMap({ users, relationships, currentUserId }: Props) 
     <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
       <section className="paper-card rounded-2xl p-4">
         <div className="mb-3 flex flex-wrap gap-2">
+          {userConnections && userConnections.length > 0 && areaUsers && areaUsers.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowConnections(!showConnections)}
+              className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--card-hover)]"
+              title={showConnections ? "Show people in your area" : "Show your connections"}
+            >
+              {showConnections ? "📍 Connections" : "🗺️ Area"}
+            </button>
+          )}
           <label className="mr-2 flex items-center gap-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide">
             <span>New link</span>
             <select
