@@ -193,7 +193,7 @@ export async function POST(request: Request) {
 
   const currentDbUserId = authResult.dbUserId;
   const ip = getRequestIp(request);
-  const rateLimit = checkRateLimit(`relationships-post:${currentDbUserId}:${ip}`, {
+  const rateLimit = await checkRateLimit(`relationships-post:${currentDbUserId}:${ip}`, {
     windowMs: 5 * 60 * 1000,
     maxRequests: 40,
   });
@@ -310,7 +310,7 @@ export async function PATCH(request: Request) {
 
   const currentDbUserId = authResult.dbUserId;
   const ip = getRequestIp(request);
-  const rateLimit = checkRateLimit(`relationships-patch:${currentDbUserId}:${ip}`, {
+  const rateLimit = await checkRateLimit(`relationships-patch:${currentDbUserId}:${ip}`, {
     windowMs: 5 * 60 * 1000,
     maxRequests: 60,
   });

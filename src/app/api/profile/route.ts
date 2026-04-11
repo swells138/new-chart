@@ -145,7 +145,7 @@ export async function PATCH(request: Request) {
   }
 
   const ip = getRequestIp(request);
-  const rateLimit = checkRateLimit(`profile-patch:${userId}:${ip}`, {
+  const rateLimit = await checkRateLimit(`profile-patch:${userId}:${ip}`, {
     windowMs: 5 * 60 * 1000,
     maxRequests: 30,
   });

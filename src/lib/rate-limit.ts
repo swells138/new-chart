@@ -1,3 +1,6 @@
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
 type RateLimitBucket = {
   count: number;
   resetAt: number;
@@ -16,12 +19,19 @@ interface RateLimitResult {
 
 const globalRateLimitStore = globalThis as typeof globalThis & {
   __meshyRateLimitStore?: Map<string, RateLimitBucket>;
+  __meshyUpstashRedis?: Redis;
+  __meshyUpstashLimiters?: Map<string, Ratelimit>;
 };
 
 const store = globalRateLimitStore.__meshyRateLimitStore ?? new Map<string, RateLimitBucket>();
+const limiterCache = globalRateLimitStore.__meshyUpstashLimiters ?? new Map<string, Ratelimit>();
 
 if (!globalRateLimitStore.__meshyRateLimitStore) {
   globalRateLimitStore.__meshyRateLimitStore = store;
+}
+
+if (!globalRateLimitStore.__meshyUpstashLimiters) {
+  globalRateLimitStore.__meshyUpstashLimiters = limiterCache;
 }
 
 export function getRequestIp(request: Request): string {
@@ -40,7 +50,44 @@ export function getRequestIp(request: Request): string {
   return "unknown";
 }
 
-export function checkRateLimit(key: string, options: RateLimitOptions): RateLimitResult {
+function getUpstashLimiter(options: RateLimitOptions): Ratelimit | null {
+  const hasUpstashCredentials =
+    Boolean(process.env.UPSTASH_REDIS_REST_URL) && Boolean(process.env.UPSTASH_REDIS_REST_TOKEN);
+
+  if (!hasUpstashCredentials) {
+    return null;
+  }
+
+  const cacheKey = `${options.maxRequests}:${options.windowMs}`;
+  const cached = limiterCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const redis =
+    globalRateLimitStore.__meshyUpstashRedis ??
+    Redis.fromEnv();
+
+  if (!globalRateLimitStore.__meshyUpstashRedis) {
+    globalRateLimitStore.__meshyUpstashRedis = redis;
+  }
+
+  const windowInSeconds = Math.max(1, Math.ceil(options.windowMs / 1000));
+  const limiter = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(
+      options.maxRequests,
+      `${windowInSeconds} s` as `${number} s`
+    ),
+    analytics: false,
+    prefix: "meshy:rl",
+  });
+
+  limiterCache.set(cacheKey, limiter);
+  return limiter;
+}
+
+function checkLocalRateLimit(key: string, options: RateLimitOptions): RateLimitResult {
   const now = Date.now();
   const existing = store.get(key);
 
@@ -73,4 +120,29 @@ export function checkRateLimit(key: string, options: RateLimitOptions): RateLimi
     remaining: Math.max(0, options.maxRequests - existing.count),
     retryAfterSeconds: 0,
   };
+}
+
+export async function checkRateLimit(
+  key: string,
+  options: RateLimitOptions
+): Promise<RateLimitResult> {
+  const upstashLimiter = getUpstashLimiter(options);
+
+  if (!upstashLimiter) {
+    return checkLocalRateLimit(key, options);
+  }
+
+  try {
+    const result = await upstashLimiter.limit(key);
+    const resetAt = typeof result.reset === "number" ? result.reset : Date.now();
+
+    return {
+      allowed: result.success,
+      remaining: Math.max(0, result.remaining),
+      retryAfterSeconds: result.success ? 0 : Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)),
+    };
+  } catch (error) {
+    console.error("Distributed rate limit failed, falling back to local store", error);
+    return checkLocalRateLimit(key, options);
+  }
 }
