@@ -3,6 +3,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
 import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,7 @@ export default async function InboxPage() {
       }
     }
   }
+          function renderNotificationContent(content: string): ReactNode {
 
   const dynamicThreads = dbNotifications.slice(0, 3).map((n) => ({
     id: n.id,
@@ -152,7 +154,7 @@ export default async function InboxPage() {
                     {n.senderName ? (
                       <span className="font-medium">{n.senderName}: </span>
                     ) : null}
-                    {n.content}
+                    {renderNotificationContent(n.content)}
                   </span>
                   <span className="shrink-0 text-xs text-black/50 dark:text-white/50">
                     {timeAgo(n.createdAt)}

@@ -287,7 +287,7 @@ export async function POST(request: Request) {
     await sendNotification(
       requesterId,
       responderId,
-      `You have a new connection request (${type}).`
+      `You have a new connection request (${type}). Review it on /map.`
     );
 
     return NextResponse.json({ relationship: normalizeRelationship(relationship) }, { status: 201 });
@@ -464,7 +464,7 @@ export async function PATCH(request: Request) {
     await sendNotification(
       currentDbUserId,
       otherUserId,
-      `You have a request to change this connection to "${nextType}".`
+      `You have a request to change this connection to "${nextType}". Review it on /map.`
     );
 
     return NextResponse.json({ relationship: normalizeRelationship(updated) });

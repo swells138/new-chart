@@ -514,6 +514,19 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId
   );
+  const pendingRequests = useMemo(() => {
+    if (!currentUserId) {
+      return [] as Relationship[];
+    }
+
+    return allRelationships.filter((item) => {
+      const parsed = parseRelationshipNote(item.note);
+      if (parsed.status !== "pending") {
+        return false;
+      }
+      return parsed.requesterId === currentUserId || parsed.responderId === currentUserId;
+    });
+  }, [allRelationships, currentUserId]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
@@ -684,6 +697,54 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
             </p>
           )}
         </div>
+
+        {currentUserId ? (
+          <div className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
+            <h4 className="text-sm font-semibold uppercase tracking-wide">Pending requests</h4>
+            {pendingRequests.length === 0 ? (
+              <p className="mt-2 text-xs text-black/65 dark:text-white/70">No pending approvals.</p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {pendingRequests.map((item) => {
+                  const parsed = parseRelationshipNote(item.note);
+                  const otherUserId = item.source === currentUserId ? item.target : item.source;
+                  const otherUser = users.find((user) => user.id === otherUserId);
+                  const needsApproval = parsed.responderId === currentUserId;
+
+                  return (
+                    <div key={item.id} className="rounded-lg border border-[var(--border-soft)] p-2.5">
+                      <p className="text-sm font-semibold">{otherUser?.name ?? "Member"}</p>
+                      <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
+                      <p className="mt-1 text-[11px] text-black/65 dark:text-white/70">
+                        {needsApproval ? "Waiting for your approval" : "Waiting for their approval"}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        {needsApproval ? (
+                          <button
+                            type="button"
+                            onClick={() => respondToConnection(item.id, "approve")}
+                            disabled={isRespondingId === item.id}
+                            className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                          >
+                            Approve
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => respondToConnection(item.id, "reject")}
+                          disabled={isRespondingId === item.id}
+                          className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                        >
+                          {needsApproval ? "Decline" : "Cancel"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-4">
         {selectedUser ? (
