@@ -433,7 +433,9 @@ export async function deleteRelationship(user1Id: string, user2Id: string): Prom
 
 // ===== MESSAGES =====
 
-export async function getMessages(userId: string): Promise<any[]> {
+export async function getMessages(
+  userId: string
+): Promise<Awaited<ReturnType<typeof prisma.message.findMany>>> {
   const messages = await prisma.message.findMany({
     where: {
       OR: [
@@ -454,7 +456,7 @@ export async function createMessage(data: {
   senderId: string;
   recipientId: string;
   content: string;
-}): Promise<any> {
+}): Promise<Awaited<ReturnType<typeof prisma.message.create>>> {
   const message = await prisma.message.create({
     data,
   });
