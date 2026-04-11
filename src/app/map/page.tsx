@@ -10,6 +10,20 @@ const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
+function getStateCode(location: string | null) {
+  if (!location) {
+    return null;
+  }
+
+  const parts = location.split(",");
+  const state = parts[parts.length - 1]?.trim();
+  if (!state) {
+    return null;
+  }
+
+  return state.toUpperCase();
+}
+
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
   let currentUserLocation: string | null = null;
@@ -44,7 +58,8 @@ export default async function MapPage() {
     }
   }
 
-  let users = await getAllUsers();
+  const allUsers = await getAllUsers();
+  let users = allUsers;
   const relationships = await getAllRelationships();
   let areaUsers: typeof users = [];
   let userConnections: typeof relationships = [];
@@ -53,11 +68,38 @@ export default async function MapPage() {
   if (currentUserDbId && currentUserLocation) {
     userConnections = await getRelationshipsByUser(currentUserDbId);
     
-    // If user has no connections, show area users
+    // If user has no connections, show area users.
+    // Fallbacks:
+    // 1) exact city/state matches
+    // 2) same state matches
+    // 3) all users except self
     if (userConnections.length === 0) {
       areaUsers = await getUsersByLocation(currentUserLocation);
-      // Use area users if available, otherwise fall back to all users
-      users = areaUsers.length > 0 ? areaUsers : users;
+
+      if (areaUsers.length <= 1) {
+        const currentState = getStateCode(currentUserLocation);
+        if (currentState) {
+          const stateMatches = allUsers.filter(
+            (user) =>
+              user.id !== currentUserDbId &&
+              getStateCode(user.location) === currentState
+          );
+
+          areaUsers = areaUsers.concat(
+            stateMatches.filter((candidate) => !areaUsers.some((existing) => existing.id === candidate.id))
+          );
+        }
+      }
+
+      if (areaUsers.length <= 1) {
+        areaUsers = allUsers.filter((user) => user.id !== currentUserDbId).slice(0, 12);
+        const currentUser = allUsers.find((user) => user.id === currentUserDbId);
+        if (currentUser) {
+          areaUsers = [currentUser, ...areaUsers];
+        }
+      }
+
+      users = areaUsers.length > 0 ? areaUsers : allUsers;
     } else {
       // If user has connections, keep all users but mark that they have connections
       areaUsers = await getUsersByLocation(currentUserLocation);
