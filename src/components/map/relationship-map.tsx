@@ -103,6 +103,7 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
   const [showConnections, setShowConnections] = useState(Boolean(userConnections && userConnections.length > 0));
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
+  const [connectionQuery, setConnectionQuery] = useState<string>("");
   const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
   const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -200,6 +201,25 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
       return !alreadyConnected;
     });
   }, [users, currentUserId, allRelationships]);
+
+  const filteredConnectableUsers = useMemo(() => {
+    const query = connectionQuery.trim().toLowerCase();
+    if (!query) {
+      return connectableUsers;
+    }
+
+    return connectableUsers.filter(
+      (user) =>
+        user.name.toLowerCase().includes(query) ||
+        user.handle.toLowerCase().includes(query) ||
+        user.location.toLowerCase().includes(query)
+    );
+  }, [connectableUsers, connectionQuery]);
+
+  const selectedConnectionTarget = useMemo(
+    () => connectableUsers.find((user) => user.id === connectionTargetId) ?? null,
+    [connectableUsers, connectionTargetId]
+  );
 
   useEffect(() => {
     if (connectableUsers.length === 0) {
@@ -572,25 +592,50 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
               className="mt-3 space-y-2"
               onSubmit={(event) => {
                 event.preventDefault();
-                void createConnection(connectionTargetId);
+                const targetId = selectedConnectionTarget?.id ?? filteredConnectableUsers[0]?.id ?? "";
+                void createConnection(targetId);
               }}
             >
-              <select
-                value={connectionTargetId}
-                onChange={(event) => setConnectionTargetId(event.target.value)}
-                className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-2 text-sm outline-none"
+              <input
+                type="search"
+                value={connectionQuery}
+                onChange={(event) => setConnectionQuery(event.target.value)}
+                placeholder="Search by name, @handle, or location"
+                className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2 text-sm outline-none"
                 disabled={connectableUsers.length === 0 || isConnecting}
-              >
-                {connectableUsers.length === 0 ? (
-                  <option value="">No available members</option>
-                ) : (
-                  connectableUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} (@{user.handle})
-                    </option>
-                  ))
-                )}
-              </select>
+              />
+              {connectableUsers.length === 0 ? (
+                <p className="text-xs text-black/60 dark:text-white/70">No available members to connect with.</p>
+              ) : (
+                <div className="max-h-32 overflow-y-auto rounded-lg border border-[var(--border-soft)] p-1">
+                  {filteredConnectableUsers.slice(0, 8).map((user) => {
+                    const isSelected = user.id === connectionTargetId;
+                    return (
+                      <button
+                        type="button"
+                        key={user.id}
+                        onClick={() => setConnectionTargetId(user.id)}
+                        className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition ${
+                          isSelected
+                            ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                            : "hover:bg-black/5 dark:hover:bg-white/10"
+                        }`}
+                      >
+                        <span>{user.name}</span>
+                        <span className="text-xs text-black/60 dark:text-white/70">@{user.handle}</span>
+                      </button>
+                    );
+                  })}
+                  {filteredConnectableUsers.length === 0 ? (
+                    <p className="px-2 py-1 text-xs text-black/60 dark:text-white/70">No matches found.</p>
+                  ) : null}
+                </div>
+              )}
+              <p className="text-xs text-black/65 dark:text-white/70">
+                {selectedConnectionTarget
+                  ? `Selected: ${selectedConnectionTarget.name} (@${selectedConnectionTarget.handle})`
+                  : "Choose a member from the results above."}
+              </p>
               <select
                 value={connectionType}
                 onChange={(event) => setConnectionType(event.target.value as RelationshipType)}
@@ -605,7 +650,11 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
               </select>
               <button
                 type="submit"
-                disabled={!connectionTargetId || isConnecting || connectableUsers.length === 0}
+                disabled={
+                  (!selectedConnectionTarget && filteredConnectableUsers.length === 0) ||
+                  isConnecting ||
+                  connectableUsers.length === 0
+                }
                 className="w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {isConnecting ? "Creating..." : "Create connection"}
