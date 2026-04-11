@@ -6,7 +6,7 @@
  */
 
 import { prisma } from "./prisma";
-import type { User, Post, Event, Article, Relationship } from "@/types/models";
+import type { User, Post, Relationship } from "@/types/models";
 
 const relationshipTypes: Relationship["type"][] = [
   "friends",
@@ -155,44 +155,6 @@ function normalizeRelationship(relationship: {
   };
 }
 
-function normalizeEvent(event: {
-  id: string;
-  title: string;
-  date: Date;
-  location: string | null;
-  description: string | null;
-  type: string | null;
-}, attendees: number): Event {
-  return {
-    id: event.id,
-    title: event.title,
-    date: formatCalendarDate(event.date),
-    location: event.location ?? "TBD",
-    description: event.description ?? "",
-    attendees,
-    type: event.type ?? "community",
-  };
-}
-
-function normalizeArticle(article: {
-  id: string;
-  title: string;
-  excerpt: string | null;
-  authorId: string;
-  category: string | null;
-  createdAt: Date;
-}): Article {
-  return {
-    id: article.id,
-    title: article.title,
-    excerpt: article.excerpt ?? "",
-    authorId: article.authorId,
-    category: article.category ?? "general",
-    readTime: "5 min",
-    publishedAt: formatCalendarDate(article.createdAt),
-  };
-}
-
 export async function getMemberDirectoryData(): Promise<{
   users: User[];
   posts: Post[];
@@ -311,87 +273,6 @@ export async function deletePost(id: string): Promise<void> {
   await prisma.post.delete({
     where: { id },
   });
-}
-
-// ===== EVENTS =====
-
-export async function getAllEvents(): Promise<Event[]> {
-  const events = (await prisma.event.findMany({
-    orderBy: { date: "asc" },
-    include: {
-      _count: { select: { attendees: true } },
-    },
-  })) as Array<{
-    id: string;
-    title: string;
-    date: Date;
-    location: string | null;
-    description: string | null;
-    type: string | null;
-    _count: {
-      attendees: number;
-    };
-  }>;
-
-  return events.map((event) => normalizeEvent(event, event._count.attendees));
-}
-
-export async function getEventById(id: string): Promise<Event | null> {
-  const event = await prisma.event.findUnique({
-    where: { id },
-    include: {
-      attendees: { include: { user: true } },
-    },
-  });
-  return event ? normalizeEvent(event, event.attendees.length) : null;
-}
-
-export async function createEvent(data: {
-  title: string;
-  description?: string;
-  date: Date;
-  location?: string;
-  type?: string;
-  createdBy: string;
-}): Promise<Event> {
-  const event = await prisma.event.create({
-    data,
-  });
-  return normalizeEvent(event, 0);
-}
-
-// ===== ARTICLES =====
-
-export async function getAllArticles(): Promise<Article[]> {
-  const articles = await prisma.article.findMany({
-    where: { published: true },
-    orderBy: { createdAt: "desc" },
-  });
-  return articles.map(normalizeArticle);
-}
-
-export async function getArticlesByAuthor(authorId: string): Promise<Article[]> {
-  const articles = await prisma.article.findMany({
-    where: { authorId, published: true },
-    orderBy: { createdAt: "desc" },
-  });
-  return articles.map(normalizeArticle);
-}
-
-export async function createArticle(data: {
-  title: string;
-  excerpt?: string;
-  content?: string;
-  authorId: string;
-  category?: string;
-}): Promise<Article> {
-  const article = await prisma.article.create({
-    data: {
-      ...data,
-      published: false, // Draft by default
-    },
-  });
-  return normalizeArticle(article);
 }
 
 // ===== RELATIONSHIPS =====

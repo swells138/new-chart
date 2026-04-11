@@ -33,26 +33,6 @@ export interface Post {
   comments: number;
 }
 
-export interface Event {
-  id: string;
-  title: string;
-  date: string;
-  location: string;
-  description: string;
-  attendees: number;
-  type: string;
-}
-
-export interface Article {
-  id: string;
-  title: string;
-  excerpt: string;
-  authorId: string;
-  category: string;
-  readTime: string;
-  publishedAt: string;
-}
-
 export interface Relationship {
   id: string;
   source: string;

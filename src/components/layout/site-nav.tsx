@@ -18,8 +18,6 @@ const links = [
   { href: "/feed", label: "Feed" },
   { href: "/members", label: "Members" },
   { href: "/map", label: "Map" },
-  { href: "/articles", label: "Articles" },
-  { href: "/events", label: "Events" },
   { href: "/inbox", label: "Inbox" },
   { href: "/profile", label: "Profile" },
 ];
