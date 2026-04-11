@@ -13,6 +13,14 @@ type ClerkWebhookEvent = {
 };
 
 export async function POST(req: Request) {
+  const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error("Missing CLERK_WEBHOOK_SECRET");
+    return new Response("Webhook is not configured", {
+      status: 503,
+    });
+  }
+
   // Get the headers
   const headerPayload = await headers();
   const svix_id = headerPayload.get("svix-id");
@@ -30,7 +38,7 @@ export async function POST(req: Request) {
   const body = await req.text();
 
   // Create a new Svix instance with your secret.
-  const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET || "");
+  const wh = new Webhook(webhookSecret);
 
   let evt: ClerkWebhookEvent;
   // Verify the payload
@@ -57,19 +65,23 @@ export async function POST(req: Request) {
       return new Response("Missing user id", { status: 400 });
     }
 
-    // Create user in database
-    const existingUser = await prisma.user.findUnique({
-      where: { clerkId: id },
-    });
-
-    if (!existingUser) {
-      await prisma.user.create({
-        data: {
+    try {
+      await prisma.user.upsert({
+        where: { clerkId: id },
+        create: {
           clerkId: id,
+          handle: null,
+          email: email_addresses?.[0]?.email_address,
+          name: `${first_name || ""} ${last_name || ""}`.trim(),
+        },
+        update: {
           email: email_addresses?.[0]?.email_address,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
         },
       });
+    } catch (error) {
+      console.error("Failed to upsert created Clerk user", error);
+      return new Response("Failed to sync user", { status: 500 });
     }
   }
 
@@ -80,14 +92,24 @@ export async function POST(req: Request) {
       return new Response("Missing user id", { status: 400 });
     }
 
-    // Update user in database
-    await prisma.user.update({
-      where: { clerkId: id },
-      data: {
-        email: email_addresses?.[0]?.email_address,
-        name: `${first_name || ""} ${last_name || ""}`.trim(),
-      },
-    });
+    try {
+      await prisma.user.upsert({
+        where: { clerkId: id },
+        create: {
+          clerkId: id,
+          handle: null,
+          email: email_addresses?.[0]?.email_address,
+          name: `${first_name || ""} ${last_name || ""}`.trim(),
+        },
+        update: {
+          email: email_addresses?.[0]?.email_address,
+          name: `${first_name || ""} ${last_name || ""}`.trim(),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to upsert updated Clerk user", error);
+      return new Response("Failed to sync user", { status: 500 });
+    }
   }
 
   if (eventType === "user.deleted") {
@@ -97,10 +119,14 @@ export async function POST(req: Request) {
       return new Response("Missing user id", { status: 400 });
     }
 
-    // Delete user from database
-    await prisma.user.delete({
-      where: { clerkId: id },
-    });
+    try {
+      await prisma.user.deleteMany({
+        where: { clerkId: id },
+      });
+    } catch (error) {
+      console.error("Failed to delete Clerk user", error);
+      return new Response("Failed to sync user deletion", { status: 500 });
+    }
   }
 
   return new Response("Webhook received", { status: 200 });

@@ -1,6 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -31,15 +33,23 @@ const ALLOWED_LOCATIONS = new Set([
   "Seattle, WA",
 ]);
 
-function normalizeInterests(input: unknown): string[] {
-  if (!Array.isArray(input)) return [];
-
-  return input
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-    .slice(0, 20);
-}
+const profilePatchSchema = z
+  .object({
+    name: z.string().trim().max(120).optional(),
+    handle: z.string().trim().max(120).optional(),
+    pronouns: z.string().trim().max(50).optional(),
+    bio: z.string().trim().max(1000).optional(),
+    location: z.string().trim().max(120).optional(),
+    relationshipStatus: z.string().trim().max(120).optional(),
+    interests: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    links: z
+      .object({
+        website: z.string().trim().max(300).optional(),
+        social: z.string().trim().max(300).optional(),
+      })
+      .optional(),
+  })
+  .strict();
 
 function normalizeLinks(input: unknown): { website?: string; social?: string } {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -134,27 +144,42 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = (await request.json()) as {
-    name?: unknown;
-    handle?: unknown;
-    pronouns?: unknown;
-    bio?: unknown;
-    location?: unknown;
-    relationshipStatus?: unknown;
-    interests?: unknown;
-    links?: unknown;
-  };
+  const ip = getRequestIp(request);
+  const rateLimit = checkRateLimit(`profile-patch:${userId}:${ip}`, {
+    windowMs: 5 * 60 * 1000,
+    maxRequests: 30,
+  });
 
-  const name = typeof payload.name === "string" ? payload.name.trim() : undefined;
-  const pronouns = typeof payload.pronouns === "string" ? payload.pronouns.trim() : undefined;
-  const bio = typeof payload.bio === "string" ? payload.bio.trim() : undefined;
-  const location = typeof payload.location === "string" ? payload.location.trim() : undefined;
-  const relationshipStatus =
-    typeof payload.relationshipStatus === "string" ? payload.relationshipStatus.trim() : undefined;
-  const interests = payload.interests !== undefined ? normalizeInterests(payload.interests) : undefined;
-  const links = payload.links !== undefined ? normalizeLinks(payload.links) : undefined;
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: "Too many profile update attempts. Please try again shortly.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
 
-  if (payload.handle !== undefined) {
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const parsed = profilePatchSchema.safeParse(payload);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid profile payload." }, { status: 400 });
+  }
+
+  const { name, pronouns, bio, location, relationshipStatus, interests, links, handle } =
+    parsed.data;
+
+  if (handle !== undefined) {
     return NextResponse.json({ error: "Username cannot be changed." }, { status: 400 });
   }
 

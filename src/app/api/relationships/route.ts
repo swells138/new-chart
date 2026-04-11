@@ -1,13 +1,15 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { RelationshipType } from "@/types/models";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
-const relationshipTypes: RelationshipType[] = [
+const relationshipTypeValues = [
   "friends",
   "married",
   "exes",
@@ -15,7 +17,26 @@ const relationshipTypes: RelationshipType[] = [
   "roommates",
   "crushes",
   "mentors",
-];
+] as const;
+
+const relationshipTypes: RelationshipType[] = [...relationshipTypeValues];
+
+const createRelationshipSchema = z
+  .object({
+    source: z.string().trim().min(1).max(100),
+    target: z.string().trim().min(1).max(100),
+    type: z.enum(relationshipTypeValues),
+  })
+  .strict();
+
+const updateRelationshipSchema = z
+  .object({
+    id: z.string().trim().min(1).max(100),
+    type: z.enum(relationshipTypeValues).optional(),
+    action: z.enum(["approve", "reject"]).optional(),
+    actorNodeId: z.string().trim().min(1).max(100),
+  })
+  .strict();
 
 type ApprovalStatus = "approved" | "pending";
 
@@ -171,16 +192,37 @@ export async function POST(request: Request) {
   }
 
   const currentDbUserId = authResult.dbUserId;
+  const ip = getRequestIp(request);
+  const rateLimit = checkRateLimit(`relationships-post:${currentDbUserId}:${ip}`, {
+    windowMs: 5 * 60 * 1000,
+    maxRequests: 40,
+  });
 
-  const payload = (await request.json()) as {
-    source?: unknown;
-    target?: unknown;
-    type?: unknown;
-  };
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many connection requests. Please try again shortly." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
 
-  const source = typeof payload.source === "string" ? payload.source.trim() : "";
-  const target = typeof payload.target === "string" ? payload.target.trim() : "";
-  const type = typeof payload.type === "string" ? payload.type.trim() : "";
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const parsedPayload = createRelationshipSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    return NextResponse.json({ error: "Invalid relationship payload." }, { status: 400 });
+  }
+
+  const { source, target, type } = parsedPayload.data;
 
   if (!source || !target) {
     return NextResponse.json({ error: "A source and target node are required." }, { status: 400 });
@@ -202,10 +244,6 @@ export async function POST(request: Request) {
       { error: "Choose another member to connect with." },
       { status: 400 }
     );
-  }
-
-  if (!relationshipTypes.includes(type as RelationshipType)) {
-    return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
   }
 
   const [user1Id, user2Id] = [source, target].sort();
@@ -241,7 +279,7 @@ export async function POST(request: Request) {
       data: {
         user1Id,
         user2Id,
-        type: encodePendingType(type as RelationshipType, requesterId, responderId),
+        type: encodePendingType(type, requesterId, responderId),
       },
     });
 
@@ -271,22 +309,37 @@ export async function PATCH(request: Request) {
   }
 
   const currentDbUserId = authResult.dbUserId;
+  const ip = getRequestIp(request);
+  const rateLimit = checkRateLimit(`relationships-patch:${currentDbUserId}:${ip}`, {
+    windowMs: 5 * 60 * 1000,
+    maxRequests: 60,
+  });
 
-  const payload = (await request.json()) as {
-    id?: unknown;
-    type?: unknown;
-    action?: unknown;
-    actorNodeId?: unknown;
-  };
-
-  const id = typeof payload.id === "string" ? payload.id.trim() : "";
-  const type = typeof payload.type === "string" ? payload.type.trim() : "";
-  const action = typeof payload.action === "string" ? payload.action.trim() : "";
-  const actorNodeId = typeof payload.actorNodeId === "string" ? payload.actorNodeId.trim() : "";
-
-  if (!id) {
-    return NextResponse.json({ error: "A relationship id is required." }, { status: 400 });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many connection updates. Please try again shortly." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      }
+    );
   }
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const parsedPayload = updateRelationshipSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    return NextResponse.json({ error: "Invalid relationship payload." }, { status: 400 });
+  }
+
+  const { id, type, action, actorNodeId } = parsedPayload.data;
 
   if (!actorNodeId || actorNodeId !== currentDbUserId) {
     return NextResponse.json(
@@ -327,9 +380,6 @@ export async function PATCH(request: Request) {
       }
 
       const nextType = type || parsed.baseType;
-      if (!relationshipTypes.includes(nextType as RelationshipType)) {
-        return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
-      }
 
       try {
         const updated = await prisma.relationship.update({
@@ -380,9 +430,6 @@ export async function PATCH(request: Request) {
   }
 
   const nextType = type || parsed.baseType;
-  if (!relationshipTypes.includes(nextType as RelationshipType)) {
-    return NextResponse.json({ error: "Choose a valid relationship type." }, { status: 400 });
-  }
 
   try {
     const updated = await prisma.relationship.update({
