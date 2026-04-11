@@ -460,16 +460,6 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
       <section className="paper-card rounded-2xl p-4">
         <div className="mb-3 flex flex-wrap gap-2">
-          {userConnections && userConnections.length > 0 && areaUsers && areaUsers.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowConnections(!showConnections)}
-              className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--card-hover)]"
-              title={showConnections ? "Show people in your area" : "Show your connections"}
-            >
-              {showConnections ? "📍 Connections" : "🗺️ Area"}
-            </button>
-          )}
           <label className="mr-2 flex items-center gap-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide">
             <span>New link</span>
             <select
@@ -517,7 +507,37 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
         {connectionError ? (
           <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
         ) : null}
-        <div className="h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white/40 dark:bg-black/20">
+        <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white/40 dark:bg-black/20">
+          {userConnections && userConnections.length > 0 && areaUsers && areaUsers.length > 0 ? (
+            <div className="absolute top-3 right-3 z-20">
+              <div className="flex items-center rounded-xl border border-[var(--border-soft)] bg-white/90 p-1 shadow-sm backdrop-blur dark:bg-black/55">
+                <button
+                  type="button"
+                  onClick={() => setShowConnections(true)}
+                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold tracking-wide transition ${
+                    showConnections
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-black/75 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10"
+                  }`}
+                  title="Show your connections"
+                >
+                  Connections
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConnections(false)}
+                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold tracking-wide transition ${
+                    !showConnections
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-black/75 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10"
+                  }`}
+                  title="Show people in your area"
+                >
+                  Area
+                </button>
+              </div>
+            </div>
+          ) : null}
           <ReactFlow
             nodes={nodes}
             edges={edges}
