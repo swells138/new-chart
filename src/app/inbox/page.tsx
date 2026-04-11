@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
+import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +45,44 @@ function timeAgo(date: Date): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+function renderNotificationContent(content: string): ReactNode {
+  const linkPattern = /(^|\s)(\/map(?:\S*)?)/g;
+  const result: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = linkPattern.exec(content);
+
+  while (match) {
+    const fullMatch = match[0];
+    const href = match[2];
+    const hrefStart = match.index + fullMatch.indexOf(href);
+
+    if (lastIndex < hrefStart) {
+      result.push(content.slice(lastIndex, hrefStart));
+    }
+
+    result.push(
+      <a
+        key={`${href}-${hrefStart}`}
+        href={href}
+        className="underline decoration-[var(--accent)] underline-offset-2 hover:opacity-80"
+      >
+        {href}
+      </a>
+    );
+
+    lastIndex = hrefStart + href.length;
+    match = linkPattern.exec(content);
+  }
+
+  if (lastIndex < content.length) {
+    result.push(content.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : content;
+}
+
 export default async function InboxPage() {
+  let connectedSet = new Set<string>();
   let dbNotifications: { id: string; content: string; read: boolean; createdAt: Date; senderName: string | null }[] = [];
 
   if (hasClerkKeys) {
@@ -56,6 +95,9 @@ export default async function InboxPage() {
       });
 
       if (dbUser) {
+        const connectedIds = await getApprovedConnectionUserIds(dbUser.id);
+        connectedSet = new Set(connectedIds);
+
         const messages = await prisma.message.findMany({
           where: { recipientId: dbUser.id },
           orderBy: { createdAt: "desc" },
@@ -72,9 +114,30 @@ export default async function InboxPage() {
           createdAt: m.createdAt,
           senderName: m.sender.name,
         }));
+
+        dbNotifications.sort((a, b) => {
+          const senderA = messages.find((m) => m.id === a.id)?.senderId;
+          const senderB = messages.find((m) => m.id === b.id)?.senderId;
+          const aConnected = senderA && connectedSet.has(senderA) ? 1 : 0;
+          const bConnected = senderB && connectedSet.has(senderB) ? 1 : 0;
+          if (aConnected !== bConnected) {
+            return bConnected - aConnected;
+          }
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        });
       }
     }
   }
+
+  const dynamicThreads = dbNotifications.slice(0, 3).map((n) => ({
+    id: n.id,
+    name: n.senderName ?? "Unknown member",
+    preview: n.content,
+    time: timeAgo(n.createdAt),
+    unread: !n.read,
+  }));
+
+  const displayedThreads = dynamicThreads.length > 0 ? dynamicThreads : threads;
 
   return (
     <div className="space-y-4">
@@ -87,7 +150,7 @@ export default async function InboxPage() {
         <section className="paper-card rounded-2xl p-5">
           <h3 className="text-lg font-semibold">Recent Threads</h3>
           <div className="mt-3 space-y-2">
-            {threads.map((thread) => (
+            {displayedThreads.map((thread) => (
               <button
                 type="button"
                 key={thread.id}
@@ -126,7 +189,7 @@ export default async function InboxPage() {
                     {n.senderName ? (
                       <span className="font-medium">{n.senderName}: </span>
                     ) : null}
-                    {n.content}
+                    {renderNotificationContent(n.content)}
                   </span>
                   <span className="shrink-0 text-xs text-black/50 dark:text-white/50">
                     {timeAgo(n.createdAt)}

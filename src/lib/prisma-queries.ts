@@ -163,7 +163,15 @@ export async function getMemberDirectoryData(): Promise<{
   const [users, posts, relationships] = await Promise.all([
     prisma.user.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "asc" }] }),
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
-    prisma.relationship.findMany(),
+    prisma.relationship.findMany({
+      where: {
+        NOT: {
+          type: {
+            startsWith: pendingTypePrefix,
+          },
+        },
+      },
+    }),
   ]);
 
   return {
@@ -174,7 +182,15 @@ export async function getMemberDirectoryData(): Promise<{
 }
 
 export async function getAllRelationships(): Promise<Relationship[]> {
-  const relationships = await prisma.relationship.findMany();
+  const relationships = await prisma.relationship.findMany({
+    where: {
+      NOT: {
+        type: {
+          startsWith: pendingTypePrefix,
+        },
+      },
+    },
+  });
   return relationships.map(normalizeRelationship);
 }
 
@@ -182,6 +198,19 @@ export async function getAllRelationships(): Promise<Relationship[]> {
 
 export async function getAllUsers(): Promise<User[]> {
   const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+  return users.map(normalizeUser);
+}
+
+export async function getUsersByLocation(location: string): Promise<User[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      location: {
+        equals: location,
+        mode: "insensitive",
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
   return users.map(normalizeUser);
@@ -254,6 +283,21 @@ export async function getPostsByUser(userId: string): Promise<Post[]> {
   return posts.map(normalizePost);
 }
 
+export async function getPostsByLocation(location: string): Promise<Post[]> {
+  const posts = await prisma.post.findMany({
+    where: {
+      user: {
+        location: {
+          equals: location,
+          mode: "insensitive",
+        },
+      },
+    },
+    orderBy: { timestamp: "desc" },
+  });
+  return posts.map(normalizePost);
+}
+
 export async function createPost(data: {
   userId: string;
   content: string;
@@ -287,6 +331,35 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
     },
   });
   return relationships.map(normalizeRelationship);
+}
+
+export async function getApprovedConnectionUserIds(userId: string): Promise<string[]> {
+  const relationships = await prisma.relationship.findMany({
+    where: {
+      OR: [{ user1Id: userId }, { user2Id: userId }],
+      NOT: {
+        type: {
+          startsWith: pendingTypePrefix,
+        },
+      },
+    },
+    select: {
+      user1Id: true,
+      user2Id: true,
+    },
+  });
+
+  const ids = new Set<string>();
+  relationships.forEach((item) => {
+    if (item.user1Id !== userId) {
+      ids.add(item.user1Id);
+    }
+    if (item.user2Id !== userId) {
+      ids.add(item.user2Id);
+    }
+  });
+
+  return Array.from(ids);
 }
 
 export async function createRelationship(data: {
