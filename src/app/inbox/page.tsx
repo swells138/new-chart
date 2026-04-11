@@ -45,6 +45,42 @@ function timeAgo(date: Date): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+function renderNotificationContent(content: string): ReactNode {
+  const linkPattern = /(^|\s)(\/map(?:\S*)?)/g;
+  const result: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = linkPattern.exec(content);
+
+  while (match) {
+    const fullMatch = match[0];
+    const href = match[2];
+    const hrefStart = match.index + fullMatch.indexOf(href);
+
+    if (lastIndex < hrefStart) {
+      result.push(content.slice(lastIndex, hrefStart));
+    }
+
+    result.push(
+      <a
+        key={`${href}-${hrefStart}`}
+        href={href}
+        className="underline decoration-[var(--accent)] underline-offset-2 hover:opacity-80"
+      >
+        {href}
+      </a>
+    );
+
+    lastIndex = hrefStart + href.length;
+    match = linkPattern.exec(content);
+  }
+
+  if (lastIndex < content.length) {
+    result.push(content.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : content;
+}
+
 export default async function InboxPage() {
   let connectedSet = new Set<string>();
   let dbNotifications: { id: string; content: string; read: boolean; createdAt: Date; senderName: string | null }[] = [];
@@ -92,7 +128,6 @@ export default async function InboxPage() {
       }
     }
   }
-          function renderNotificationContent(content: string): ReactNode {
 
   const dynamicThreads = dbNotifications.slice(0, 3).map((n) => ({
     id: n.id,
