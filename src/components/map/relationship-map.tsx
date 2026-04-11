@@ -114,9 +114,27 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
 
+  const scopedRelationships = useMemo(() => {
+    const byId = new Map<string, Relationship>();
+
+    relationships.forEach((item) => {
+      byId.set(item.id, item);
+    });
+
+    if (currentUserId && userConnections) {
+      userConnections.forEach((item) => {
+        if (item.source === currentUserId || item.target === currentUserId) {
+          byId.set(item.id, item);
+        }
+      });
+    }
+
+    return Array.from(byId.values());
+  }, [relationships, userConnections, currentUserId]);
+
   useEffect(() => {
-    setAllRelationships(relationships);
-  }, [relationships]);
+    setAllRelationships(scopedRelationships);
+  }, [scopedRelationships]);
 
   const approvedUserConnections = useMemo(
     () =>

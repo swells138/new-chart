@@ -163,7 +163,15 @@ export async function getMemberDirectoryData(): Promise<{
   const [users, posts, relationships] = await Promise.all([
     prisma.user.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "asc" }] }),
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
-    prisma.relationship.findMany(),
+    prisma.relationship.findMany({
+      where: {
+        NOT: {
+          type: {
+            startsWith: pendingTypePrefix,
+          },
+        },
+      },
+    }),
   ]);
 
   return {
@@ -174,7 +182,15 @@ export async function getMemberDirectoryData(): Promise<{
 }
 
 export async function getAllRelationships(): Promise<Relationship[]> {
-  const relationships = await prisma.relationship.findMany();
+  const relationships = await prisma.relationship.findMany({
+    where: {
+      NOT: {
+        type: {
+          startsWith: pendingTypePrefix,
+        },
+      },
+    },
+  });
   return relationships.map(normalizeRelationship);
 }
 
