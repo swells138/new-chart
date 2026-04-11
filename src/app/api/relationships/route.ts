@@ -35,6 +35,7 @@ const updateRelationshipSchema = z
     type: z.enum(relationshipTypeValues).optional(),
     action: z.enum(["approve", "reject"]).optional(),
     actorNodeId: z.string().trim().min(1).max(100),
+    note: z.string().max(500).optional(),
   })
   .strict();
 
