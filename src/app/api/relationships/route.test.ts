@@ -7,7 +7,10 @@ const userFindUniqueMock = vi.fn();
 const userCreateMock = vi.fn();
 const userFindManyMock = vi.fn();
 const relationshipFindFirstMock = vi.fn();
+const relationshipFindUniqueMock = vi.fn();
 const relationshipCreateMock = vi.fn();
+const relationshipUpdateMock = vi.fn();
+const relationshipDeleteMock = vi.fn();
 const messageCreateMock = vi.fn();
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -24,7 +27,10 @@ vi.mock("@/lib/prisma", () => ({
     },
     relationship: {
       findFirst: relationshipFindFirstMock,
+      findUnique: relationshipFindUniqueMock,
       create: relationshipCreateMock,
+      update: relationshipUpdateMock,
+      delete: relationshipDeleteMock,
     },
     message: {
       create: messageCreateMock,
@@ -41,7 +47,10 @@ describe("/api/relationships POST", () => {
     userCreateMock.mockReset();
     userFindManyMock.mockReset();
     relationshipFindFirstMock.mockReset();
+    relationshipFindUniqueMock.mockReset();
     relationshipCreateMock.mockReset();
+    relationshipUpdateMock.mockReset();
+    relationshipDeleteMock.mockReset();
     messageCreateMock.mockReset();
 
     process.env.CLERK_SECRET_KEY = "test_secret";
@@ -86,5 +95,74 @@ describe("/api/relationships POST", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(403);
+  });
+});
+
+describe("/api/relationships PATCH", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    authMock.mockReset();
+    currentUserMock.mockReset();
+    userFindUniqueMock.mockReset();
+    userCreateMock.mockReset();
+    userFindManyMock.mockReset();
+    relationshipFindFirstMock.mockReset();
+    relationshipFindUniqueMock.mockReset();
+    relationshipCreateMock.mockReset();
+    relationshipUpdateMock.mockReset();
+    relationshipDeleteMock.mockReset();
+    messageCreateMock.mockReset();
+
+    process.env.CLERK_SECRET_KEY = "test_secret";
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "test_publishable";
+
+    authMock.mockResolvedValue({ userId: "clerk_1" });
+    userFindUniqueMock.mockResolvedValue({ id: "db_1" });
+  });
+
+  it("creates a pending approval request when changing an approved connection type", async () => {
+    const { PATCH } = await import("./route");
+
+    relationshipFindUniqueMock.mockResolvedValue({
+      id: "rel_1",
+      user1Id: "db_1",
+      user2Id: "db_2",
+      type: "friends",
+    });
+
+    relationshipUpdateMock.mockResolvedValue({
+      id: "rel_1",
+      user1Id: "db_1",
+      user2Id: "db_2",
+      type: "pending::married::db_1::db_2",
+    });
+
+    const request = new Request("http://localhost/api/relationships", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "rel_1",
+        type: "married",
+        actorNodeId: "db_1",
+      }),
+    });
+
+    const response = await PATCH(request);
+    const body = (await response.json()) as {
+      relationship?: {
+        id: string;
+        type: string;
+        note: string;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(relationshipUpdateMock).toHaveBeenCalledWith({
+      where: { id: "rel_1" },
+      data: { type: "pending::married::db_1::db_2" },
+    });
+    expect(body.relationship?.id).toBe("rel_1");
+    expect(body.relationship?.type).toBe("married");
+    expect(body.relationship?.note).toContain("\"status\":\"pending\"");
   });
 });

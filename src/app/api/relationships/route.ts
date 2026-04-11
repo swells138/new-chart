@@ -430,22 +430,41 @@ export async function PATCH(request: Request) {
     );
   }
 
+  if (action) {
+    return NextResponse.json(
+      { error: "This connection is already approved." },
+      { status: 400 }
+    );
+  }
+
+  if (!type) {
+    return NextResponse.json(
+      { error: "Choose a connection type to request a change." },
+      { status: 400 }
+    );
+  }
+
+  if (type === parsed.baseType) {
+    return NextResponse.json({ relationship: normalizeRelationship(existing) });
+  }
+
+  const otherUserId =
+    existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
+
   const nextType = type || parsed.baseType;
 
   try {
     const updated = await prisma.relationship.update({
       where: { id },
       data: {
-        type: nextType,
+        type: encodePendingType(nextType, currentDbUserId, otherUserId),
       },
     });
 
-    const otherUserId =
-      existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
     await sendNotification(
       currentDbUserId,
       otherUserId,
-      `Your connection has been updated to "${nextType}".`
+      `You have a request to change this connection to "${nextType}".`
     );
 
     return NextResponse.json({ relationship: normalizeRelationship(updated) });
