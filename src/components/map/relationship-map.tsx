@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  addEdge,
   Background,
   type Connection,
   Controls,
@@ -103,6 +102,7 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
   ]);
   const [showConnections, setShowConnections] = useState(Boolean(userConnections && userConnections.length > 0));
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
+  const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
   const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -181,6 +181,39 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
 
   const displayedUserIds = useMemo(() => new Set(displayedUsers.map((user) => user.id)), [displayedUsers]);
 
+  const connectableUsers = useMemo(() => {
+    if (!currentUserId) {
+      return [] as User[];
+    }
+
+    return users.filter((user) => {
+      if (user.id === currentUserId) {
+        return false;
+      }
+
+      const alreadyConnected = allRelationships.some(
+        (item) =>
+          (item.source === currentUserId && item.target === user.id) ||
+          (item.source === user.id && item.target === currentUserId)
+      );
+
+      return !alreadyConnected;
+    });
+  }, [users, currentUserId, allRelationships]);
+
+  useEffect(() => {
+    if (connectableUsers.length === 0) {
+      setConnectionTargetId("");
+      return;
+    }
+
+    if (connectableUsers.some((user) => user.id === connectionTargetId)) {
+      return;
+    }
+
+    setConnectionTargetId(connectableUsers[0].id);
+  }, [connectableUsers, connectionTargetId]);
+
   // Determine which relationships to display
   const displayedRelationships = useMemo(
     () => (showConnections ? approvedUserConnections : allRelationships),
@@ -258,13 +291,9 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     setEdges(mappedEdges);
   }, [mappedEdges, setEdges]);
 
-  async function onConnect(connection: Connection) {
-    if (!connection.source || !connection.target) {
-      return;
-    }
-
-    if (connection.source === connection.target) {
-      setConnectionError("A user cannot connect to themselves.");
+  async function createConnection(targetId: string) {
+    if (!targetId) {
+      setConnectionError("Choose someone to connect with.");
       return;
     }
 
@@ -273,20 +302,17 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
       return;
     }
 
-    if (connection.source !== currentUserId) {
-      setConnectionError("You can only create connections from your own node.");
-      return;
-    }
+    const sourceId = currentUserId;
 
-    if (connection.target === currentUserId) {
-      setConnectionError("Choose another member to connect with.");
+    if (sourceId === targetId) {
+      setConnectionError("A user cannot connect to themselves.");
       return;
     }
 
     const duplicate = allRelationships.some(
       (item) =>
-        (item.source === connection.source && item.target === connection.target) ||
-        (item.source === connection.target && item.target === connection.source)
+        (item.source === sourceId && item.target === targetId) ||
+        (item.source === targetId && item.target === sourceId)
     );
 
     if (duplicate) {
@@ -304,8 +330,8 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          source: connection.source,
-          target: connection.target,
+          source: sourceId,
+          target: targetId,
           type: connectionType,
         }),
       });
@@ -323,36 +349,31 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
       const relationship = body.relationship;
 
       setAllRelationships((prev) => [...prev, relationship]);
-      setSelectedId(connection.source);
-
-      if (parseRelationshipNote(relationship.note).status === "approved") {
-        setEdges((prev) =>
-          addEdge(
-            {
-              id: relationship.id,
-              source: relationship.source,
-              target: relationship.target,
-              label: relationship.type,
-              style: {
-                stroke: relationColors[relationship.type],
-                strokeWidth: 2,
-              },
-              labelStyle: {
-                fontSize: 10,
-                fill: relationColors[relationship.type],
-                textTransform: "uppercase",
-              },
-            },
-            prev
-          )
-        );
-      }
+      setSelectedId(relationship.target);
     } catch (error) {
       console.error(error);
       setConnectionError("Could not create that connection.");
     } finally {
       setIsConnecting(false);
     }
+  }
+
+  async function onConnect(connection: Connection) {
+    if (!connection.source || !connection.target) {
+      return;
+    }
+
+    if (!currentUserId) {
+      setConnectionError("Sign in to create connections.");
+      return;
+    }
+
+    if (connection.source !== currentUserId) {
+      setConnectionError("You can only create connections from your own node.");
+      return;
+    }
+
+    await createConnection(connection.target);
   }
 
   function startEditing(item: Relationship) {
@@ -460,20 +481,6 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
       <section className="paper-card rounded-2xl p-4">
         <div className="mb-3 flex flex-wrap gap-2">
-          <label className="mr-2 flex items-center gap-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-            <span>New link</span>
-            <select
-              value={connectionType}
-              onChange={(event) => setConnectionType(event.target.value as RelationshipType)}
-              className="bg-transparent text-[11px] outline-none"
-            >
-              {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </label>
           {(Object.keys(relationColors) as RelationshipType[]).map((type) => {
             const active = activeTypes.includes(type);
             return (
@@ -497,7 +504,7 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
           })}
         </div>
         <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-          Drag from one node handle to another to create a new connection.
+          Use the side form to create a connection, or drag from your node to another member.
         </p>
         {currentUserId ? null : (
           <p className="mb-3 text-xs text-black/65 dark:text-white/70">
@@ -558,6 +565,60 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
       </section>
 
       <aside className="paper-card rounded-2xl p-5">
+        <div className="rounded-xl border border-[var(--border-soft)] p-3">
+          <h4 className="text-sm font-semibold uppercase tracking-wide">Add connection</h4>
+          {currentUserId ? (
+            <form
+              className="mt-3 space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void createConnection(connectionTargetId);
+              }}
+            >
+              <select
+                value={connectionTargetId}
+                onChange={(event) => setConnectionTargetId(event.target.value)}
+                className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-2 text-sm outline-none"
+                disabled={connectableUsers.length === 0 || isConnecting}
+              >
+                {connectableUsers.length === 0 ? (
+                  <option value="">No available members</option>
+                ) : (
+                  connectableUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} (@{user.handle})
+                    </option>
+                  ))
+                )}
+              </select>
+              <select
+                value={connectionType}
+                onChange={(event) => setConnectionType(event.target.value as RelationshipType)}
+                className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-2 text-sm outline-none"
+                disabled={isConnecting}
+              >
+                {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={!connectionTargetId || isConnecting || connectableUsers.length === 0}
+                className="w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {isConnecting ? "Creating..." : "Create connection"}
+              </button>
+            </form>
+          ) : (
+            <p className="mt-2 text-xs text-black/65 dark:text-white/70">
+              Sign in to create and manage your connections.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-4">
         {selectedUser ? (
           <>
             <div className="flex items-center gap-3">
@@ -683,6 +744,7 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
         ) : (
           <p className="text-sm">Select a node to preview member details.</p>
         )}
+        </div>
       </aside>
     </div>
   );
