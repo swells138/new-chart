@@ -101,9 +101,7 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     "crushes",
     "mentors",
   ]);
-  const [showConnections, setShowConnections] = useState(
-    userConnections && userConnections.length > 0
-  );
+  const [showConnections, setShowConnections] = useState(Boolean(userConnections && userConnections.length > 0));
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
   const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
   const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
@@ -119,27 +117,75 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     setAllRelationships(relationships);
   }, [relationships]);
 
+  const approvedUserConnections = useMemo(
+    () =>
+      allRelationships.filter((item) => {
+        const parsed = parseRelationshipNote(item.note);
+        if (parsed.status !== "approved") {
+          return false;
+        }
+        if (!currentUserId) {
+          return false;
+        }
+        return item.source === currentUserId || item.target === currentUserId;
+      }),
+    [allRelationships, currentUserId]
+  );
+
+  const connectedNodeIds = useMemo(() => {
+    if (!currentUserId) {
+      return new Set<string>();
+    }
+
+    const ids = new Set<string>([currentUserId]);
+
+    approvedUserConnections.forEach((item) => {
+      if (item.source === currentUserId) {
+        ids.add(item.target);
+      } else if (item.target === currentUserId) {
+        ids.add(item.source);
+      }
+    });
+
+    return ids;
+  }, [approvedUserConnections, currentUserId]);
+
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
-    // If user has connections and wants to see them, show all users
-    // but relationships will be filtered to just their connections
-    if (showConnections && userConnections && userConnections.length > 0) {
-      return users;
+    if (showConnections) {
+      return users.filter((user) => connectedNodeIds.has(user.id));
     }
+
     // If showing area view, use area users if available, otherwise show all
     if (areaUsers && areaUsers.length > 0) {
       return areaUsers;
     }
+
     return users;
-  }, [showConnections, users, areaUsers, userConnections]);
+  }, [showConnections, users, areaUsers, connectedNodeIds]);
+
+  useEffect(() => {
+    if (displayedUsers.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+
+    if (selectedId && displayedUsers.some((user) => user.id === selectedId)) {
+      return;
+    }
+
+    const defaultSelected =
+      (currentUserId && displayedUsers.find((user) => user.id === currentUserId)?.id) ?? displayedUsers[0].id;
+    setSelectedId(defaultSelected);
+  }, [displayedUsers, selectedId, currentUserId]);
+
+  const displayedUserIds = useMemo(() => new Set(displayedUsers.map((user) => user.id)), [displayedUsers]);
 
   // Determine which relationships to display
-  const displayedRelationships = useMemo(() => {
-    if (showConnections && userConnections && userConnections.length > 0) {
-      return userConnections;
-    }
-    return [];
-  }, [showConnections, userConnections]);
+  const displayedRelationships = useMemo(
+    () => (showConnections ? approvedUserConnections : allRelationships),
+    [showConnections, approvedUserConnections, allRelationships]
+  );
 
   const mappedNodes: Node[] = useMemo(
     () =>
@@ -166,10 +212,14 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
 
   const filteredRelationships = useMemo(
     () => {
-      const relationsToFilter = displayedRelationships.length > 0 ? displayedRelationships : allRelationships;
-      return relationsToFilter.filter((item) => activeTypes.includes(item.type));
+      return displayedRelationships.filter(
+        (item) =>
+          activeTypes.includes(item.type) &&
+          displayedUserIds.has(item.source) &&
+          displayedUserIds.has(item.target)
+      );
     },
-    [activeTypes, allRelationships, displayedRelationships]
+    [activeTypes, displayedRelationships, displayedUserIds]
   );
 
   const graphRelationships = useMemo(
@@ -401,7 +451,7 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     }
   }
 
-  const selectedUser = users.find((user) => user.id === selectedId);
+  const selectedUser = displayedUsers.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId
   );
