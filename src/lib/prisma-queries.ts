@@ -317,6 +317,35 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
   return relationships.map(normalizeRelationship);
 }
 
+export async function getApprovedConnectionUserIds(userId: string): Promise<string[]> {
+  const relationships = await prisma.relationship.findMany({
+    where: {
+      OR: [{ user1Id: userId }, { user2Id: userId }],
+      NOT: {
+        type: {
+          startsWith: pendingTypePrefix,
+        },
+      },
+    },
+    select: {
+      user1Id: true,
+      user2Id: true,
+    },
+  });
+
+  const ids = new Set<string>();
+  relationships.forEach((item) => {
+    if (item.user1Id !== userId) {
+      ids.add(item.user1Id);
+    }
+    if (item.user2Id !== userId) {
+      ids.add(item.user2Id);
+    }
+  });
+
+  return Array.from(ids);
+}
+
 export async function createRelationship(data: {
   user1Id: string;
   user2Id: string;

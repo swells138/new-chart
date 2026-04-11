@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
+import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ function timeAgo(date: Date): string {
 }
 
 export default async function InboxPage() {
+  let connectedSet = new Set<string>();
   let dbNotifications: { id: string; content: string; read: boolean; createdAt: Date; senderName: string | null }[] = [];
 
   if (hasClerkKeys) {
@@ -56,6 +58,9 @@ export default async function InboxPage() {
       });
 
       if (dbUser) {
+        const connectedIds = await getApprovedConnectionUserIds(dbUser.id);
+        connectedSet = new Set(connectedIds);
+
         const messages = await prisma.message.findMany({
           where: { recipientId: dbUser.id },
           orderBy: { createdAt: "desc" },
@@ -72,9 +77,30 @@ export default async function InboxPage() {
           createdAt: m.createdAt,
           senderName: m.sender.name,
         }));
+
+        dbNotifications.sort((a, b) => {
+          const senderA = messages.find((m) => m.id === a.id)?.senderId;
+          const senderB = messages.find((m) => m.id === b.id)?.senderId;
+          const aConnected = senderA && connectedSet.has(senderA) ? 1 : 0;
+          const bConnected = senderB && connectedSet.has(senderB) ? 1 : 0;
+          if (aConnected !== bConnected) {
+            return bConnected - aConnected;
+          }
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        });
       }
     }
   }
+
+  const dynamicThreads = dbNotifications.slice(0, 3).map((n) => ({
+    id: n.id,
+    name: n.senderName ?? "Unknown member",
+    preview: n.content,
+    time: timeAgo(n.createdAt),
+    unread: !n.read,
+  }));
+
+  const displayedThreads = dynamicThreads.length > 0 ? dynamicThreads : threads;
 
   return (
     <div className="space-y-4">
@@ -87,7 +113,7 @@ export default async function InboxPage() {
         <section className="paper-card rounded-2xl p-5">
           <h3 className="text-lg font-semibold">Recent Threads</h3>
           <div className="mt-3 space-y-2">
-            {threads.map((thread) => (
+            {displayedThreads.map((thread) => (
               <button
                 type="button"
                 key={thread.id}

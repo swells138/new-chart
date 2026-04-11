@@ -1,24 +1,65 @@
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import { MemberCard } from "@/components/cards/member-card";
 import { PostCard } from "@/components/cards/post-card";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
+  getApprovedConnectionUserIds,
   getAllPosts,
   getAllRelationships,
   getAllUsers,
 } from "@/lib/prisma-queries";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const hasClerkKeys =
+  Boolean(process.env.CLERK_SECRET_KEY) &&
+  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
 export default async function Home() {
+  let currentUserDbId: string | null = null;
+
+  if (hasClerkKeys) {
+    const { userId } = await auth();
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      });
+      currentUserDbId = user?.id ?? null;
+    }
+  }
+
   const [users, posts, relationships] = await Promise.all([
     getAllUsers(),
     getAllPosts(),
     getAllRelationships(),
   ]);
 
-  const featuredMembers = users.filter((user) => user.featured).slice(0, 3);
-  const featuredPosts = posts.slice(0, 3);
+  const connectedIds = currentUserDbId ? await getApprovedConnectionUserIds(currentUserDbId) : [];
+  const connectedSet = new Set(connectedIds);
+
+  const membersOrdered = [...users].sort((a, b) => {
+    const aConnected = connectedSet.has(a.id) ? 1 : 0;
+    const bConnected = connectedSet.has(b.id) ? 1 : 0;
+    if (aConnected !== bConnected) {
+      return bConnected - aConnected;
+    }
+    return Number(b.featured) - Number(a.featured);
+  });
+
+  const postsOrdered = [...posts].sort((a, b) => {
+    const aConnected = connectedSet.has(a.userId) ? 1 : 0;
+    const bConnected = connectedSet.has(b.userId) ? 1 : 0;
+    if (aConnected !== bConnected) {
+      return bConnected - aConnected;
+    }
+    return 0;
+  });
+
+  const featuredMembers = membersOrdered.slice(0, 3);
+  const featuredPosts = postsOrdered.slice(0, 3);
   const userById = new Map(users.map((user) => [user.id, user]));
 
   return (

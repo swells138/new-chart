@@ -3,7 +3,7 @@ import { MemberCard } from "@/components/cards/member-card";
 import { PostCard } from "@/components/cards/post-card";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
-import { getAllPosts, getAllUsers, getPostsByLocation, getRelationshipsByUser } from "@/lib/prisma-queries";
+import { getAllPosts, getAllUsers, getApprovedConnectionUserIds, getPostsByLocation, getRelationshipsByUser } from "@/lib/prisma-queries";
 import type { Relationship, Post } from "@/types/models";
 
 export const dynamic = "force-dynamic";
@@ -40,12 +40,24 @@ export default async function FeedPage() {
     areaPosts = await getPostsByLocation(currentUserLocation);
   }
 
-  // Determine which posts to show
-  const displayedPosts = userConnections.length > 0
-    ? posts // Show all posts (will include connection posts when viewing connections)
+  const connectedIds = currentUserDbId ? await getApprovedConnectionUserIds(currentUserDbId) : [];
+  const connectedSet = new Set(connectedIds);
+
+  // Determine which posts to show: connected activity first on feed
+  const basePosts = userConnections.length > 0
+    ? posts
     : areaPosts.length > 0
       ? areaPosts
-      : posts; // Fallback to all posts if no area posts
+      : posts;
+
+  const displayedPosts = [...basePosts].sort((a, b) => {
+    const aConnected = connectedSet.has(a.userId) ? 1 : 0;
+    const bConnected = connectedSet.has(b.userId) ? 1 : 0;
+    if (aConnected !== bConnected) {
+      return bConnected - aConnected;
+    }
+    return 0;
+  });
 
   const tagCounts = displayedPosts
     .flatMap((post) => post.tags)
@@ -58,7 +70,14 @@ export default async function FeedPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6);
 
-  const featuredUsers = users.filter((user) => user.featured);
+  const featuredUsers = [...users].sort((a, b) => {
+    const aConnected = connectedSet.has(a.id) ? 1 : 0;
+    const bConnected = connectedSet.has(b.id) ? 1 : 0;
+    if (aConnected !== bConnected) {
+      return bConnected - aConnected;
+    }
+    return Number(b.featured) - Number(a.featured);
+  });
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
