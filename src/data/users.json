@@ -4,10 +4,10 @@
     "name": "Mara Sol",
     "handle": "marasol",
     "pronouns": "she/they",
-    "bio": "Community radio host, analog photo collector, and brunch playlist obsessive.",
-    "interests": ["zines", "city biking", "synth pop"],
+    "bio": "Community radio host, analog photo collector, and brunch playlist obsessive. Always hunting for the perfect vinyl at local thrift stores and organizing neighborhood listening parties.",
+    "interests": ["zines", "city biking", "synth pop", "analog photography", "radio", "community organizing"],
     "relationshipStatus": "single",
-    "location": "North Harbor",
+    "location": "Portland, OR",
     "links": {
       "website": "https://example.com/mara",
       "social": "@marasol"
@@ -19,10 +19,10 @@
     "name": "Rey Navarro",
     "handle": "reynotes",
     "pronouns": "they/them",
-    "bio": "Poet, barista, and organizer of tiny living-room film nights.",
-    "interests": ["poetry", "slow cinema", "espresso"],
+    "bio": "Poet, barista, and organizer of tiny living-room film nights. Currently working on a collection of short films paired with original poetry. Excellent at making oat milk lattes.",
+    "interests": ["poetry", "slow cinema", "espresso", "literature", "experimental film", "spoken word"],
     "relationshipStatus": "seeing someone",
-    "location": "River District",
+    "location": "Seattle, WA",
     "links": {
       "website": "https://example.com/rey",
       "social": "@reynotes"
@@ -34,10 +34,10 @@
     "name": "Ivy Mercer",
     "handle": "ivyframes",
     "pronouns": "she/her",
-    "bio": "Freelance set designer building dreamy spaces from thrifted treasures.",
-    "interests": ["set design", "thrifting", "indie rock"],
+    "bio": "Freelance set designer building dreamy spaces from thrifted treasures. Specializes in maximalist interiors and sustainable design. Available for consultation and installation.",
+    "interests": ["set design", "thrifting", "indie rock", "interior design", "sustainability", "visual art"],
     "relationshipStatus": "complicated",
-    "location": "Old Quarter",
+    "location": "Oakland, CA",
     "links": {
       "website": "https://example.com/ivy",
       "social": "@ivyframes"
@@ -49,10 +49,10 @@
     "name": "Noa Kline",
     "handle": "nokline",
     "pronouns": "he/they",
-    "bio": "Tattoo apprentice with a soft spot for maximalist cookbooks and rooftop gardens.",
-    "interests": ["tattoo art", "gardening", "supper clubs"],
+    "bio": "Tattoo apprentice at historic studio with a soft spot for maximalist cookbooks and rooftop gardens. Passionate about meaningful body art and building community spaces.",
+    "interests": ["tattoo art", "gardening", "supper clubs", "botany", "culinary arts", "workshop facilitation"],
     "relationshipStatus": "single",
-    "location": "West Hills",
+    "location": "Brooklyn, NY",
     "links": {
       "website": "https://example.com/noa",
       "social": "@nokline"
@@ -64,10 +64,10 @@
     "name": "Jules Vance",
     "handle": "julesv",
     "pronouns": "they/she",
-    "bio": "Audio engineer and night-walk diarist. Known for perfecting cozy show flyers.",
-    "interests": ["audio", "flyer design", "late-night walks"],
+    "bio": "Audio engineer and night-walk diarist. Known for perfecting cozy show flyers. Works with local venues on sound design and hosts monthly podcast about urban exploration.",
+    "interests": ["audio", "flyer design", "late-night walks", "sound engineering", "podcasting", "typography"],
     "relationshipStatus": "single",
-    "location": "East Market",
+    "location": "Austin, TX",
     "links": {
       "website": "https://example.com/jules",
       "social": "@julesv"
@@ -79,10 +79,10 @@
     "name": "Dani Park",
     "handle": "danipark",
     "pronouns": "she/her",
-    "bio": "Frequent host of maker nights and keeper of the neighborhood events calendar.",
-    "interests": ["event planning", "DIY", "urban sketching"],
+    "bio": "Event planner and maker culture enthusiast. Frequent host of community craft nights and keeper of the neighborhood events calendar. Loves connecting creative people and growing local networks.",
+    "interests": ["event planning", "DIY", "urban sketching", "community building", "craft workshops", "social design"],
     "relationshipStatus": "partnered",
-    "location": "Sunset Row",
+    "location": "Los Angeles, CA",
     "links": {
       "website": "https://example.com/dani",
       "social": "@danipark"
