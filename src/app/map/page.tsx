@@ -24,6 +24,40 @@ function getStateCode(location: string | null) {
   return state.toUpperCase();
 }
 
+function buildAreaUsers(
+  allUsers: Awaited<ReturnType<typeof getAllUsers>>,
+  currentUserId: string,
+  currentUserLocation: string
+) {
+  let areaUsers = allUsers.filter(
+    (user) =>
+      user.location.trim().toLowerCase() === currentUserLocation.trim().toLowerCase()
+  );
+
+  if (areaUsers.length <= 1) {
+    const currentState = getStateCode(currentUserLocation);
+    if (currentState) {
+      const stateMatches = allUsers.filter(
+        (user) => user.id !== currentUserId && getStateCode(user.location) === currentState
+      );
+
+      areaUsers = areaUsers.concat(
+        stateMatches.filter((candidate) => !areaUsers.some((existing) => existing.id === candidate.id))
+      );
+    }
+  }
+
+  if (areaUsers.length <= 1) {
+    areaUsers = allUsers.filter((user) => user.id !== currentUserId).slice(0, 12);
+    const currentUser = allUsers.find((user) => user.id === currentUserId);
+    if (currentUser) {
+      areaUsers = [currentUser, ...areaUsers];
+    }
+  }
+
+  return areaUsers;
+}
+
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
   let currentUserLocation: string | null = null;
@@ -64,45 +98,14 @@ export default async function MapPage() {
   let areaUsers: typeof users = [];
   let userConnections: typeof relationships = [];
 
-  // If user has a location and no connections yet, get users from their area
+  // If user has a location, always build area users with fallbacks
   if (currentUserDbId && currentUserLocation) {
     userConnections = await getRelationshipsByUser(currentUserDbId);
-    
-    // If user has no connections, show area users.
-    // Fallbacks:
-    // 1) exact city/state matches
-    // 2) same state matches
-    // 3) all users except self
+    areaUsers = buildAreaUsers(allUsers, currentUserDbId, currentUserLocation);
+
+    // If user has no connections, start them in area mode data.
     if (userConnections.length === 0) {
-      areaUsers = await getUsersByLocation(currentUserLocation);
-
-      if (areaUsers.length <= 1) {
-        const currentState = getStateCode(currentUserLocation);
-        if (currentState) {
-          const stateMatches = allUsers.filter(
-            (user) =>
-              user.id !== currentUserDbId &&
-              getStateCode(user.location) === currentState
-          );
-
-          areaUsers = areaUsers.concat(
-            stateMatches.filter((candidate) => !areaUsers.some((existing) => existing.id === candidate.id))
-          );
-        }
-      }
-
-      if (areaUsers.length <= 1) {
-        areaUsers = allUsers.filter((user) => user.id !== currentUserDbId).slice(0, 12);
-        const currentUser = allUsers.find((user) => user.id === currentUserDbId);
-        if (currentUser) {
-          areaUsers = [currentUser, ...areaUsers];
-        }
-      }
-
       users = areaUsers.length > 0 ? areaUsers : allUsers;
-    } else {
-      // If user has connections, keep all users but mark that they have connections
-      areaUsers = await getUsersByLocation(currentUserLocation);
     }
   }
 
