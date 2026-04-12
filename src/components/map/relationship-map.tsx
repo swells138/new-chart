@@ -42,7 +42,14 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
     <>
       <Handle
         type="target"
+        id="target-left"
         position={Position.Left}
+        style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
+      />
+      <Handle
+        type="target"
+        id="target-right"
+        position={Position.Right}
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
       <div style={{ textAlign: "center", width: 72 }}>
@@ -85,6 +92,13 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
       </div>
       <Handle
         type="source"
+        id="source-left"
+        position={Position.Left}
+        style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
+      />
+      <Handle
+        type="source"
+        id="source-right"
         position={Position.Right}
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
@@ -411,35 +425,48 @@ export function RelationshipMap({
   );
 
   const mappedEdges: Edge[] = useMemo(
-    () =>
-      graphRelationships.map((item) => ({
-        id: item.id,
-        source: item.source,
-        target: item.target,
-        type: "smoothstep",
-        pathOptions: { borderRadius: 24, offset: 20 },
-        label: item.type,
-        style: {
-          stroke: relationColors[item.type],
-          strokeWidth: 2,
-          strokeOpacity: 0.75,
-        },
-        labelStyle: {
-          fontSize: 9,
-          fill: relationColors[item.type],
-          fontWeight: 600,
-          fontFamily: "system-ui",
-        },
-        labelBgStyle: {
-          fill: "rgba(10,6,20,0.85)",
-          stroke: relationColors[item.type],
-          strokeWidth: 0.75,
-          strokeOpacity: 0.5,
-        },
-        labelBgPadding: [4, 6] as [number, number],
-        labelBgBorderRadius: 5,
-      })),
-    [graphRelationships]
+    () => {
+      const nodeById = new Map(mappedNodes.map((node) => [node.id, node]));
+
+      return graphRelationships.map((item) => {
+        const sourceNode = nodeById.get(item.source);
+        const targetNode = nodeById.get(item.target);
+        const sourceX = sourceNode?.position.x ?? 0;
+        const targetX = targetNode?.position.x ?? 0;
+        const sourceIsLeft = sourceX <= targetX;
+
+        return {
+          id: item.id,
+          source: item.source,
+          target: item.target,
+          sourceHandle: sourceIsLeft ? "source-right" : "source-left",
+          targetHandle: sourceIsLeft ? "target-left" : "target-right",
+          type: "smoothstep",
+          pathOptions: { borderRadius: 24, offset: 20 },
+          label: item.type,
+          style: {
+            stroke: relationColors[item.type],
+            strokeWidth: 2,
+            strokeOpacity: 0.75,
+          },
+          labelStyle: {
+            fontSize: 9,
+            fill: relationColors[item.type],
+            fontWeight: 600,
+            fontFamily: "system-ui",
+          },
+          labelBgStyle: {
+            fill: "rgba(10,6,20,0.85)",
+            stroke: relationColors[item.type],
+            strokeWidth: 0.75,
+            strokeOpacity: 0.5,
+          },
+          labelBgPadding: [4, 6] as [number, number],
+          labelBgBorderRadius: 5,
+        };
+      });
+    },
+    [graphRelationships, mappedNodes]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
