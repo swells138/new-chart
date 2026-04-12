@@ -5,6 +5,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
 import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
 import type { ReactNode } from "react";
+import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,12 @@ const threads = [
     unread: true,
   },
 ];
+
+type InboxMessage = Prisma.MessageGetPayload<{
+  include: {
+    sender: { select: { name: true } };
+  };
+}>;
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -117,7 +124,7 @@ export default async function InboxPage() {
           },
         });
 
-        dbNotifications = messages.map((m) => ({
+        dbNotifications = messages.map((m: InboxMessage) => ({
           id: m.id,
           content: m.content,
           read: m.read,
