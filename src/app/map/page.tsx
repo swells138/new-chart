@@ -2,7 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
-import { getAllRelationships, getAllUsers, getRelationshipsByUser } from "@/lib/prisma-queries";
+import { getAllRelationships, getAllUsers, getPrivateConnectionsByUser, getRelationshipsByUser } from "@/lib/prisma-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -97,10 +97,12 @@ export default async function MapPage() {
   const relationships = await getAllRelationships();
   let areaUsers: typeof users = [];
   let userConnections: typeof relationships = [];
+  let privatePlaceholders = [] as Awaited<ReturnType<typeof getPrivateConnectionsByUser>>;
 
   // If user has a location, always build area users with fallbacks
   if (currentUserDbId && currentUserLocation) {
     userConnections = await getRelationshipsByUser(currentUserDbId);
+    privatePlaceholders = await getPrivateConnectionsByUser(currentUserDbId);
     areaUsers = buildAreaUsers(allUsers, currentUserDbId, currentUserLocation);
 
     // If user has no connections, start them in area mode data.
@@ -109,18 +111,28 @@ export default async function MapPage() {
     }
   }
 
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL
+      ? process.env.VERCEL_URL.startsWith("http")
+        ? process.env.VERCEL_URL
+        : `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
   return (
     <div className="space-y-4">
       <SectionHeader
         title="Relationship Map"
         subtitle="Click nodes to open details, drag to connect, and edit only connections that include your own profile."
       />
-      <RelationshipMap 
-        users={users} 
-        relationships={relationships} 
+      <RelationshipMap
+        users={users}
+        relationships={relationships}
         currentUserId={currentUserDbId}
         userConnections={userConnections}
         areaUsers={areaUsers}
+        privatePlaceholders={privatePlaceholders}
+        baseUrl={baseUrl}
       />
     </div>
   );

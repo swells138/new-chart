@@ -99,12 +99,14 @@ async function main() {
         user1Id: relationship.source,
         user2Id: relationship.target,
         type: relationship.type,
+        isPublic: false,
       },
       create: {
         id: relationship.id,
         user1Id: relationship.source,
         user2Id: relationship.target,
         type: relationship.type,
+        isPublic: false,
       },
     });
   }

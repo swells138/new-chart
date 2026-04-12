@@ -6,9 +6,12 @@
  */
 
 import { prisma } from "./prisma";
-import type { User, Post, Relationship } from "@/types/models";
+import type { User, Post, Relationship, PlaceholderPerson, RelationshipType } from "@/types/models";
 
 const relationshipTypes: Relationship["type"][] = [
+  "Talking",
+  "Dating",
+  "Situationship",
   "Exes",
   "Married",
   "Sneaky Link",
@@ -125,6 +128,8 @@ function normalizeRelationship(relationship: {
   user1Id: string;
   user2Id: string;
   type: string;
+  isPublic?: boolean;
+  publicRequestedBy?: string | null;
 }): Relationship {
   const parsed = parseStoredRelationshipType(
     relationship.type,
@@ -137,6 +142,8 @@ function normalizeRelationship(relationship: {
     source: relationship.user1Id,
     target: relationship.user2Id,
     type: parsed.baseType,
+    isPublic: relationship.isPublic ?? false,
+    publicRequestedBy: relationship.publicRequestedBy ?? null,
     note:
       parsed.status === "pending"
         ? `${metaPrefix}${JSON.stringify({
@@ -158,11 +165,8 @@ export async function getMemberDirectoryData(): Promise<{
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
     prisma.relationship.findMany({
       where: {
-        NOT: {
-          type: {
-            startsWith: pendingTypePrefix,
-          },
-        },
+        isPublic: true,
+        NOT: { type: { startsWith: pendingTypePrefix } },
       },
     }),
   ]);
@@ -174,14 +178,12 @@ export async function getMemberDirectoryData(): Promise<{
   };
 }
 
+/** Returns only publicly visible approved relationships for the community map. */
 export async function getAllRelationships(): Promise<Relationship[]> {
   const relationships = await prisma.relationship.findMany({
     where: {
-      NOT: {
-        type: {
-          startsWith: pendingTypePrefix,
-        },
-      },
+      isPublic: true,
+      NOT: { type: { startsWith: pendingTypePrefix } },
     },
   });
   return relationships.map(normalizeRelationship);
@@ -314,6 +316,8 @@ export async function deletePost(id: string): Promise<void> {
 
 // ===== RELATIONSHIPS =====
 
+
+/** Returns all of a user's relationships (pending + approved, public + private). */
 export async function getRelationshipsByUser(userId: string): Promise<Relationship[]> {
   const relationships = await prisma.relationship.findMany({
     where: {
@@ -324,6 +328,26 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
     },
   });
   return relationships.map(normalizeRelationship);
+}
+
+/** Returns a user's private chart entries (PlaceholderPerson records). */
+export async function getPrivateConnectionsByUser(userId: string): Promise<PlaceholderPerson[]> {
+  const placeholders = await prisma.placeholderPerson.findMany({
+    where: { ownerId: userId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return placeholders.map((p) => ({
+    id: p.id,
+    ownerId: p.ownerId,
+    name: p.name,
+    relationshipType: p.relationshipType as RelationshipType,
+    note: p.note ?? "",
+    inviteToken: p.inviteToken,
+    linkedUserId: p.linkedUserId,
+    claimStatus: p.claimStatus as PlaceholderPerson["claimStatus"],
+    createdAt: p.createdAt.toISOString(),
+  }));
 }
 
 export async function getApprovedConnectionUserIds(userId: string): Promise<string[]> {

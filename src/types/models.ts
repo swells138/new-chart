@@ -1,4 +1,7 @@
 export type RelationshipType =
+  | "Talking"
+  | "Dating"
+  | "Situationship"
   | "Exes"
   | "Married"
   | "Sneaky Link"
@@ -40,4 +43,19 @@ export interface Relationship {
   target: string;
   type: RelationshipType;
   note: string;
+  isPublic: boolean;
+  publicRequestedBy: string | null;
+}
+
+// claimStatus: "unclaimed" | "invited" | "claimed" | "denied"
+export interface PlaceholderPerson {
+  id: string;
+  ownerId: string;
+  name: string;
+  relationshipType: RelationshipType;
+  note: string;
+  inviteToken: string | null;
+  linkedUserId: string | null;
+  claimStatus: "unclaimed" | "invited" | "claimed" | "denied";
+  createdAt: string;
 }

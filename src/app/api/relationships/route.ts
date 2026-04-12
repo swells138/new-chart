@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+﻿import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +10,9 @@ const hasClerkKeys =
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 const relationshipTypeValues = [
+  "Talking",
+  "Dating",
+  "Situationship",
   "Exes",
   "Married",
   "Sneaky Link",
@@ -34,7 +37,9 @@ const updateRelationshipSchema = z
   .object({
     id: z.string().trim().min(1).max(100),
     type: z.enum(relationshipTypeValues).optional(),
-    action: z.enum(["approve", "reject"]).optional(),
+    action: z
+      .enum(["approve", "reject", "requestPublic", "approvePublic", "denyPublic"])
+      .optional(),
     actorNodeId: z.string().trim().min(1).max(100),
     note: z.string().max(500).optional(),
   })
@@ -99,6 +104,8 @@ function normalizeRelationship(relationship: {
   user1Id: string;
   user2Id: string;
   type: string;
+  isPublic?: boolean;
+  publicRequestedBy?: string | null;
 }) {
   const parsed = parseStoredRelationshipType(
     relationship.type,
@@ -111,6 +118,8 @@ function normalizeRelationship(relationship: {
     source: relationship.user1Id,
     target: relationship.user2Id,
     type: parsed.baseType,
+    isPublic: relationship.isPublic ?? false,
+    publicRequestedBy: relationship.publicRequestedBy ?? null,
     note:
       parsed.status === "pending"
         ? buildRelationshipMetaNote({
@@ -429,6 +438,77 @@ export async function PATCH(request: Request) {
       { error: "Pending connections must be approved or declined." },
       { status: 400 }
     );
+  }
+
+  if (action === "requestPublic") {
+    if (existing.isPublic) {
+      return NextResponse.json({ relationship: normalizeRelationship(existing) });
+    }
+    if (existing.publicRequestedBy === currentDbUserId) {
+      return NextResponse.json({ relationship: normalizeRelationship(existing) });
+    }
+
+    const otherUserIdForPublic =
+      existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
+
+    const updated = await prisma.relationship.update({
+      where: { id },
+      data: { publicRequestedBy: currentDbUserId },
+    });
+
+    await sendNotification(
+      currentDbUserId,
+      otherUserIdForPublic,
+      "Someone wants to make your connection public. Review it on /map."
+    );
+
+    return NextResponse.json({ relationship: normalizeRelationship(updated) });
+  }
+
+  if (action === "approvePublic") {
+    if (!existing.publicRequestedBy) {
+      return NextResponse.json({ error: "No pending public request." }, { status: 400 });
+    }
+    if (existing.publicRequestedBy === currentDbUserId) {
+      return NextResponse.json(
+        { error: "You cannot approve your own public request." },
+        { status: 403 }
+      );
+    }
+
+    const requester = existing.publicRequestedBy;
+    const updated = await prisma.relationship.update({
+      where: { id },
+      data: { isPublic: true, publicRequestedBy: null },
+    });
+
+    await sendNotification(
+      currentDbUserId,
+      requester,
+      "Your connection is now public on the chart!"
+    );
+
+    return NextResponse.json({ relationship: normalizeRelationship(updated) });
+  }
+
+  if (action === "denyPublic") {
+    if (!existing.publicRequestedBy) {
+      return NextResponse.json({ error: "No pending public request." }, { status: 400 });
+    }
+
+    const requester = existing.publicRequestedBy;
+    const updated = await prisma.relationship.update({
+      where: { id },
+      data: { publicRequestedBy: null },
+    });
+
+    await sendNotification(
+      currentDbUserId,
+      requester,
+      "Your request to make a connection public was declined."
+    );
+
+    return NextResponse.json({ relationship: normalizeRelationship(updated) });
   }
 
   if (action) {

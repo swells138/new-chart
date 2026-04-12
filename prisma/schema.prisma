@@ -35,6 +35,8 @@ model User {
   relationships   Relationship[] @relation("User1")
   reverseRelationships Relationship[] @relation("User2")
   eventAttendees  EventAttendee[]
+  ownedPlaceholders  PlaceholderPerson[] @relation("PlaceholderOwner")
+  claimedPlaceholders PlaceholderPerson[] @relation("PlaceholderLinked")
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -107,10 +109,30 @@ model Relationship {
   user1           User      @relation("User1", fields: [user1Id], references: [id], onDelete: Cascade)
   user2Id         String
   user2           User      @relation("User2", fields: [user2Id], references: [id], onDelete: Cascade)
-  type            String    // "Exes" | "Married" | "Sneaky Link" | "Friends" | "Lovers" | "One Night Stand" | "complicated" | "FWB"
+  type            String    // "Talking" | "Dating" | "Situationship" | "Exes" | "Married" | "Sneaky Link" | "Friends" | "Lovers" | "One Night Stand" | "complicated" | "FWB"
   note            String?
+  isPublic        Boolean   @default(false)
+  publicRequestedBy String?  // DB user ID of whoever requested to make this public
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   
   @@unique([user1Id, user2Id])
+}
+
+// Private "placeholder" person — added by a user without requiring the other party to have an account.
+// Lives only on the owner's private chart until the invite is claimed and approved.
+model PlaceholderPerson {
+  id              String    @id @default(cuid())
+  ownerId         String
+  owner           User      @relation("PlaceholderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  name            String    // Friendly name chosen by the owner; no account required
+  relationshipType String   // One of the RelationshipType values
+  note            String?
+  inviteToken     String?   @unique  // Generated on demand; null means no invite sent yet
+  linkedUserId    String?
+  linkedUser      User?     @relation("PlaceholderLinked", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  // claimStatus: "unclaimed" | "invited" | "claimed" | "denied"
+  claimStatus     String    @default("unclaimed")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }

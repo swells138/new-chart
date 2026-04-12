@@ -12,10 +12,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useState } from "react";
-import type { Relationship, RelationshipType, User } from "@/types/models";
+import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
+import { PrivateChart } from "@/components/map/private-chart";
 
 const relationColors: Record<RelationshipType, string> = {
+  Talking: "#a78bfa",
+  Dating: "#f472b6",
+  Situationship: "#fb923c",
   Exes: "#ff8f84",
   Married: "#e85d8d",
   "Sneaky Link": "#9b8cff",
@@ -32,6 +36,8 @@ interface Props {
   currentUserId: string | null;
   userConnections?: Relationship[];
   areaUsers?: User[];
+  privatePlaceholders?: PlaceholderPerson[];
+  baseUrl?: string;
 }
 
 type ApprovalStatus = "approved" | "pending";
@@ -89,8 +95,20 @@ function parseRelationshipNote(input: string): {
   }
 }
 
-export function RelationshipMap({ users, relationships, currentUserId, userConnections, areaUsers }: Props) {
+export function RelationshipMap({
+  users,
+  relationships,
+  currentUserId,
+  userConnections,
+  areaUsers,
+  privatePlaceholders = [],
+  baseUrl = "",
+}: Props) {
+  const [chartLayer, setChartLayer] = useState<"private" | "public">("private");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
+    "Talking",
+    "Dating",
+    "Situationship",
     "Exes",
     "Married",
     "Sneaky Link",
@@ -510,6 +528,40 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
     }
   }
 
+  async function respondToPublicRequest(id: string, action: "requestPublic" | "approvePublic" | "denyPublic") {
+    setIsRespondingId(id);
+    setConnectionError(null);
+
+    try {
+      const response = await fetch("/api/relationships", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, action, actorNodeId: currentUserId }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        relationship?: Relationship;
+      };
+
+      if (!response.ok || !body.relationship) {
+        setConnectionError(body.error ?? "Could not update public visibility.");
+        return;
+      }
+
+      setAllRelationships((prev) =>
+        prev.map((item) => (item.id === body.relationship?.id ? body.relationship : item))
+      );
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not update public visibility.");
+    } finally {
+      setIsRespondingId(null);
+    }
+  }
+
   const selectedUser = displayedUsers.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId
@@ -529,7 +581,43 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
   }, [allRelationships, currentUserId]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-[var(--border-soft)] bg-white/70 p-2 dark:bg-black/30">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setChartLayer("private")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              chartLayer === "private"
+                ? "bg-[var(--accent)] text-white"
+                : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
+            }`}
+          >
+            Private Chart 🔒
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartLayer("public")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+              chartLayer === "public"
+                ? "bg-[var(--accent)] text-white"
+                : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
+            }`}
+          >
+            Public Chart 🌎
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-black/60 dark:text-white/60">
+          Private is only visible to you. Public is consent-based and shareable.
+        </p>
+      </div>
+
+      {chartLayer === "private" ? (
+        <PrivateChart initialPlaceholders={privatePlaceholders} baseUrl={baseUrl} />
+      ) : null}
+
+      {chartLayer === "public" ? (
+        <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
       <section className="paper-card rounded-2xl p-4">
         <div className="mb-3 flex flex-wrap gap-2">
           {(Object.keys(relationColors) as RelationshipType[]).map((type) => {
@@ -837,6 +925,51 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
                             Edit connection
                           </button>
                         ) : null}
+                        {parsed.status === "approved" && currentUserId ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {item.isPublic ? (
+                              <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                Public ✓
+                              </span>
+                            ) : (
+                              <>
+                                {item.publicRequestedBy === null ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => respondToPublicRequest(item.id, "requestPublic")}
+                                    disabled={isRespondingId === item.id}
+                                    className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                                  >
+                                    Request public
+                                  </button>
+                                ) : item.publicRequestedBy === currentUserId ? (
+                                  <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                    Waiting for their approval
+                                  </span>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => respondToPublicRequest(item.id, "approvePublic")}
+                                      disabled={isRespondingId === item.id}
+                                      className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                    >
+                                      Approve public
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => respondToPublicRequest(item.id, "denyPublic")}
+                                      disabled={isRespondingId === item.id}
+                                      className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                                    >
+                                      Keep private
+                                    </button>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : null}
                         {currentUserId && parsed.status === "pending" ? (
                           <div className="mt-2 flex gap-2">
                             {selectedUser.id === currentUserId && parsed.responderId === currentUserId ? (
@@ -873,6 +1006,8 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
         )}
         </div>
       </aside>
+    </div>
+      ) : null}
     </div>
   );
 }
