@@ -9,13 +9,14 @@ import { prisma } from "./prisma";
 import type { User, Post, Relationship } from "@/types/models";
 
 const relationshipTypes: Relationship["type"][] = [
-  "friends",
-  "married",
-  "exes",
-  "collaborators",
-  "roommates",
-  "crushes",
-  "mentors",
+  "Exes",
+  "Married",
+  "Sneaky Link",
+  "Friends",
+  "Lovers",
+  "One Night Stand",
+  "complicated",
+  "FWB",
 ];
 
 const pendingTypePrefix = "pending::";
@@ -37,20 +38,20 @@ function parseStoredRelationshipType(
       status: "approved",
       baseType: relationshipTypes.includes(storedType as Relationship["type"])
         ? (storedType as Relationship["type"])
-        : "friends",
+        : "Friends",
       requesterId: fallbackRequesterId,
       responderId: fallbackResponderId,
     };
   }
 
-  const [, rawBaseType = "friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
+  const [, rawBaseType = "Friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
     storedType.split("::");
 
   return {
     status: "pending",
     baseType: relationshipTypes.includes(rawBaseType as Relationship["type"])
       ? (rawBaseType as Relationship["type"])
-      : "friends",
+      : "Friends",
     requesterId,
     responderId,
   };

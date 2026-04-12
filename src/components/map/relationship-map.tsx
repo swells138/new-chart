@@ -16,13 +16,14 @@ import type { Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 
 const relationColors: Record<RelationshipType, string> = {
-  friends: "#66b6a7",
-  married: "#e85d8d",
-  exes: "#ff8f84",
-  collaborators: "#7aa2ff",
-  roommates: "#ffbb6f",
-  crushes: "#ee82d8",
-  mentors: "#9b8cff",
+  Exes: "#ff8f84",
+  Married: "#e85d8d",
+  "Sneaky Link": "#9b8cff",
+  Friends: "#66b6a7",
+  Lovers: "#ee82d8",
+  "One Night Stand": "#ffbb6f",
+  complicated: "#7aa2ff",
+  FWB: "#63b1ff",
 };
 
 interface Props {
@@ -91,24 +92,25 @@ function parseRelationshipNote(input: string): {
 
 export function RelationshipMap({ users, relationships, currentUserId, userConnections, areaUsers, currentUserLocation }: Props) {
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
-    "friends",
-    "married",
-    "exes",
-    "collaborators",
-    "roommates",
-    "crushes",
-    "mentors",
+    "Exes",
+    "Married",
+    "Sneaky Link",
+    "Friends",
+    "Lovers",
+    "One Night Stand",
+    "complicated",
+    "FWB",
   ]);
   const [showConnections, setShowConnections] = useState(Boolean(userConnections && userConnections.length > 0));
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionQuery, setConnectionQuery] = useState<string>("");
-  const [connectionType, setConnectionType] = useState<RelationshipType>("friends");
+  const [connectionType, setConnectionType] = useState<RelationshipType>("Friends");
   const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
-  const [editingType, setEditingType] = useState<RelationshipType>("friends");
+  const [editingType, setEditingType] = useState<RelationshipType>("Friends");
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);

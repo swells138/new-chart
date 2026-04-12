@@ -3,56 +3,56 @@
     "id": "r1",
     "source": "u1",
     "target": "u2",
-    "type": "friends",
+    "type": "Friends",
     "note": "Met through community radio"
   },
   {
     "id": "r2",
     "source": "u1",
     "target": "u3",
-    "type": "collaborators",
+    "type": "FWB",
     "note": "Worked on two short-film sets"
   },
   {
     "id": "r3",
     "source": "u2",
     "target": "u4",
-    "type": "friends",
+    "type": "Friends",
     "note": "Hosts open writing nights together"
   },
   {
     "id": "r4",
     "source": "u3",
     "target": "u5",
-    "type": "roommates",
+    "type": "Friends",
     "note": "Share a studio loft"
   },
   {
     "id": "r5",
     "source": "u4",
     "target": "u6",
-    "type": "crushes",
+    "type": "Sneaky Link",
     "note": "Flirty text thread, still undefined"
   },
   {
     "id": "r6",
     "source": "u2",
     "target": "u3",
-    "type": "exes",
+    "type": "Exes",
     "note": "Ended kindly, still close"
   },
   {
     "id": "r7",
     "source": "u5",
     "target": "u6",
-    "type": "collaborators",
+    "type": "Lovers",
     "note": "Co-host the oral history booth"
   },
   {
     "id": "r8",
     "source": "u1",
     "target": "u6",
-    "type": "mentors",
+    "type": "One Night Stand",
     "note": "Monthly planning check-ins"
   }
 ]

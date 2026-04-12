@@ -9,13 +9,14 @@ export const dynamic = "force-dynamic";
 const pendingTypePrefix = "pending::";
 
 const connectionLabels: Record<string, string> = {
-  friends: "became friends",
-  married: "got married",
-  exes: "are exes",
-  collaborators: "started collaborating",
-  roommates: "became roommates",
-  crushes: "have a crush on each other",
-  mentors: "connected as mentor & mentee",
+  Exes: "are exes",
+  Married: "got married",
+  "Sneaky Link": "are in a sneaky link",
+  Friends: "became friends",
+  Lovers: "are lovers",
+  "One Night Stand": "had a one night stand",
+  complicated: "have a complicated connection",
+  FWB: "are friends with benefits",
 };
 
 export default async function FeedPage() {

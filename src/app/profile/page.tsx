@@ -9,13 +9,14 @@ export const dynamic = "force-dynamic";
 const pendingTypePrefix = "pending::";
 
 const connectionLabels: Record<string, string> = {
-  friends: "Friend",
-  married: "Married",
-  exes: "Ex",
-  collaborators: "Collaborator",
-  roommates: "Roommate",
-  crushes: "Crush",
-  mentors: "Mentor/Mentee",
+  Exes: "Exes",
+  Married: "Married",
+  "Sneaky Link": "Sneaky Link",
+  Friends: "Friends",
+  Lovers: "Lovers",
+  "One Night Stand": "One Night Stand",
+  complicated: "complicated",
+  FWB: "FWB",
 };
 
 const hasClerkKeys =

@@ -1,11 +1,12 @@
 export type RelationshipType =
-  | "friends"
-  | "married"
-  | "exes"
-  | "collaborators"
-  | "roommates"
-  | "crushes"
-  | "mentors";
+  | "Exes"
+  | "Married"
+  | "Sneaky Link"
+  | "Friends"
+  | "Lovers"
+  | "One Night Stand"
+  | "complicated"
+  | "FWB";
 
 export interface User {
   id: string;

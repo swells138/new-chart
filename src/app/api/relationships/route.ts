@@ -10,13 +10,14 @@ const hasClerkKeys =
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 const relationshipTypeValues = [
-  "friends",
-  "married",
-  "exes",
-  "collaborators",
-  "roommates",
-  "crushes",
-  "mentors",
+  "Exes",
+  "Married",
+  "Sneaky Link",
+  "Friends",
+  "Lovers",
+  "One Night Stand",
+  "complicated",
+  "FWB",
 ] as const;
 
 const relationshipTypes: RelationshipType[] = [...relationshipTypeValues];
@@ -70,20 +71,20 @@ function parseStoredRelationshipType(
       status: "approved",
       baseType: relationshipTypes.includes(storedType as RelationshipType)
         ? (storedType as RelationshipType)
-        : "friends",
+        : "Friends",
       requesterId: fallbackRequesterId,
       responderId: fallbackResponderId,
     };
   }
 
-  const [, rawBaseType = "friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
+  const [, rawBaseType = "Friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
     storedType.split("::");
 
   return {
     status: "pending",
     baseType: relationshipTypes.includes(rawBaseType as RelationshipType)
       ? (rawBaseType as RelationshipType)
-      : "friends",
+      : "Friends",
     requesterId,
     responderId,
   };

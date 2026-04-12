@@ -69,7 +69,7 @@ describe("/api/relationships POST", () => {
       body: JSON.stringify({
         source: "db_1",
         target: "db_2",
-        type: "friends",
+        type: "Friends",
         extra: "not-allowed",
       }),
     });
@@ -88,7 +88,7 @@ describe("/api/relationships POST", () => {
       body: JSON.stringify({
         source: "db_999",
         target: "db_2",
-        type: "friends",
+        type: "Friends",
       }),
     });
 
@@ -127,14 +127,14 @@ describe("/api/relationships PATCH", () => {
       id: "rel_1",
       user1Id: "db_1",
       user2Id: "db_2",
-      type: "friends",
+      type: "Friends",
     });
 
     relationshipUpdateMock.mockResolvedValue({
       id: "rel_1",
       user1Id: "db_1",
       user2Id: "db_2",
-      type: "pending::married::db_1::db_2",
+      type: "pending::Married::db_1::db_2",
     });
 
     const request = new Request("http://localhost/api/relationships", {
@@ -142,7 +142,7 @@ describe("/api/relationships PATCH", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         id: "rel_1",
-        type: "married",
+        type: "Married",
         actorNodeId: "db_1",
       }),
     });
@@ -159,10 +159,10 @@ describe("/api/relationships PATCH", () => {
     expect(response.status).toBe(200);
     expect(relationshipUpdateMock).toHaveBeenCalledWith({
       where: { id: "rel_1" },
-      data: { type: "pending::married::db_1::db_2" },
+      data: { type: "pending::Married::db_1::db_2" },
     });
     expect(body.relationship?.id).toBe("rel_1");
-    expect(body.relationship?.type).toBe("married");
+    expect(body.relationship?.type).toBe("Married");
     expect(body.relationship?.note).toContain("\"status\":\"pending\"");
   });
 });
