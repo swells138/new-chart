@@ -155,6 +155,18 @@ function normalizeRelationship(relationship: {
   };
 }
 
+type PlaceholderRecord = {
+  id: string;
+  ownerId: string;
+  name: string;
+  relationshipType: string;
+  note: string | null;
+  inviteToken: string | null;
+  linkedUserId: string | null;
+  claimStatus: string;
+  createdAt: Date;
+};
+
 export async function getMemberDirectoryData(): Promise<{
   users: User[];
   posts: Post[];
@@ -337,7 +349,7 @@ export async function getPrivateConnectionsByUser(userId: string): Promise<Place
     orderBy: { createdAt: "desc" },
   });
 
-  return placeholders.map((p) => ({
+  return placeholders.map((p: PlaceholderRecord) => ({
     id: p.id,
     ownerId: p.ownerId,
     name: p.name,
