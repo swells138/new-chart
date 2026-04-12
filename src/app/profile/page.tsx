@@ -164,12 +164,12 @@ export default async function ProfilePage() {
   };
 
   const connections: ProfileConnection[] = [
-    ...user.relationships.map((relationship) => ({
+    ...user.relationships.map((relationship: { id: string; type: string; user2: ProfileConnection["person"] }) => ({
       id: relationship.id,
       type: relationship.type,
       person: relationship.user2,
     })),
-    ...user.reverseRelationships.map((relationship) => ({
+    ...user.reverseRelationships.map((relationship: { id: string; type: string; user1: ProfileConnection["person"] }) => ({
       id: relationship.id,
       type: relationship.type,
       person: relationship.user1,
