@@ -80,6 +80,7 @@ export default async function Home() {
   const featuredMembers = membersOrdered.slice(0, 3);
   const featuredConnections = relationshipsOrdered.slice(0, 3);
   const userById = new Map(users.map((user) => [user.id, user]));
+  const isSignedIn = Boolean(currentUserDbId);
 
   return (
     <div className="space-y-16 pb-12">
@@ -108,10 +109,10 @@ export default async function Home() {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
-              href="#start"
+              href={isSignedIn ? "/map" : "#start"}
               className="rounded-full bg-[#ff8f84] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:brightness-95 hover:-translate-y-0.5"
             >
-              Start your chart
+              {isSignedIn ? "Open your chart" : "Start your chart"}
             </a>
             <a
               href="#demo"
@@ -172,7 +173,7 @@ export default async function Home() {
       </section>
 
       {/* ─── GUEST CHART BUILDER ──────────────────────────────── */}
-      <GuestChartBuilder />
+      {!isSignedIn ? <GuestChartBuilder /> : null}
 
       {/* ─── FEATURED MEMBERS ─────────────────────────────────── */}
       <section className="space-y-4">
