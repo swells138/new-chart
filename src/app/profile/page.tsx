@@ -6,33 +6,73 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const pendingTypePrefix = "pending::";
+
+const connectionLabels: Record<string, string> = {
+  friends: "Friend",
+  married: "Married",
+  exes: "Ex",
+  collaborators: "Collaborator",
+  roommates: "Roommate",
+  crushes: "Crush",
+  mentors: "Mentor/Mentee",
+};
+
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
-function formatTimestamp(timestamp: Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(timestamp);
-}
-
-interface ProfilePost {
+interface ProfileConnection {
   id: string;
-  content: string;
-  timestamp: Date;
-  likes: number;
-  comments: number;
+  type: string;
+  person: {
+    name: string | null;
+    handle: string | null;
+    location: string | null;
+  };
 }
 
 async function getOrCreateProfile(clerkId: string) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
     include: {
-      posts: {
-        orderBy: { timestamp: "desc" },
-        take: 5,
+      relationships: {
+        where: {
+          NOT: {
+            type: {
+              startsWith: pendingTypePrefix,
+            },
+          },
+        },
+        include: {
+          user2: {
+            select: {
+              name: true,
+              handle: true,
+              location: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      reverseRelationships: {
+        where: {
+          NOT: {
+            type: {
+              startsWith: pendingTypePrefix,
+            },
+          },
+        },
+        include: {
+          user1: {
+            select: {
+              name: true,
+              handle: true,
+              location: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -53,9 +93,43 @@ async function getOrCreateProfile(clerkId: string) {
       handle: clerk?.username || null,
     },
     include: {
-      posts: {
-        orderBy: { timestamp: "desc" },
-        take: 5,
+      relationships: {
+        where: {
+          NOT: {
+            type: {
+              startsWith: pendingTypePrefix,
+            },
+          },
+        },
+        include: {
+          user2: {
+            select: {
+              name: true,
+              handle: true,
+              location: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+      reverseRelationships: {
+        where: {
+          NOT: {
+            type: {
+              startsWith: pendingTypePrefix,
+            },
+          },
+        },
+        include: {
+          user1: {
+            select: {
+              name: true,
+              handle: true,
+              location: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -88,29 +162,48 @@ export default async function ProfilePage() {
     interests: user.interests,
   };
 
+  const connections: ProfileConnection[] = [
+    ...user.relationships.map((relationship) => ({
+      id: relationship.id,
+      type: relationship.type,
+      person: relationship.user2,
+    })),
+    ...user.reverseRelationships.map((relationship) => ({
+      id: relationship.id,
+      type: relationship.type,
+      person: relationship.user1,
+    })),
+  ];
+
   return (
     <div className="space-y-4">
       <SectionHeader
         title="Your Profile"
-        subtitle="Update your public details and check your latest posts."
+        subtitle="Update your public details and review your connections."
       />
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <ProfileForm initialProfile={initialProfile} />
 
         <aside className="paper-card rounded-2xl p-5">
-          <h3 className="text-xl font-semibold">Recent Posts</h3>
-          {user.posts.length === 0 ? (
+          <h3 className="text-xl font-semibold">Your Connections</h3>
+          {connections.length === 0 ? (
             <p className="mt-3 text-sm text-black/70 dark:text-white/75">
-              You have not posted yet. Your next update will appear here.
+              You do not have any approved connections yet.
             </p>
           ) : (
             <div className="mt-3 space-y-2">
-              {user.posts.map((post: ProfilePost) => (
-                <article key={post.id} className="rounded-xl border border-[var(--border-soft)] p-3 text-sm">
-                  <p>{post.content}</p>
-                  <p className="mt-2 text-xs text-black/60 dark:text-white/70">
-                    {formatTimestamp(post.timestamp)} · {post.likes} likes · {post.comments} comments
+              {connections.map((connection) => (
+                <article
+                  key={connection.id}
+                  className="rounded-xl border border-[var(--border-soft)] p-3 text-sm"
+                >
+                  <p className="font-semibold">
+                    {connection.person.name ?? connection.person.handle ?? "Unnamed member"}
+                  </p>
+                  <p className="mt-1 text-xs text-black/60 dark:text-white/70">
+                    {connectionLabels[connection.type] ?? "Connection"}
+                    {connection.person.location ? ` · ${connection.person.location}` : ""}
                   </p>
                 </article>
               ))}
