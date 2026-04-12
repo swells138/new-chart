@@ -18,13 +18,16 @@ const links = [
   { href: "/feed", label: "Feed" },
   { href: "/members", label: "Members" },
   { href: "/map", label: "Map" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/profile", label: "Profile" },
+  { href: "/inbox", label: "Inbox", requiresAuth: true },
+  { href: "/profile", label: "Profile", requiresAuth: true },
 ];
 
 export function SiteNav() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const hasClerkKeys = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  const { isSignedIn } = useUser();
+  const visibleLinks = links.filter((l) => !l.requiresAuth || (hasClerkKeys ? isSignedIn : false));
 
   return (
     <header className="sticky top-3 z-40">
@@ -42,7 +45,7 @@ export function SiteNav() {
           </Link>
 
           <div className="hidden items-center gap-1 md:flex">
-            {links.map((link) => (
+            {visibleLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -77,7 +80,7 @@ export function SiteNav() {
 
         {menuOpen && (
           <div className="mt-3 grid gap-2 border-t border-[var(--border-soft)] pt-3 md:hidden">
-            {links.map((link) => (
+            {visibleLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
@@ -82,6 +83,15 @@ function renderNotificationContent(content: string): ReactNode {
 }
 
 export default async function InboxPage() {
+  if (hasClerkKeys) {
+    const { userId } = await auth();
+    if (!userId) {
+      redirect("/login");
+    }
+  } else {
+    redirect("/login");
+  }
+
   let connectedSet = new Set<string>();
   let dbNotifications: { id: string; content: string; read: boolean; createdAt: Date; senderName: string | null }[] = [];
 
