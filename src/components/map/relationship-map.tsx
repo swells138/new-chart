@@ -4,7 +4,6 @@ import {
   Background,
   type Connection,
   Controls,
-  MiniMap,
   ReactFlow,
   type Edge,
   type Node,
@@ -608,7 +607,6 @@ export function RelationshipMap({ users, relationships, currentUserId, userConne
             maxZoom={1.8}
             connectOnClick={false}
           >
-            <MiniMap pannable zoomable />
             <Controls showInteractive={false} />
             <Background gap={16} size={1} />
           </ReactFlow>
