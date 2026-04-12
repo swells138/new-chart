@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 
 const ALL_TYPES: RelationshipType[] = [
@@ -48,6 +48,46 @@ interface Props {
 
 export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, approvedConnections = [], users = [] }: Props) {
   const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
+
+  const currentUserName = useMemo(() => {
+    if (!currentUserId) return "You";
+    return users.find((user) => user.id === currentUserId)?.name || "You";
+  }, [users, currentUserId]);
+
+  const chartConnections = useMemo(() => {
+    const privateItems = placeholders.map((item) => ({
+      id: `private-${item.id}`,
+      name: item.name,
+      type: item.relationshipType,
+      color: TYPE_COLORS[item.relationshipType] ?? "#888",
+      kind: "private" as const,
+    }));
+
+    const usersById = new Map(users.map((u) => [u.id, u]));
+    const seenPublic = new Set<string>();
+    const publicItems = approvedConnections
+      .map((rel) => {
+        const otherId = rel.source === currentUserId ? rel.target : rel.source;
+        if (!otherId || seenPublic.has(otherId)) {
+          return null;
+        }
+        seenPublic.add(otherId);
+        const other = usersById.get(otherId);
+        if (!other) {
+          return null;
+        }
+        return {
+          id: `public-${otherId}`,
+          name: other.name,
+          type: rel.type,
+          color: TYPE_COLORS[rel.type] ?? "#888",
+          kind: "public" as const,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+    return [...privateItems, ...publicItems].slice(0, 12);
+  }, [placeholders, approvedConnections, users, currentUserId]);
 
   // Add-form state
   const [addName, setAddName] = useState("");
@@ -198,6 +238,147 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   return (
     <div className="space-y-6">
       {/* Privacy banner */}
+
+      <section
+        className="overflow-hidden rounded-2xl border border-white/10"
+        style={{ background: "#0f0819" }}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-white/55">Private chart view</p>
+          <div className="flex items-center gap-2 text-[10px] text-white/50">
+            <span className="rounded-full border border-white/15 px-2 py-0.5">Private dashed</span>
+            <span className="rounded-full border border-white/15 px-2 py-0.5">Public solid</span>
+          </div>
+        </div>
+        <svg viewBox="0 0 880 460" className="block h-auto w-full" aria-label="Private connection chart">
+          <defs>
+            <pattern id="private-grid" x="0" y="0" width="26" height="26" patternUnits="userSpaceOnUse">
+              <circle cx="13" cy="13" r="1" fill="rgba(255,255,255,0.06)" />
+            </pattern>
+          </defs>
+
+          <rect width="880" height="460" fill="url(#private-grid)" />
+
+          {chartConnections.map((item, index) => {
+            const cx = 440;
+            const cy = 220;
+            const ring = index < 8 ? 150 : 210;
+            const ringIndex = index < 8 ? index : index - 8;
+            const ringTotal = index < 8 ? Math.min(chartConnections.length, 8) : Math.max(chartConnections.length - 8, 1);
+            const angle = (Math.PI * 2 * ringIndex) / ringTotal - Math.PI / 2;
+            const x = cx + Math.cos(angle) * ring;
+            const y = cy + Math.sin(angle) * (index < 8 ? 125 : 170);
+            const mx = (cx + x) / 2;
+            const my = (cy + y) / 2;
+
+            return (
+              <g key={item.id}>
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={x}
+                  y2={y}
+                  stroke={item.color}
+                  strokeWidth="2"
+                  strokeOpacity="0.75"
+                  strokeDasharray={item.kind === "private" ? "7 4" : undefined}
+                />
+                <rect
+                  x={mx - 31}
+                  y={my - 10}
+                  width="62"
+                  height="18"
+                  rx="5"
+                  fill="rgba(10,6,20,0.85)"
+                  stroke={item.color}
+                  strokeWidth="0.75"
+                  strokeOpacity="0.55"
+                />
+                <text
+                  x={mx}
+                  y={my + 3}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill={item.color}
+                  fontFamily="system-ui"
+                >
+                  {item.type}
+                </text>
+
+                <circle cx={x} cy={y} r="28" fill={item.color} fillOpacity="0.17" />
+                <circle cx={x} cy={y} r="22" fill={item.color} />
+                <text
+                  x={x}
+                  y={y + 5}
+                  textAnchor="middle"
+                  fontSize="13"
+                  fontWeight="700"
+                  fill="white"
+                  fontFamily="system-ui"
+                >
+                  {(item.name?.[0] ?? "?").toUpperCase()}
+                </text>
+
+                <rect x={x - 48} y={y + 30} width="96" height="18" rx="8" fill="rgba(0,0,0,0.6)" />
+                <text
+                  x={x}
+                  y={y + 42}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill="rgba(255,255,255,0.88)"
+                  fontFamily="system-ui"
+                >
+                  {item.name.split(" ")[0]}
+                </text>
+              </g>
+            );
+          })}
+
+          <g>
+            <circle cx="440" cy="220" r="36" fill="#ff8f84" fillOpacity="0.18" />
+            <circle cx="440" cy="220" r="28" fill="#ff8f84" />
+            <text
+              x="440"
+              y="226"
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="700"
+              fill="white"
+              fontFamily="system-ui"
+            >
+              YOU
+            </text>
+            <rect x="384" y="258" width="112" height="20" rx="9" fill="rgba(0,0,0,0.62)" />
+            <text
+              x="440"
+              y="272"
+              textAnchor="middle"
+              fontSize="10"
+              fontWeight="600"
+              fill="rgba(255,255,255,0.9)"
+              fontFamily="system-ui"
+            >
+              {currentUserName.split(" ")[0]}
+            </text>
+          </g>
+
+          {chartConnections.length === 0 ? (
+            <text
+              x="440"
+              y="52"
+              textAnchor="middle"
+              fontSize="12"
+              fontWeight="600"
+              fill="rgba(255,255,255,0.52)"
+              fontFamily="system-ui"
+            >
+              Add your first private connection to start the chart
+            </text>
+          ) : null}
+        </svg>
+      </section>
 
       {/* Public approved connections — read-only display */}
       {approvedConnections.length > 0 ? (() => {
