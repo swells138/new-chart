@@ -211,7 +211,6 @@ export function RelationshipMap({
     "complicated",
     "FWB",
   ]);
-  const [showConnections, setShowConnections] = useState(Boolean(userConnections && userConnections.length > 0));
   const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionQuery, setConnectionQuery] = useState<string>("");
@@ -229,11 +228,14 @@ export function RelationshipMap({
     const chart = searchParams.get("chart");
     if (chart === "private" || chart === "public") {
       setChartLayer(chart);
+    } else if (chart === "direct") {
+      setChartLayer("private");
+    } else if (chart === "extended") {
+      setChartLayer("public");
     }
 
     const focus = searchParams.get("focus");
     if (focus === "approvals") {
-      setShowConnections(true);
       if (currentUserId) {
         setSelectedId(currentUserId);
       }
@@ -277,44 +279,75 @@ export function RelationshipMap({
     [allRelationships, currentUserId]
   );
 
-  const connectedNodeIds = useMemo(() => {
+  const approvedRelationships = useMemo(
+    () => allRelationships.filter((item) => parseRelationshipNote(item.note).status === "approved"),
+    [allRelationships]
+  );
+
+  const limitedExtendedNodeIds = useMemo(() => {
     if (!currentUserId) {
-      return new Set<string>();
+      return {
+        nodeIds: new Set<string>(),
+        hiddenCount: 0,
+        totalExtendedCount: 0,
+      };
     }
 
-    const ids = new Set<string>([currentUserId]);
-
+    const directIds = new Set<string>();
     approvedUserConnections.forEach((item) => {
       if (item.source === currentUserId) {
-        ids.add(item.target);
-      } else if (item.target === currentUserId) {
-        ids.add(item.source);
+        directIds.add(item.target);
+      }
+      if (item.target === currentUserId) {
+        directIds.add(item.source);
       }
     });
 
-    return ids;
-  }, [approvedUserConnections, currentUserId]);
+    const extendedScores = new Map<string, number>();
+
+    approvedRelationships.forEach((item) => {
+      if (directIds.has(item.source) && item.target !== currentUserId && !directIds.has(item.target)) {
+        extendedScores.set(item.target, (extendedScores.get(item.target) ?? 0) + 1);
+      }
+      if (directIds.has(item.target) && item.source !== currentUserId && !directIds.has(item.source)) {
+        extendedScores.set(item.source, (extendedScores.get(item.source) ?? 0) + 1);
+      }
+    });
+
+    const orderedExtendedIds = users
+      .filter((user) => extendedScores.has(user.id))
+      .sort((left, right) => {
+        const scoreDifference = (extendedScores.get(right.id) ?? 0) - (extendedScores.get(left.id) ?? 0);
+        if (scoreDifference !== 0) {
+          return scoreDifference;
+        }
+        return left.name.localeCompare(right.name);
+      })
+      .map((user) => user.id);
+
+    const visibleExtendedIds = orderedExtendedIds.slice(0, 25);
+    return {
+      nodeIds: new Set<string>([currentUserId, ...Array.from(directIds), ...visibleExtendedIds]),
+      hiddenCount: Math.max(0, orderedExtendedIds.length - visibleExtendedIds.length),
+      totalExtendedCount: orderedExtendedIds.length,
+    };
+  }, [approvedRelationships, approvedUserConnections, currentUserId, users]);
 
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
-    if (showConnections) {
-      return users.filter((user) => connectedNodeIds.has(user.id));
+    if (currentUserId) {
+      return users.filter((user) => limitedExtendedNodeIds.nodeIds.has(user.id));
     }
 
     const baseUsers = areaUsers && areaUsers.length > 0 ? areaUsers : users;
-
-    // Only show users who appear in at least one approved connection
     const connectedInGraph = new Set<string>();
-    allRelationships.forEach((item) => {
-      const parsed = parseRelationshipNote(item.note);
-      if (parsed.status === "approved") {
-        connectedInGraph.add(item.source);
-        connectedInGraph.add(item.target);
-      }
+    approvedRelationships.forEach((item) => {
+      connectedInGraph.add(item.source);
+      connectedInGraph.add(item.target);
     });
 
     return baseUsers.filter((user) => connectedInGraph.has(user.id));
-  }, [showConnections, users, areaUsers, connectedNodeIds, allRelationships]);
+  }, [users, areaUsers, currentUserId, limitedExtendedNodeIds, approvedRelationships]);
 
   useEffect(() => {
     if (displayedUsers.length === 0) {
@@ -386,10 +419,7 @@ export function RelationshipMap({
   }, [connectableUsers, connectionTargetId]);
 
   // Determine which relationships to display
-  const displayedRelationships = useMemo(
-    () => (showConnections ? approvedUserConnections : allRelationships),
-    [showConnections, approvedUserConnections, allRelationships]
-  );
+  const displayedRelationships = useMemo(() => approvedRelationships, [approvedRelationships]);
 
   const mappedNodes: Node[] = useMemo(
     () =>
@@ -661,40 +691,6 @@ export function RelationshipMap({
     }
   }
 
-  async function respondToPublicRequest(id: string, action: "requestPublic" | "approvePublic" | "denyPublic") {
-    setIsRespondingId(id);
-    setConnectionError(null);
-
-    try {
-      const response = await fetch("/api/relationships", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id, action, actorNodeId: currentUserId }),
-      });
-
-      const body = (await response.json()) as {
-        error?: string;
-        relationship?: Relationship;
-      };
-
-      if (!response.ok || !body.relationship) {
-        setConnectionError(body.error ?? "Could not update public visibility.");
-        return;
-      }
-
-      setAllRelationships((prev) =>
-        prev.map((item) => (item.id === body.relationship?.id ? body.relationship : item))
-      );
-    } catch (error) {
-      console.error(error);
-      setConnectionError("Could not update public visibility.");
-    } finally {
-      setIsRespondingId(null);
-    }
-  }
-
   const selectedUser = displayedUsers.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId
@@ -726,7 +722,7 @@ export function RelationshipMap({
                 : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
             }`}
           >
-            Private Chart 🔒
+            Direct Connections
           </button>
           <button
             type="button"
@@ -737,11 +733,11 @@ export function RelationshipMap({
                 : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
             }`}
           >
-            Public Chart 🌎
+            Extended Network
           </button>
         </div>
         <p className="mt-2 text-xs text-black/60 dark:text-white/60">
-          Private is only visible to you. Public is consent-based and shareable.
+          Direct connections are always visible to you. Extended exploration shows up to 25 confirmed connections for free.
         </p>
       </div>
 
@@ -760,9 +756,9 @@ export function RelationshipMap({
           className="rounded-2xl border border-white/10 p-6 text-center"
           style={{ background: "linear-gradient(145deg, #0f0819 0%, #160d28 100%)" }}
         >
-          <p className="text-sm font-semibold text-white">Private chart is a members-only feature</p>
+          <p className="text-sm font-semibold text-white">Sign in to save your direct connections</p>
           <p className="mt-1 text-xs text-white/60">
-            Create an account to add private connections, send invites, and save your personal chart.
+            You can add people, manage placeholders, and verify connections once you have an account.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link
@@ -782,7 +778,7 @@ export function RelationshipMap({
               onClick={() => setChartLayer("public")}
               className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
             >
-              Back to public chart
+              View extended network
             </button>
           </div>
         </section>
@@ -815,47 +811,31 @@ export function RelationshipMap({
           })}
         </div>
         <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-          Use the side form to create a connection, or drag from your node to another member.
+          Use the side form to connect with an existing member, or drag from your node to another member.
         </p>
         {currentUserId ? null : (
           <p className="mb-3 text-xs text-black/65 dark:text-white/70">
             Sign in to create and edit your own connections.
           </p>
         )}
+        {currentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
+          <div className="mb-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 text-sm dark:bg-white/5">
+            <p className="font-semibold">You&apos;ve explored your first 25 connections</p>
+            <p className="mt-1 text-xs text-black/65 dark:text-white/70">
+              +{limitedExtendedNodeIds.hiddenCount} more hidden
+            </p>
+            <Link
+              href="/profile"
+              className="mt-3 inline-flex rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white"
+            >
+              Unlock full network
+            </Link>
+          </div>
+        ) : null}
         {connectionError ? (
           <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
         ) : null}
         <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)]" style={{ background: "#0f0819" }}>
-          {userConnections && userConnections.length > 0 && areaUsers && areaUsers.length > 0 ? (
-            <div className="absolute top-3 right-3 z-20">
-              <div className="flex items-center rounded-xl border border-[var(--border-soft)] bg-white/90 p-1 shadow-sm backdrop-blur dark:bg-black/55">
-                <button
-                  type="button"
-                  onClick={() => setShowConnections(true)}
-                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold tracking-wide transition ${
-                    showConnections
-                      ? "bg-[var(--accent)] text-white"
-                      : "text-black/75 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10"
-                  }`}
-                  title="Show your connections"
-                >
-                  Connections
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConnections(false)}
-                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold tracking-wide transition ${
-                    !showConnections
-                      ? "bg-[var(--accent)] text-white"
-                      : "text-black/75 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10"
-                  }`}
-                  title="Show people in your area"
-                >
-                  Area
-                </button>
-              </div>
-            </div>
-          ) : null}
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -959,10 +939,10 @@ export function RelationshipMap({
         </div>
 
         {currentUserId ? (
-          <div id="pending-requests" className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
-            <h4 className="text-sm font-semibold uppercase tracking-wide">Pending requests</h4>
+          <div id="pending-verification" className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
+            <h4 className="text-sm font-semibold uppercase tracking-wide">Pending Verification</h4>
             {pendingRequests.length === 0 ? (
-              <p className="mt-2 text-xs text-black/65 dark:text-white/70">No pending approvals.</p>
+              <p className="mt-2 text-xs text-black/65 dark:text-white/70">No pending verifications.</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {pendingRequests.map((item) => {
@@ -976,7 +956,7 @@ export function RelationshipMap({
                       <p className="text-sm font-semibold">{otherUser?.name ?? "Member"}</p>
                       <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
                       <p className="mt-1 text-[11px] text-black/65 dark:text-white/70">
-                        {needsApproval ? "Waiting for your approval" : "Waiting for their approval"}
+                        {needsApproval ? "Waiting for your verification" : "Waiting for their verification"}
                       </p>
                       <div className="mt-2 flex gap-2">
                         {needsApproval ? (
@@ -1022,7 +1002,7 @@ export function RelationshipMap({
             </p>
 
             <div className="mt-5 space-y-2">
-              <h4 className="text-sm font-semibold uppercase tracking-wide">Active connections</h4>
+              <h4 className="text-sm font-semibold uppercase tracking-wide">Direct Connections</h4>
               {isConnecting ? (
                 <p className="text-xs text-black/65 dark:text-white/70">Saving new connection...</p>
               ) : null}
@@ -1086,7 +1066,7 @@ export function RelationshipMap({
                         <p className="mt-1 text-xs text-black/65 dark:text-white/75">{parsed.note}</p>
                         {parsed.status === "pending" ? (
                           <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                            Pending approval
+                            Pending verification
                           </p>
                         ) : null}
                         {canEdit ? (
@@ -1100,47 +1080,9 @@ export function RelationshipMap({
                         ) : null}
                         {parsed.status === "approved" && currentUserId ? (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {item.isPublic ? (
-                              <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                Public ✓
-                              </span>
-                            ) : (
-                              <>
-                                {item.publicRequestedBy === null ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => respondToPublicRequest(item.id, "requestPublic")}
-                                    disabled={isRespondingId === item.id}
-                                    className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                                  >
-                                    Request public
-                                  </button>
-                                ) : item.publicRequestedBy === currentUserId ? (
-                                  <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                                    Waiting for their approval
-                                  </span>
-                                ) : (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => respondToPublicRequest(item.id, "approvePublic")}
-                                      disabled={isRespondingId === item.id}
-                                      className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                                    >
-                                      Approve public
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => respondToPublicRequest(item.id, "denyPublic")}
-                                      disabled={isRespondingId === item.id}
-                                      className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                                    >
-                                      Keep private
-                                    </button>
-                                  </>
-                                )}
-                              </>
-                            )}
+                            <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                              Confirmed in network
+                            </span>
                           </div>
                         ) : null}
                         {currentUserId && parsed.status === "pending" ? (

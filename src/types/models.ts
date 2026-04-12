@@ -52,10 +52,27 @@ export interface PlaceholderPerson {
   id: string;
   ownerId: string;
   name: string;
+  email: string;
+  phoneNumber: string;
   relationshipType: RelationshipType;
   note: string;
   inviteToken: string | null;
   linkedUserId: string | null;
   claimStatus: "unclaimed" | "invited" | "claimed" | "denied";
   createdAt: string;
+}
+
+export interface ClaimCandidate {
+  placeholderId: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  relationshipType: RelationshipType;
+  note: string;
+  ownerId: string;
+  ownerName: string;
+  ownerHandle: string;
+  mutualConnectionNames: string[];
+  mutualConnectionCount: number;
+  matchReasons: string[];
 }

@@ -105,14 +105,14 @@ export default async function Home() {
             Who&apos;s connected<br className="hidden sm:block" /> to who?&nbsp;👀
           </h1>
           <p className="mt-5 max-w-xl text-base text-white/65 sm:text-lg">
-            Create your own private connection chart and discover how people are linked.
+            Build your network, add direct connections, and discover how confirmed relationships link people together.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <a
               href={isSignedIn ? "/map" : "#start"}
               className="rounded-full bg-[#ff8f84] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:brightness-95 hover:-translate-y-0.5"
             >
-              {isSignedIn ? "Open your chart" : "Start your chart"}
+              {isSignedIn ? "Open your network" : "Start your network"}
             </a>
             <a
               href="#demo"
@@ -155,7 +155,7 @@ export default async function Home() {
         <div className="text-center">
           <h2 className="text-2xl font-semibold sm:text-3xl">See it in action</h2>
           <p className="mt-2 text-sm text-black/55 dark:text-white/55">
-            This is what a real connection chart looks like — hover the nodes.
+            This is what a real network view looks like — hover the nodes.
           </p>
         </div>
 

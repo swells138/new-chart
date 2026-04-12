@@ -78,12 +78,14 @@ async function getOrCreateCurrentDbUser(clerkId: string) {
   const clerk = await currentUser();
   const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
   const email = clerk?.emailAddresses?.[0]?.emailAddress;
+  const phoneNumber = clerk?.phoneNumbers?.[0]?.phoneNumber;
 
   return prisma.user.create({
     data: {
       clerkId,
       name: fullName || clerk?.username || "New member",
       email,
+      phoneNumber,
       handle: clerk?.username || null,
     },
   });
@@ -102,6 +104,7 @@ function shapeProfile(user: {
   links: unknown;
   profileImage: string | null;
   email: string | null;
+  phoneNumber: string | null;
 }) {
   return {
     id: user.id,
@@ -116,6 +119,7 @@ function shapeProfile(user: {
     interests: user.interests,
     links: normalizeLinks(user.links),
     profileImage: user.profileImage ?? "",
+    phoneNumber: user.phoneNumber ?? "",
   };
 }
 

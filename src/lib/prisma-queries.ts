@@ -159,6 +159,8 @@ type PlaceholderRecord = {
   id: string;
   ownerId: string;
   name: string;
+  email: string | null;
+  phoneNumber: string | null;
   relationshipType: string;
   note: string | null;
   inviteToken: string | null;
@@ -182,7 +184,6 @@ export async function getMemberDirectoryData(): Promise<{
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
     prisma.relationship.findMany({
       where: {
-        isPublic: true,
         NOT: { type: { startsWith: pendingTypePrefix } },
       },
     }),
@@ -199,7 +200,6 @@ export async function getMemberDirectoryData(): Promise<{
 export async function getAllRelationships(): Promise<Relationship[]> {
   const relationships = await prisma.relationship.findMany({
     where: {
-      isPublic: true,
       NOT: { type: { startsWith: pendingTypePrefix } },
     },
   });
@@ -347,14 +347,12 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
   return relationships.map(normalizeRelationship);
 }
 
-/** Returns a user's private chart entries (PlaceholderPerson records). */
+/** Returns a user's placeholder nodes that are still awaiting signup or claim. */
 export async function getPrivateConnectionsByUser(userId: string): Promise<PlaceholderPerson[]> {
   const placeholders = await prisma.placeholderPerson.findMany({
     where: {
-      OR: [
-        { ownerId: userId },
-        { linkedUserId: userId, claimStatus: "claimed" },
-      ],
+      ownerId: userId,
+      claimStatus: { in: ["unclaimed", "invited"] },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -363,6 +361,8 @@ export async function getPrivateConnectionsByUser(userId: string): Promise<Place
     id: p.id,
     ownerId: p.ownerId,
     name: p.name,
+    email: p.email ?? "",
+    phoneNumber: p.phoneNumber ?? "",
     relationshipType: p.relationshipType as RelationshipType,
     note: p.note ?? "",
     inviteToken: p.inviteToken,

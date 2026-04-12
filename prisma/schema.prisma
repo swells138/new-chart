@@ -17,10 +17,12 @@ model User {
   name            String?
   handle          String?   @unique
   email           String?   @unique
+  phoneNumber     String?   @unique
   pronouns        String?
   bio             String?
   location        String?
   interests       String[]  @default([]) // Array of interests
+  ignoredClaimPlaceholderIds String[] @default([])
   relationshipStatus String?
   featured        Boolean   @default(false)
   profileImage    String?   // Profile picture URL
@@ -126,6 +128,8 @@ model PlaceholderPerson {
   ownerId         String
   owner           User      @relation("PlaceholderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   name            String    // Friendly name chosen by the owner; no account required
+  email           String?
+  phoneNumber     String?
   relationshipType String   // One of the RelationshipType values
   note            String?
   inviteToken     String?   @unique  // Generated on demand; null means no invite sent yet

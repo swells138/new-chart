@@ -32,9 +32,9 @@ const TYPE_COLORS: Record<RelationshipType, string> = {
 };
 
 const STATUS_LABELS: Record<PlaceholderPerson["claimStatus"], string> = {
-  unclaimed: "Not sent",
-  invited: "Invite sent 👀",
-  claimed: "Accepted ✓",
+  unclaimed: "Waiting for signup",
+  invited: "Invite sent",
+  claimed: "Moved to verification",
   denied: "Declined",
 };
 
@@ -91,6 +91,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
   // Add-form state
   const [addName, setAddName] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [addPhoneNumber, setAddPhoneNumber] = useState("");
   const [addType, setAddType] = useState<RelationshipType>("Friends");
   const [addNote, setAddNote] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -99,6 +101,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhoneNumber, setEditPhoneNumber] = useState("");
   const [editType, setEditType] = useState<RelationshipType>("Friends");
   const [editNote, setEditNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -122,7 +126,13 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       const res = await fetch("/api/private-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, relationshipType: addType, note: addNote.trim() || undefined }),
+        body: JSON.stringify({
+          name,
+          email: addEmail.trim() || undefined,
+          phoneNumber: addPhoneNumber.trim() || undefined,
+          relationshipType: addType,
+          note: addNote.trim() || undefined,
+        }),
       });
       const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
       if (!res.ok || !body.placeholder) {
@@ -131,6 +141,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       }
       setPlaceholders((prev) => [body.placeholder!, ...prev]);
       setAddName("");
+      setAddEmail("");
+      setAddPhoneNumber("");
       setAddNote("");
     } catch {
       setAddError("Could not add that connection.");
@@ -193,6 +205,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   function startEdit(p: PlaceholderPerson) {
     setEditingId(p.id);
     setEditName(p.name);
+    setEditEmail(p.email);
+    setEditPhoneNumber(p.phoneNumber);
     setEditType(p.relationshipType);
     setEditNote(p.note);
     setEditError(null);
@@ -209,6 +223,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           id,
           action: "update",
           name: editName.trim(),
+          email: editEmail.trim() || undefined,
+          phoneNumber: editPhoneNumber.trim() || undefined,
           relationshipType: editType,
           note: editNote.trim() || undefined,
         }),
@@ -244,13 +260,13 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         style={{ background: "#0f0819" }}
       >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-white/55">Private chart view</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-white/55">Direct connections</p>
           <div className="flex items-center gap-2 text-[10px] text-white/50">
-            <span className="rounded-full border border-white/15 px-2 py-0.5">Private dashed</span>
-            <span className="rounded-full border border-white/15 px-2 py-0.5">Public solid</span>
+            <span className="rounded-full border border-white/15 px-2 py-0.5">Placeholder dashed</span>
+            <span className="rounded-full border border-white/15 px-2 py-0.5">Confirmed solid</span>
           </div>
         </div>
-        <svg viewBox="0 0 880 460" className="block h-auto w-full" aria-label="Private connection chart">
+        <svg viewBox="0 0 880 460" className="block h-auto w-full" aria-label="Direct connection chart">
           <defs>
             <pattern id="private-grid" x="0" y="0" width="26" height="26" patternUnits="userSpaceOnUse">
               <circle cx="13" cy="13" r="1" fill="rgba(255,255,255,0.06)" />
@@ -374,13 +390,13 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
               fill="rgba(255,255,255,0.52)"
               fontFamily="system-ui"
             >
-              Add your first private connection to start the chart
+              Add your first direct connection to start your network
             </text>
           ) : null}
         </svg>
       </section>
 
-      {/* Public approved connections — read-only display */}
+      {/* Confirmed direct connections */}
       {approvedConnections.length > 0 ? (() => {
         const usersById = new Map(users.map((u) => [u.id, u]));
         return (
@@ -389,7 +405,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             style={{ background: "#0f0819", border: "1px solid rgba(255,255,255,0.08)" }}
           >
             <p className="mb-3 text-xs font-bold uppercase tracking-wider text-white/50">
-              Public approved connections
+              Confirmed direct connections
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {approvedConnections.map((rel) => {
@@ -436,7 +452,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                       </span>
                     </div>
                     <span className="shrink-0 rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-semibold text-green-400">
-                      Public ✓
+                      Confirmed
                     </span>
                   </div>
                 );
@@ -449,27 +465,47 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-black/[0.03] px-4 py-3 dark:bg-white/5">
         <span className="mt-0.5 text-lg">🔒</span>
         <div>
-          <p className="text-sm font-semibold">Only visible to you</p>
+          <p className="text-sm font-semibold">Placeholder nodes stay private to you</p>
           <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
-            People you add here are private. Nothing appears publicly unless you and the other
-            person both consent. No email or phone required to add someone.
+            Add someone before they have an account, then invite them or let them claim the node later.
+            Contact details are optional and only used to suggest safe matches.
           </p>
         </div>
       </div>
 
       {/* Add-connection form */}
       <div className="paper-card rounded-2xl p-5">
-        <h3 className="text-sm font-bold uppercase tracking-wider">Add to private chart</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider">Add a direct connection</h3>
         <form className="mt-3 space-y-3" onSubmit={handleAdd}>
           <input
             type="text"
             value={addName}
             onChange={(e) => setAddName(e.target.value)}
-            placeholder="Their name (no account needed)"
+            placeholder="Their name"
             maxLength={80}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
             disabled={isAdding}
           />
+          <div className="grid gap-2 md:grid-cols-2">
+            <input
+              type="email"
+              value={addEmail}
+              onChange={(e) => setAddEmail(e.target.value)}
+              placeholder="Email (optional)"
+              maxLength={200}
+              className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+              disabled={isAdding}
+            />
+            <input
+              type="text"
+              value={addPhoneNumber}
+              onChange={(e) => setAddPhoneNumber(e.target.value)}
+              placeholder="Phone (optional)"
+              maxLength={40}
+              className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+              disabled={isAdding}
+            />
+          </div>
           <div className="flex gap-2">
             <select
               value={addType}
@@ -501,7 +537,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             disabled={isAdding || !addName.trim()}
             className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >
-            {isAdding ? "Adding…" : "Add to private chart"}
+            {isAdding ? "Adding..." : "Add connection"}
           </button>
         </form>
       </div>
@@ -513,9 +549,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           style={{ background: "#0f0819" }}
         >
           <p className="text-3xl">👀</p>
-          <p className="mt-2 text-sm font-semibold text-white/80">Your chart is empty</p>
+          <p className="mt-2 text-sm font-semibold text-white/80">Your direct network is empty</p>
           <p className="mt-1 text-xs text-white/40">
-            Start adding people above — no account, no email, no drama.
+            Start adding people above. They can claim their node later or verify the connection after signup.
           </p>
         </div>
       ) : (
@@ -564,6 +600,22 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                         </option>
                       ))}
                     </select>
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      maxLength={200}
+                      placeholder="Email (optional)"
+                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                    />
+                    <input
+                      type="text"
+                      value={editPhoneNumber}
+                      onChange={(e) => setEditPhoneNumber(e.target.value)}
+                      maxLength={40}
+                      placeholder="Phone (optional)"
+                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                    />
                     <input
                       type="text"
                       value={editNote}
@@ -649,6 +701,13 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                       </p>
                     ) : null}
 
+                    {p.email || p.phoneNumber ? (
+                      <div className="mt-2 space-y-1 text-[11px] text-white/45">
+                        {p.email ? <p>{p.email}</p> : null}
+                        {p.phoneNumber ? <p>{p.phoneNumber}</p> : null}
+                      </div>
+                    ) : null}
+
                     {!isOwned ? (
                       <p className="mt-2 text-[11px] text-white/40">
                         Only the person who created this entry can edit it.
@@ -682,7 +741,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                               disabled={isWorking}
                               className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
                             >
-                              Generate invite 🔗
+                              Generate invite
                             </button>
                           ) : (
                             <button

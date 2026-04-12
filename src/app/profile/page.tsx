@@ -1,7 +1,9 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import { ProfileForm, type ProfileFormData } from "@/components/profile/profile-form";
 import { SectionHeader } from "@/components/ui/section-header";
+import { getClaimCandidatesForUser } from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -163,6 +165,11 @@ export default async function ProfilePage() {
     interests: user.interests,
   };
 
+  const claimCandidates = await getClaimCandidatesForUser(user.id, {
+    includeDismissed: true,
+    limit: 5,
+  });
+
   const connections: ProfileConnection[] = [
     ...user.relationships.map((relationship: { id: string; type: string; user2: ProfileConnection["person"] }) => ({
       id: relationship.id,
@@ -212,6 +219,8 @@ export default async function ProfilePage() {
           )}
         </aside>
       </div>
+
+      <ClaimConnectionsPanel initialCandidates={claimCandidates} mode="settings" />
     </div>
   );
 }

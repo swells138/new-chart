@@ -27,6 +27,8 @@ const relationshipTypeValues = [
 const createSchema = z
   .object({
     name: z.string().trim().min(1).max(80),
+    email: z.string().trim().email().max(200).optional().or(z.literal("")),
+    phoneNumber: z.string().trim().max(40).optional().or(z.literal("")),
     relationshipType: z.enum(relationshipTypeValues),
     note: z.string().trim().max(500).optional(),
   })
@@ -40,6 +42,8 @@ const updateSchema = z
       .optional()
       .default("update"),
     name: z.string().trim().min(1).max(80).optional(),
+    email: z.string().trim().email().max(200).optional().or(z.literal("")),
+    phoneNumber: z.string().trim().max(40).optional().or(z.literal("")),
     relationshipType: z.enum(relationshipTypeValues).optional(),
     note: z.string().trim().max(500).optional(),
   })
@@ -55,6 +59,8 @@ function normalizePlaceholder(p: {
   id: string;
   ownerId: string;
   name: string;
+  email: string | null;
+  phoneNumber: string | null;
   relationshipType: string;
   note: string | null;
   inviteToken: string | null;
@@ -66,6 +72,8 @@ function normalizePlaceholder(p: {
     id: p.id,
     ownerId: p.ownerId,
     name: p.name,
+    email: p.email ?? "",
+    phoneNumber: p.phoneNumber ?? "",
     relationshipType: p.relationshipType as RelationshipType,
     note: p.note ?? "",
     inviteToken: p.inviteToken,
@@ -123,10 +131,8 @@ export async function GET() {
 
   const placeholders = await prisma.placeholderPerson.findMany({
     where: {
-      OR: [
-        { ownerId: currentDbUserId },
-        { linkedUserId: currentDbUserId, claimStatus: "claimed" },
-      ],
+      ownerId: currentDbUserId,
+      claimStatus: { in: ["unclaimed", "invited"] },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -135,7 +141,7 @@ export async function GET() {
 }
 
 // ───────────────────────────────────────────────
-// POST — add someone to the private chart (no account required for target)
+// POST — add someone as a placeholder node (no account required for target)
 // ───────────────────────────────────────────────
 export async function POST(request: Request) {
   const authResult = await getAuthenticatedDbUserId();
@@ -166,13 +172,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
   }
 
-  const { name, relationshipType, note } = parsed.data;
+  const { name, email, phoneNumber, relationshipType, note } = parsed.data;
 
   // Enforce a reasonable per-user cap (200 private entries)
   const existing = await prisma.placeholderPerson.count({ where: { ownerId: currentDbUserId } });
   if (existing >= 200) {
     return NextResponse.json(
-      { error: "You have reached the private chart limit (200 entries)." },
+      { error: "You have reached the placeholder limit (200 entries)." },
       { status: 422 }
     );
   }
@@ -181,6 +187,8 @@ export async function POST(request: Request) {
     data: {
       ownerId: currentDbUserId,
       name: name.trim(),
+      email: email?.trim() || null,
+      phoneNumber: phoneNumber?.trim() || null,
       relationshipType,
       note: note?.trim() ?? null,
       claimStatus: "unclaimed",
@@ -222,7 +230,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
   }
 
-  const { id, action, name, relationshipType, note } = parsed.data;
+  const { id, action, name, email, phoneNumber, relationshipType, note } = parsed.data;
 
   const existing = await prisma.placeholderPerson.findUnique({ where: { id } });
   if (!existing) {
@@ -262,6 +270,8 @@ export async function PATCH(request: Request) {
     where: { id },
     data: {
       ...(name !== undefined && { name: name.trim() }),
+      ...(email !== undefined && { email: email.trim() || null }),
+      ...(phoneNumber !== undefined && { phoneNumber: phoneNumber.trim() || null }),
       ...(relationshipType !== undefined && { relationshipType }),
       ...(note !== undefined && { note: note.trim() }),
     },

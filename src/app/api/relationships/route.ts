@@ -50,7 +50,7 @@ type ApprovalStatus = "approved" | "pending";
 const metaPrefix = "[[meta:";
 const metaSuffix = "]]";
 const pendingTypePrefix = "pending::";
-const approvalInboxLink = "/map?chart=public&focus=approvals#pending-requests";
+const approvalInboxLink = "/map?chart=public&focus=approvals#pending-verification";
 
 interface RelationshipMeta {
   status: ApprovalStatus;

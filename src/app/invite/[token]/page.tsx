@@ -116,17 +116,17 @@ export default function InvitePage({ params }: PageProps) {
           <h1 className="mt-4 text-xl font-bold">You&apos;re connected!</h1>
           <p className="mt-2 text-sm text-black/65 dark:text-white/65">
             Your connection with <span className="font-semibold">{invite?.ownerName}</span> is now live
-            on your private chart.
+            in your network.
           </p>
           <p className="mt-1 text-xs text-black/50 dark:text-white/50">
-            It&apos;s only visible to both of you until you choose to make it public. 🔒
+            Confirmed connections can now appear in the shared network.
           </p>
           <button
             type="button"
             onClick={() => router.push("/map")}
             className="mt-6 rounded-xl bg-[var(--accent)] px-6 py-2.5 text-sm font-semibold text-white"
           >
-            Open my chart
+            Open your network
           </button>
         </div>
       </div>
@@ -165,10 +165,10 @@ export default function InvitePage({ params }: PageProps) {
         <div className="text-center">
           <p className="text-5xl">👀</p>
           <h1 className="mt-4 text-2xl font-bold leading-tight">
-            Someone added you to their chart
+            Someone added you to their network
           </h1>
           <p className="mt-2 text-sm text-black/60 dark:text-white/60">
-            This is private — only visible to the two of you unless you both choose otherwise.
+            Review this connection and decide whether it belongs in the shared network.
           </p>
         </div>
 
@@ -195,8 +195,7 @@ export default function InvitePage({ params }: PageProps) {
         {/* Privacy note */}
         <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 dark:bg-white/5">
           <p className="text-xs text-black/60 dark:text-white/60">
-            🔒 <strong>Only you and {invite.ownerName} can see this connection.</strong> Nothing is
-            ever made public without your explicit consent.
+            <strong>You are in control.</strong> Approving confirms the connection; declining keeps it out of the network.
           </p>
         </div>
 
@@ -213,7 +212,7 @@ export default function InvitePage({ params }: PageProps) {
             disabled={responding}
             className="flex-1 rounded-xl bg-[var(--accent)] py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
           >
-            {responding ? "Saving…" : "Accept connection ✓"}
+            {responding ? "Saving..." : "Verify connection"}
           </button>
           <button
             type="button"
@@ -226,7 +225,7 @@ export default function InvitePage({ params }: PageProps) {
         </div>
 
         <p className="mt-4 text-center text-xs text-black/45 dark:text-white/45">
-          Not sure who this is? You can safely decline — no pressure.
+          Not sure who this is? You can safely decline.
         </p>
       </div>
     </div>

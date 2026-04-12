@@ -122,8 +122,8 @@ export default async function MapPage() {
   return (
     <div className="space-y-4">
       <SectionHeader
-        title="Relationship Map"
-        subtitle="Click nodes to open details, drag to connect, and edit only connections that include your own profile."
+        title="Your Network"
+        subtitle="Manage direct connections, verify pending matches, and explore the confirmed network around you."
       />
       <RelationshipMap
         users={users}
