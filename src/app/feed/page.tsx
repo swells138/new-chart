@@ -76,17 +76,17 @@ export default async function FeedPage() {
               <div className="flex items-center gap-3">
                 <div className="flex -space-x-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/20 text-sm font-bold ring-2 ring-white dark:ring-black">
-                    {conn.user1.name.charAt(0)}
+                    {(conn.user1.name ?? "?").charAt(0)}
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/40 text-sm font-bold ring-2 ring-white dark:ring-black">
-                    {conn.user2.name.charAt(0)}
+                    {(conn.user2.name ?? "?").charAt(0)}
                   </div>
                 </div>
                 <div>
                   <p className="text-sm font-semibold">
-                    {conn.user1.name}{" "}
+                    {conn.user1.name ?? conn.user1.handle}{" "}
                     <span className="font-normal text-black/60 dark:text-white/65">&amp;</span>{" "}
-                    {conn.user2.name}
+                    {conn.user2.name ?? conn.user2.handle}
                   </p>
                   <p className="text-xs text-black/60 dark:text-white/65">
                     {label}
