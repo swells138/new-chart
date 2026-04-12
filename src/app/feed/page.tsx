@@ -37,7 +37,6 @@ export default async function FeedPage() {
       select: {
         id: true,
         type: true,
-        note: true,
         user1Id: true,
         user2Id: true,
         user1: { select: { id: true, name: true, handle: true } },
@@ -103,9 +102,6 @@ export default async function FeedPage() {
                   </p>
                 </div>
               </div>
-              {conn.note ? (
-                <p className="mt-3 text-sm text-black/75 dark:text-white/80 italic">"{conn.note}"</p>
-              ) : null}
             </article>
           );
         })}
