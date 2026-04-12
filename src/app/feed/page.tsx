@@ -19,6 +19,15 @@ const connectionLabels: Record<string, string> = {
   FWB: "are friends with benefits",
 };
 
+type FeedConnection = {
+  id: string;
+  type: string;
+  user1Id: string;
+  user2Id: string;
+  user1: { id: string; name: string | null; handle: string | null };
+  user2: { id: string; name: string | null; handle: string | null };
+};
+
 export default async function FeedPage() {
   let currentUserDbId: string | null = null;
 
@@ -67,7 +76,7 @@ export default async function FeedPage() {
         {connections.length === 0 && (
           <p className="text-sm text-black/60 dark:text-white/70">No connections yet.</p>
         )}
-        {connections.map((conn) => {
+        {connections.map((conn: FeedConnection) => {
           const label = connectionLabels[conn.type] ?? "connected";
           const isYourConnection =
             currentUserDbId &&
