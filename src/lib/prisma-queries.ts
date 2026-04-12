@@ -69,14 +69,6 @@ function formatRelativeTime(timestamp: Date) {
   return `${differenceInDays}d ago`;
 }
 
-function formatCalendarDate(timestamp: Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(timestamp);
-}
-
 function normalizeUser(user: {
   id: string;
   name: string | null;

@@ -50,7 +50,7 @@ export default function RootLayout({
                 <div className="hero-blob absolute -top-28 -left-12 h-72 w-72 rounded-full bg-[var(--blob-1)] blur-3xl" />
                 <div className="hero-blob absolute top-36 right-0 h-72 w-72 rounded-full bg-[var(--blob-2)] blur-3xl" />
               </div>
-              <SiteNav />
+              <SiteNav clerkEnabled={false} />
               <main className="pt-8">{children}</main>
             </div>
             <Analytics />
@@ -74,7 +74,7 @@ export default function RootLayout({
                 <div className="hero-blob absolute -top-28 -left-12 h-72 w-72 rounded-full bg-[var(--blob-1)] blur-3xl" />
                 <div className="hero-blob absolute top-36 right-0 h-72 w-72 rounded-full bg-[var(--blob-2)] blur-3xl" />
               </div>
-              <SiteNav />
+              <SiteNav clerkEnabled={hasClerkKeys} />
               <main className="pt-8">{children}</main>
             </div>
             <Analytics />

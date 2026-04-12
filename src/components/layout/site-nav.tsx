@@ -22,12 +22,11 @@ const links = [
   { href: "/profile", label: "Profile", requiresAuth: true },
 ];
 
-export function SiteNav() {
+export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const hasClerkKeys = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-  const { isSignedIn } = useUser();
-  const visibleLinks = links.filter((l) => !l.requiresAuth || (hasClerkKeys ? isSignedIn : false));
+  const hasClerkKeys = clerkEnabled;
+  const publicLinks = links.filter((l) => !l.requiresAuth);
 
   return (
     <header className="sticky top-3 z-40">
@@ -45,7 +44,7 @@ export function SiteNav() {
           </Link>
 
           <div className="hidden items-center gap-1 md:flex">
-            {visibleLinks.map((link) => (
+            {publicLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -59,9 +58,10 @@ export function SiteNav() {
                 {link.label}
               </Link>
             ))}
+            {hasClerkKeys && <ClerkDesktopProtectedLinks pathname={pathname} />}
             <ThemeToggle />
             <div className="ml-2 flex items-center gap-2 border-l border-[var(--border-soft)] pl-3">
-              <DesktopAuthControls />
+              <DesktopAuthControls clerkEnabled={hasClerkKeys} />
             </div>
           </div>
 
@@ -80,7 +80,7 @@ export function SiteNav() {
 
         {menuOpen && (
           <div className="mt-3 grid gap-2 border-t border-[var(--border-soft)] pt-3 md:hidden">
-            {visibleLinks.map((link) => (
+            {publicLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -95,8 +95,11 @@ export function SiteNav() {
                 {link.label}
               </Link>
             ))}
+            {hasClerkKeys && (
+              <ClerkMobileProtectedLinks pathname={pathname} onClick={() => setMenuOpen(false)} />
+            )}
             <div className="border-t border-[var(--border-soft)] pt-2">
-              <MobileAuthControls onAction={() => setMenuOpen(false)} />
+              <MobileAuthControls clerkEnabled={hasClerkKeys} onAction={() => setMenuOpen(false)} />
             </div>
           </div>
         )}
@@ -105,8 +108,59 @@ export function SiteNav() {
   );
 }
 
-function DesktopAuthControls() {
-  const hasClerkKeys = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {
+  const { isSignedIn } = useUser();
+
+  if (!isSignedIn) {
+    return null;
+  }
+
+  return links
+    .filter((link) => link.requiresAuth)
+    .map((link) => (
+      <Link
+        key={link.href}
+        href={link.href}
+        className={clsx(
+          "rounded-full px-4 py-2 text-sm font-semibold transition",
+          pathname === link.href
+            ? "bg-[var(--accent)] text-white"
+            : "hover:bg-white/70 dark:hover:bg-black/30"
+        )}
+      >
+        {link.label}
+      </Link>
+    ));
+}
+
+function ClerkMobileProtectedLinks({ pathname, onClick }: { pathname: string; onClick: () => void }) {
+  const { isSignedIn } = useUser();
+
+  if (!isSignedIn) {
+    return null;
+  }
+
+  return links
+    .filter((link) => link.requiresAuth)
+    .map((link) => (
+      <Link
+        key={link.href}
+        href={link.href}
+        onClick={onClick}
+        className={clsx(
+          "rounded-xl px-3 py-2 text-sm font-semibold transition",
+          pathname === link.href
+            ? "bg-[var(--accent)] text-white"
+            : "hover:bg-white/70 dark:hover:bg-black/30"
+        )}
+      >
+        {link.label}
+      </Link>
+    ));
+}
+
+function DesktopAuthControls({ clerkEnabled }: { clerkEnabled: boolean }) {
+  const hasClerkKeys = clerkEnabled;
 
   if (!hasClerkKeys) {
     return (
@@ -153,8 +207,14 @@ function ClerkDesktopAuthControls() {
   return <UserButton />;
 }
 
-function MobileAuthControls({ onAction }: { onAction: () => void }) {
-  const hasClerkKeys = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+function MobileAuthControls({
+  clerkEnabled,
+  onAction,
+}: {
+  clerkEnabled: boolean;
+  onAction: () => void;
+}) {
+  const hasClerkKeys = clerkEnabled;
 
   if (!hasClerkKeys) {
     return (

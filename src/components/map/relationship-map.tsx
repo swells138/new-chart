@@ -32,7 +32,6 @@ interface Props {
   currentUserId: string | null;
   userConnections?: Relationship[];
   areaUsers?: User[];
-  currentUserLocation?: string | null;
 }
 
 type ApprovalStatus = "approved" | "pending";
@@ -90,7 +89,7 @@ function parseRelationshipNote(input: string): {
   }
 }
 
-export function RelationshipMap({ users, relationships, currentUserId, userConnections, areaUsers, currentUserLocation }: Props) {
+export function RelationshipMap({ users, relationships, currentUserId, userConnections, areaUsers }: Props) {
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "Exes",
     "Married",

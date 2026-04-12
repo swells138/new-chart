@@ -2,7 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
-import { getAllRelationships, getAllUsers, getRelationshipsByUser, getUsersByLocation } from "@/lib/prisma-queries";
+import { getAllRelationships, getAllUsers, getRelationshipsByUser } from "@/lib/prisma-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -121,7 +121,6 @@ export default async function MapPage() {
         currentUserId={currentUserDbId}
         userConnections={userConnections}
         areaUsers={areaUsers}
-        currentUserLocation={currentUserLocation}
       />
     </div>
   );
