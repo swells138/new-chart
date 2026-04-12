@@ -7,8 +7,6 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
-  SignInButton,
-  SignUpButton,
   UserButton,
   useUser,
 } from "@clerk/nextjs";
@@ -190,16 +188,18 @@ function ClerkDesktopAuthControls() {
   if (!isSignedIn) {
     return (
       <>
-        <SignInButton>
-          <button className="rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30">
-            Sign in
-          </button>
-        </SignInButton>
-        <SignUpButton>
-          <button className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95">
-            Join
-          </button>
-        </SignUpButton>
+        <Link
+          href="/login"
+          className="rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30"
+        >
+          Sign in
+        </Link>
+        <Link
+          href="/signup"
+          className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
+        >
+          Join
+        </Link>
       </>
     );
   }
@@ -246,22 +246,20 @@ function ClerkMobileAuthControls({ onAction }: { onAction: () => void }) {
   if (!isSignedIn) {
     return (
       <>
-        <SignInButton>
-          <button
-            onClick={onAction}
-            className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30"
-          >
-            Sign in
-          </button>
-        </SignInButton>
-        <SignUpButton>
-          <button
-            onClick={onAction}
-            className="mt-1 block w-full rounded-xl bg-[var(--accent)] px-3 py-2 text-left text-sm font-semibold text-white transition hover:brightness-95"
-          >
-            Join - create account
-          </button>
-        </SignUpButton>
+        <Link
+          href="/login"
+          onClick={onAction}
+          className="block w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30"
+        >
+          Sign in
+        </Link>
+        <Link
+          href="/signup"
+          onClick={onAction}
+          className="mt-1 block w-full rounded-xl bg-[var(--accent)] px-3 py-2 text-left text-sm font-semibold text-white transition hover:brightness-95"
+        >
+          Join - create account
+        </Link>
       </>
     );
   }

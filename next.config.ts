@@ -1,16 +1,22 @@
 import type { NextConfig } from "next";
 
+const clerkSources = [
+  "https://*.clerk.com",
+  "https://*.clerk.accounts.dev",
+  "https://clerk.meshylinks.com",
+].join(" ");
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "font-src 'self' https: data:",
   "img-src 'self' data: blob: https:",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline' https://*.clerk.com https://*.clerk.accounts.dev",
-  "worker-src 'self' blob: https://*.clerk.com https://*.clerk.accounts.dev",
+  `script-src 'self' 'unsafe-inline' ${clerkSources}`,
+  `worker-src 'self' blob: ${clerkSources}`,
   "style-src 'self' 'unsafe-inline' https:",
   "connect-src 'self' https: wss:",
-  "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev",
+  `frame-src 'self' ${clerkSources}`,
   "form-action 'self'",
   "frame-ancestors 'none'",
   "upgrade-insecure-requests",

@@ -32,6 +32,33 @@ function hashColor(id: string): string {
   return NODE_PALETTE[Math.abs(h) % NODE_PALETTE.length];
 }
 
+function hashNumber(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) & 0xffffffff;
+  return Math.abs(h);
+}
+
+function getOrganicPosition(index: number, total: number, id: string, isCurrentUser: boolean) {
+  if (isCurrentUser) {
+    return { x: 430, y: 250 };
+  }
+
+  const seed = hashNumber(id);
+  const safeTotal = Math.max(total, 1);
+  const ring = 1 + (index % 3);
+  const baseRadius = 120 + ring * 70;
+  const jitterRadius = (seed % 35) - 17;
+  const jitterY = (seed % 30) - 15;
+  const baseAngle = (index / safeTotal) * Math.PI * 2;
+  const seededAngle = ((seed % 360) * Math.PI) / 180;
+  const angle = baseAngle + seededAngle * 0.2;
+
+  return {
+    x: 430 + Math.cos(angle) * (baseRadius + jitterRadius),
+    y: 250 + Math.sin(angle) * (baseRadius * 0.62 + jitterY),
+  };
+}
+
 type PersonNodeData = { label: string; handle: string; color: string };
 
 function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boolean }) {
@@ -52,20 +79,21 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
         position={Position.Right}
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
-      <div style={{ textAlign: "center", width: 72 }}>
+      <div style={{ textAlign: "center", width: 86 }}>
         <div
           style={{
-            width: 46,
-            height: 46,
+            width: 50,
+            height: 50,
             borderRadius: "50%",
             background: `radial-gradient(circle at 38% 32%, ${data.color} 0%, color-mix(in srgb, ${data.color}, #000 28%) 100%)`,
-            boxShadow: `0 0 18px ${data.color}44, 0 4px 12px rgba(0,0,0,0.5)`,
+            boxShadow: `0 0 22px ${data.color}44, 0 8px 24px rgba(0,0,0,0.42)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto",
             border: selected ? `2.5px solid ${data.color}` : "2px solid rgba(255,255,255,0.14)",
-            transition: "transform 0.15s, box-shadow 0.15s",
+            transition: "transform 0.22s ease, box-shadow 0.22s ease",
+            transform: selected ? "translateY(-1px) scale(1.03)" : "translateY(0) scale(1)",
           }}
         >
           <span style={{ color: "white", fontWeight: 700, fontSize: 15, fontFamily: "system-ui", userSelect: "none" }}>
@@ -74,15 +102,17 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
         </div>
         <div
           style={{
-            marginTop: 5,
-            background: "rgba(0,0,0,0.65)",
-            borderRadius: 8,
-            padding: "2px 7px",
-            maxWidth: 72,
+            marginTop: 6,
+            background: "linear-gradient(180deg, rgba(11,9,27,0.8), rgba(4,3,16,0.72))",
+            border: "1px solid rgba(255,255,255,0.16)",
+            borderRadius: 999,
+            padding: "3px 10px",
+            maxWidth: 86,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            margin: "5px auto 0",
+            margin: "6px auto 0",
+            backdropFilter: "blur(6px)",
           }}
         >
           <span style={{ color: "rgba(255,255,255,0.88)", fontSize: 10, fontWeight: 600, fontFamily: "system-ui", userSelect: "none" }}>
@@ -421,21 +451,22 @@ export function RelationshipMap({
   // Determine which relationships to display
   const displayedRelationships = useMemo(() => approvedRelationships, [approvedRelationships]);
 
-  const mappedNodes: Node[] = useMemo(
-    () =>
-      displayedUsers.map((user, index) => ({
-        id: user.id,
-        type: "person",
-        data: { label: user.name, handle: user.handle, color: hashColor(user.id) },
-        position: {
-          x: 80 + (index % 4) * 200,
-          y: 80 + Math.floor(index / 4) * 160,
-        },
-        style: { background: "transparent", border: "none", padding: 0 },
-        draggable: currentUserId ? user.id === currentUserId : true,
-      })),
-    [displayedUsers, currentUserId]
-  );
+  const mappedNodes: Node[] = useMemo(() => {
+    const orderedUsers = [...displayedUsers].sort((left, right) => {
+      if (currentUserId && left.id === currentUserId) return -1;
+      if (currentUserId && right.id === currentUserId) return 1;
+      return left.name.localeCompare(right.name);
+    });
+
+    return orderedUsers.map((user, index) => ({
+      id: user.id,
+      type: "person",
+      data: { label: user.name, handle: user.handle, color: hashColor(user.id) },
+      position: getOrganicPosition(index, orderedUsers.length, user.id, user.id === currentUserId),
+      style: { background: "transparent", border: "none", padding: 0 },
+      draggable: currentUserId ? user.id === currentUserId : true,
+    }));
+  }, [displayedUsers, currentUserId]);
 
   const filteredRelationships = useMemo(
     () => {
@@ -471,28 +502,28 @@ export function RelationshipMap({
           target: item.target,
           sourceHandle: sourceIsLeft ? "source-right" : "source-left",
           targetHandle: sourceIsLeft ? "target-left" : "target-right",
-          type: "smoothstep",
-          pathOptions: { borderRadius: 24, offset: 20 },
+          type: "bezier",
           label: item.type,
+          animated: true,
           style: {
             stroke: relationColors[item.type],
-            strokeWidth: 2,
-            strokeOpacity: 0.75,
+            strokeWidth: 2.4,
+            strokeOpacity: 0.8,
           },
           labelStyle: {
-            fontSize: 9,
+            fontSize: 10,
             fill: relationColors[item.type],
             fontWeight: 600,
             fontFamily: "system-ui",
           },
           labelBgStyle: {
-            fill: "rgba(10,6,20,0.85)",
+            fill: "rgba(8,6,22,0.8)",
             stroke: relationColors[item.type],
             strokeWidth: 0.75,
-            strokeOpacity: 0.5,
+            strokeOpacity: 0.55,
           },
-          labelBgPadding: [4, 6] as [number, number],
-          labelBgBorderRadius: 5,
+          labelBgPadding: [6, 8] as [number, number],
+          labelBgBorderRadius: 999,
         };
       });
     },
