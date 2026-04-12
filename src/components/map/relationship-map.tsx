@@ -40,7 +40,11 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
   const displayName = data.label.split(" ")[0] ?? data.label;
   return (
     <>
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
+      />
       <div style={{ textAlign: "center", width: 72 }}>
         <div
           style={{
@@ -79,7 +83,11 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
           </span>
         </div>
       </div>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
+      />
     </>
   );
 }
@@ -408,6 +416,8 @@ export function RelationshipMap({
         id: item.id,
         source: item.source,
         target: item.target,
+        type: "smoothstep",
+        pathOptions: { borderRadius: 24, offset: 20 },
         label: item.type,
         style: {
           stroke: relationColors[item.type],
