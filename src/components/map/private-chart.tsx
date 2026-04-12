@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PlaceholderPerson, RelationshipType } from "@/types/models";
+import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -42,9 +42,11 @@ interface Props {
   initialPlaceholders: PlaceholderPerson[];
   baseUrl: string;
   currentUserId: string | null;
+  approvedConnections?: Relationship[];
+  users?: User[];
 }
 
-export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Props) {
+export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, approvedConnections = [], users = [] }: Props) {
   const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
 
   // Add-form state
@@ -196,6 +198,73 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
   return (
     <div className="space-y-6">
       {/* Privacy banner */}
+
+      {/* Public approved connections — read-only display */}
+      {approvedConnections.length > 0 ? (() => {
+        const usersById = new Map(users.map((u) => [u.id, u]));
+        return (
+          <div
+            className="rounded-2xl p-4"
+            style={{ background: "#0f0819", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-white/50">
+              Public approved connections
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {approvedConnections.map((rel) => {
+                const otherId = rel.source === currentUserId ? rel.target : rel.source;
+                const other = usersById.get(otherId);
+                if (!other) return null;
+                const color = TYPE_COLORS[rel.type] ?? "#888";
+                const initial = (other.name?.[0] ?? "?").toUpperCase();
+                return (
+                  <div
+                    key={rel.id}
+                    className="flex items-center gap-3 rounded-2xl p-3"
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.09)",
+                      boxShadow: `0 0 0 1px ${color}22 inset`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        flexShrink: 0,
+                        borderRadius: "50%",
+                        background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
+                        boxShadow: `0 0 12px ${color}44`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "2px solid rgba(255,255,255,0.12)",
+                      }}
+                    >
+                      <span style={{ color: "white", fontWeight: 700, fontSize: 13, fontFamily: "system-ui" }}>
+                        {initial}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">{other.name}</p>
+                      <span
+                        className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                        style={{ backgroundColor: `${color}33`, color, border: `1px solid ${color}55` }}
+                      >
+                        {rel.type}
+                      </span>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+                      Public ✓
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })() : null}
+
       <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-black/[0.03] px-4 py-3 dark:bg-white/5">
         <span className="mt-0.5 text-lg">🔒</span>
         <div>

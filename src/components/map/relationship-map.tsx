@@ -13,6 +13,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
@@ -35,10 +36,12 @@ type PersonNodeData = { label: string; handle: string; color: string };
 
 function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boolean }) {
   const initial = (data.label?.[0] ?? "?").toUpperCase();
+  // Show first name only so the pill stays compact below the circle
+  const displayName = data.label.split(" ")[0] ?? data.label;
   return (
     <>
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
-      <div style={{ textAlign: "center", width: 64 }}>
+      <div style={{ textAlign: "center", width: 72 }}>
         <div
           style={{
             width: 46,
@@ -61,14 +64,18 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
         <div
           style={{
             marginTop: 5,
-            background: "rgba(0,0,0,0.6)",
+            background: "rgba(0,0,0,0.65)",
             borderRadius: 8,
             padding: "2px 7px",
-            display: "inline-block",
+            maxWidth: 72,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            margin: "5px auto 0",
           }}
         >
-          <span style={{ color: "rgba(255,255,255,0.88)", fontSize: 10, fontWeight: 600, fontFamily: "system-ui", whiteSpace: "nowrap", userSelect: "none" }}>
-            {data.label}
+          <span style={{ color: "rgba(255,255,255,0.88)", fontSize: 10, fontWeight: 600, fontFamily: "system-ui", userSelect: "none" }}>
+            {displayName}
           </span>
         </div>
       </div>
@@ -701,12 +708,47 @@ export function RelationshipMap({
         </p>
       </div>
 
-      {chartLayer === "private" ? (
+      {chartLayer === "private" && currentUserId ? (
         <PrivateChart
           initialPlaceholders={privatePlaceholders}
           baseUrl={baseUrl}
           currentUserId={currentUserId}
+          approvedConnections={approvedUserConnections}
+          users={users}
         />
+      ) : null}
+
+      {chartLayer === "private" && !currentUserId ? (
+        <section
+          className="rounded-2xl border border-white/10 p-6 text-center"
+          style={{ background: "linear-gradient(145deg, #0f0819 0%, #160d28 100%)" }}
+        >
+          <p className="text-sm font-semibold text-white">Private chart is a members-only feature</p>
+          <p className="mt-1 text-xs text-white/60">
+            Create an account to add private connections, send invites, and save your personal chart.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/signup"
+              className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-95"
+            >
+              Create account
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
+            >
+              Sign in
+            </Link>
+            <button
+              type="button"
+              onClick={() => setChartLayer("public")}
+              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
+            >
+              Back to public chart
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {chartLayer === "public" ? (
