@@ -167,6 +167,11 @@ type PlaceholderRecord = {
   createdAt: Date;
 };
 
+type RelationshipPairRecord = {
+  user1Id: string;
+  user2Id: string;
+};
+
 export async function getMemberDirectoryData(): Promise<{
   users: User[];
   posts: Post[];
@@ -379,7 +384,7 @@ export async function getApprovedConnectionUserIds(userId: string): Promise<stri
   });
 
   const ids = new Set<string>();
-  relationships.forEach((item) => {
+  relationships.forEach((item: RelationshipPairRecord) => {
     if (item.user1Id !== userId) {
       ids.add(item.user1Id);
     }
