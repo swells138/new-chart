@@ -5,7 +5,6 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
 import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
 import type { ReactNode } from "react";
-import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +36,14 @@ const threads = [
   },
 ];
 
-type InboxMessage = Prisma.MessageGetPayload<{
-  include: {
-    sender: { select: { name: true } };
-  };
-}>;
+type InboxMessage = {
+  id: string;
+  content: string;
+  read: boolean;
+  createdAt: Date;
+  senderId: string;
+  sender: { name: string | null };
+};
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -115,7 +117,7 @@ export default async function InboxPage() {
         const connectedIds = await getApprovedConnectionUserIds(dbUser.id);
         connectedSet = new Set(connectedIds);
 
-        const messages = await prisma.message.findMany({
+        const messages: InboxMessage[] = await prisma.message.findMany({
           where: { recipientId: dbUser.id },
           orderBy: { createdAt: "desc" },
           take: 50,
