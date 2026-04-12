@@ -613,7 +613,11 @@ export function RelationshipMap({
       </div>
 
       {chartLayer === "private" ? (
-        <PrivateChart initialPlaceholders={privatePlaceholders} baseUrl={baseUrl} />
+        <PrivateChart
+          initialPlaceholders={privatePlaceholders}
+          baseUrl={baseUrl}
+          currentUserId={currentUserId}
+        />
       ) : null}
 
       {chartLayer === "public" ? (

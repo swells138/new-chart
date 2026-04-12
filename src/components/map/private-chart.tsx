@@ -41,9 +41,10 @@ const STATUS_LABELS: Record<PlaceholderPerson["claimStatus"], string> = {
 interface Props {
   initialPlaceholders: PlaceholderPerson[];
   baseUrl: string;
+  currentUserId: string | null;
 }
 
-export function PrivateChart({ initialPlaceholders, baseUrl }: Props) {
+export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Props) {
   const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
 
   // Add-form state
@@ -273,6 +274,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl }: Props) {
             const isEditing = editingId === p.id;
             const isCopied = copiedId === p.id;
             const inviteLink = p.inviteToken ? `${baseUrl}/invite/${p.inviteToken}` : null;
+            const isOwned = currentUserId !== null && p.ownerId === currentUserId;
 
             return (
               <div
@@ -362,6 +364,12 @@ export function PrivateChart({ initialPlaceholders, baseUrl }: Props) {
                       </p>
                     ) : null}
 
+                    {!isOwned ? (
+                      <p className="mt-2 text-[11px] text-black/55 dark:text-white/55">
+                        Shared connection. Only the person who created this entry can edit it.
+                      </p>
+                    ) : null}
+
                     {/* Invite link display */}
                     {inviteLink && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
                       <div className="mt-3 flex items-center gap-2 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-2.5 py-2 dark:bg-white/5">
@@ -380,7 +388,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl }: Props) {
 
                     {/* Action buttons */}
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
+                      {isOwned && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
                         <>
                           {!p.inviteToken ? (
                             <button
@@ -404,22 +412,26 @@ export function PrivateChart({ initialPlaceholders, baseUrl }: Props) {
                         </>
                       ) : null}
 
-                      <button
-                        type="button"
-                        onClick={() => startEdit(p)}
-                        disabled={isWorking}
-                        className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-[11px] font-semibold transition hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/10"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(p.id)}
-                        disabled={isWorking}
-                        className="rounded-full border border-red-200 px-3 py-1 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                      >
-                        {isWorking ? "…" : "Remove"}
-                      </button>
+                      {isOwned ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(p)}
+                            disabled={isWorking}
+                            className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-[11px] font-semibold transition hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/10"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(p.id)}
+                            disabled={isWorking}
+                            className="rounded-full border border-red-200 px-3 py-1 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                          >
+                            {isWorking ? "…" : "Remove"}
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </>
                 )}

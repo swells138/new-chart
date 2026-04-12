@@ -122,7 +122,12 @@ export async function GET() {
   const currentDbUserId = authResult.dbUserId;
 
   const placeholders = await prisma.placeholderPerson.findMany({
-    where: { ownerId: currentDbUserId },
+    where: {
+      OR: [
+        { ownerId: currentDbUserId },
+        { linkedUserId: currentDbUserId, claimStatus: "claimed" },
+      ],
+    },
     orderBy: { createdAt: "desc" },
   });
 

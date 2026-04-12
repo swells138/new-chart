@@ -350,7 +350,12 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
 /** Returns a user's private chart entries (PlaceholderPerson records). */
 export async function getPrivateConnectionsByUser(userId: string): Promise<PlaceholderPerson[]> {
   const placeholders = await prisma.placeholderPerson.findMany({
-    where: { ownerId: userId },
+    where: {
+      OR: [
+        { ownerId: userId },
+        { linkedUserId: userId, claimStatus: "claimed" },
+      ],
+    },
     orderBy: { createdAt: "desc" },
   });
 
