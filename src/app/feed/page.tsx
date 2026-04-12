@@ -34,7 +34,12 @@ export default async function FeedPage() {
     getAllUsers(),
     prisma.relationship.findMany({
       where: { NOT: { type: { startsWith: pendingTypePrefix } } },
-      include: {
+      select: {
+        id: true,
+        type: true,
+        note: true,
+        user1Id: true,
+        user2Id: true,
         user1: { select: { id: true, name: true, handle: true } },
         user2: { select: { id: true, name: true, handle: true } },
       },
