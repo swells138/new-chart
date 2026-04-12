@@ -136,132 +136,137 @@ export async function getClaimCandidatesForUser(
   const includeDismissed = options?.includeDismissed ?? false;
   const limit = options?.limit ?? 5;
 
-  const currentUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phoneNumber: true,
-      ignoredClaimPlaceholderIds: true,
-    },
-  });
+  try {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+        ignoredClaimPlaceholderIds: true,
+      },
+    });
 
-  if (!currentUser) {
-    return [] as ClaimCandidate[];
-  }
+    if (!currentUser) {
+      return [] as ClaimCandidate[];
+    }
 
-  const placeholders = await prisma.placeholderPerson.findMany({
-    where: {
-      ownerId: { not: userId },
-      linkedUserId: null,
-      claimStatus: { in: ["unclaimed", "invited"] },
-    },
-    include: {
-      owner: {
-        select: {
-          id: true,
-          name: true,
-          handle: true,
+    const placeholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: { not: userId },
+        linkedUserId: null,
+        claimStatus: { in: ["unclaimed", "invited"] },
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 200,
-  });
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 200,
+    });
 
-  const visiblePlaceholders = includeDismissed
-    ? placeholders
-    : placeholders.filter(
-        (placeholder) => !currentUser.ignoredClaimPlaceholderIds.includes(placeholder.id)
-      );
-
-  const ownerIds = Array.from(new Set(visiblePlaceholders.map((placeholder) => placeholder.ownerId)));
-  const neighborMap = await buildApprovedNeighborMap([currentUser.id, ...ownerIds]);
-  const currentNeighbors = neighborMap.get(currentUser.id) ?? new Set<string>();
-
-  const mutualConnectionIds = Array.from(currentNeighbors);
-  const mutualUsers = mutualConnectionIds.length
-    ? await prisma.user.findMany({
-        where: { id: { in: mutualConnectionIds } },
-        select: { id: true, name: true, handle: true },
-      })
-    : [];
-  const mutualUserNames = new Map(
-    mutualUsers.map((user) => [user.id, user.name ?? user.handle ?? "Member"])
-  );
-
-  const currentUserEmail = (currentUser.email ?? "").trim().toLowerCase();
-  const currentUserPhone = normalizePhoneNumber(currentUser.phoneNumber);
-
-  const rankedCandidates = visiblePlaceholders
-    .map((placeholder) => {
-      const ownerNeighbors = neighborMap.get(placeholder.ownerId) ?? new Set<string>();
-      const sharedConnectionIds = Array.from(ownerNeighbors).filter((connectionId) =>
-        currentNeighbors.has(connectionId)
-      );
-
-      const mutualConnectionNames = sharedConnectionIds
-        .map((connectionId) => mutualUserNames.get(connectionId))
-        .filter((name): name is string => Boolean(name))
-        .slice(0, 3);
-
-      const nameScore = getNameMatchScore(currentUser.name ?? "", placeholder.name);
-      const emailMatches =
-        currentUserEmail.length > 0 &&
-        (placeholder.email ?? "").trim().toLowerCase() === currentUserEmail;
-      const phoneMatches =
-        currentUserPhone.length > 0 &&
-        normalizePhoneNumber(placeholder.phoneNumber) === currentUserPhone;
-
-      const score =
-        nameScore +
-        (emailMatches ? 120 : 0) +
-        (phoneMatches ? 110 : 0) +
-        sharedConnectionIds.length * 15;
-
-      const matchReasons: string[] = [];
-
-      if (emailMatches) {
-        matchReasons.push("Email matches");
-      }
-      if (phoneMatches) {
-        matchReasons.push("Phone matches");
-      }
-      if (nameScore >= 100) {
-        matchReasons.push("Exact name match");
-      } else if (nameScore >= 55) {
-        matchReasons.push("Similar name");
-      }
-      if (sharedConnectionIds.length > 0) {
-        matchReasons.push(
-          sharedConnectionIds.length === 1
-            ? "1 shared confirmed connection"
-            : `${sharedConnectionIds.length} shared confirmed connections`
+    const visiblePlaceholders = includeDismissed
+      ? placeholders
+      : placeholders.filter(
+          (placeholder) => !currentUser.ignoredClaimPlaceholderIds.includes(placeholder.id)
         );
-      }
 
-      return {
-        placeholder,
-        mutualConnectionNames,
-        matchReasons,
-        score,
-      };
-    })
-    .filter((candidate) => candidate.score >= 55 || candidate.matchReasons.some((reason) => reason.includes("matches")))
-    .sort((left, right) => right.score - left.score)
-    .slice(0, limit)
-    .map((candidate) =>
-      toClaimCandidate(
-        candidate.placeholder,
-        candidate.mutualConnectionNames,
-        candidate.matchReasons
-      )
+    const ownerIds = Array.from(new Set(visiblePlaceholders.map((placeholder) => placeholder.ownerId)));
+    const neighborMap = await buildApprovedNeighborMap([currentUser.id, ...ownerIds]);
+    const currentNeighbors = neighborMap.get(currentUser.id) ?? new Set<string>();
+
+    const mutualConnectionIds = Array.from(currentNeighbors);
+    const mutualUsers = mutualConnectionIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: mutualConnectionIds } },
+          select: { id: true, name: true, handle: true },
+        })
+      : [];
+    const mutualUserNames = new Map(
+      mutualUsers.map((user) => [user.id, user.name ?? user.handle ?? "Member"])
     );
 
-  return rankedCandidates;
+    const currentUserEmail = (currentUser.email ?? "").trim().toLowerCase();
+    const currentUserPhone = normalizePhoneNumber(currentUser.phoneNumber);
+
+    const rankedCandidates = visiblePlaceholders
+      .map((placeholder) => {
+        const ownerNeighbors = neighborMap.get(placeholder.ownerId) ?? new Set<string>();
+        const sharedConnectionIds = Array.from(ownerNeighbors).filter((connectionId) =>
+          currentNeighbors.has(connectionId)
+        );
+
+        const mutualConnectionNames = sharedConnectionIds
+          .map((connectionId) => mutualUserNames.get(connectionId))
+          .filter((name): name is string => Boolean(name))
+          .slice(0, 3);
+
+        const nameScore = getNameMatchScore(currentUser.name ?? "", placeholder.name);
+        const emailMatches =
+          currentUserEmail.length > 0 &&
+          (placeholder.email ?? "").trim().toLowerCase() === currentUserEmail;
+        const phoneMatches =
+          currentUserPhone.length > 0 &&
+          normalizePhoneNumber(placeholder.phoneNumber) === currentUserPhone;
+
+        const score =
+          nameScore +
+          (emailMatches ? 120 : 0) +
+          (phoneMatches ? 110 : 0) +
+          sharedConnectionIds.length * 15;
+
+        const matchReasons: string[] = [];
+
+        if (emailMatches) {
+          matchReasons.push("Email matches");
+        }
+        if (phoneMatches) {
+          matchReasons.push("Phone matches");
+        }
+        if (nameScore >= 100) {
+          matchReasons.push("Exact name match");
+        } else if (nameScore >= 55) {
+          matchReasons.push("Similar name");
+        }
+        if (sharedConnectionIds.length > 0) {
+          matchReasons.push(
+            sharedConnectionIds.length === 1
+              ? "1 shared confirmed connection"
+              : `${sharedConnectionIds.length} shared confirmed connections`
+          );
+        }
+
+        return {
+          placeholder,
+          mutualConnectionNames,
+          matchReasons,
+          score,
+        };
+      })
+      .filter((candidate) => candidate.score >= 55 || candidate.matchReasons.some((reason) => reason.includes("matches")))
+      .sort((left, right) => right.score - left.score)
+      .slice(0, limit)
+      .map((candidate) =>
+        toClaimCandidate(
+          candidate.placeholder,
+          candidate.mutualConnectionNames,
+          candidate.matchReasons
+        )
+      );
+
+    return rankedCandidates;
+  } catch {
+    // Compatibility fallback while a rollout is ahead of database migrations.
+    return [] as ClaimCandidate[];
+  }
 }
 
 export async function dismissClaimCandidate(userId: string, placeholderId: string) {

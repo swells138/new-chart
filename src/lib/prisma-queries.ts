@@ -8,6 +8,31 @@
 import { prisma } from "./prisma";
 import type { User, Post, Relationship, PlaceholderPerson, RelationshipType } from "@/types/models";
 
+const baseUserSelect = {
+  id: true,
+  name: true,
+  handle: true,
+  pronouns: true,
+  bio: true,
+  interests: true,
+  relationshipStatus: true,
+  location: true,
+  links: true,
+  featured: true,
+} as const;
+
+const basePlaceholderSelect = {
+  id: true,
+  ownerId: true,
+  name: true,
+  relationshipType: true,
+  note: true,
+  inviteToken: true,
+  linkedUserId: true,
+  claimStatus: true,
+  createdAt: true,
+} as const;
+
 const relationshipTypes: Relationship["type"][] = [
   "Talking",
   "Dating",
@@ -159,8 +184,8 @@ type PlaceholderRecord = {
   id: string;
   ownerId: string;
   name: string;
-  email: string | null;
-  phoneNumber: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
   relationshipType: string;
   note: string | null;
   inviteToken: string | null;
@@ -180,7 +205,10 @@ export async function getMemberDirectoryData(): Promise<{
   relationships: Relationship[];
 }> {
   const [users, posts, relationships] = await Promise.all([
-    prisma.user.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "asc" }] }),
+    prisma.user.findMany({
+      orderBy: [{ featured: "desc" }, { createdAt: "asc" }],
+      select: baseUserSelect,
+    }),
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
     prisma.relationship.findMany({
       where: {
@@ -211,6 +239,7 @@ export async function getAllRelationships(): Promise<Relationship[]> {
 export async function getAllUsers(): Promise<User[]> {
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
+    select: baseUserSelect,
   });
   return users.map(normalizeUser);
 }
@@ -224,6 +253,7 @@ export async function getUsersByLocation(location: string): Promise<User[]> {
       },
     },
     orderBy: { createdAt: "desc" },
+    select: baseUserSelect,
   });
   return users.map(normalizeUser);
 }
@@ -231,6 +261,7 @@ export async function getUsersByLocation(location: string): Promise<User[]> {
 export async function getUserById(id: string): Promise<User | null> {
   const user = await prisma.user.findUnique({
     where: { id },
+    select: baseUserSelect,
   });
   return user ? normalizeUser(user) : null;
 }
@@ -238,6 +269,7 @@ export async function getUserById(id: string): Promise<User | null> {
 export async function getUserByHandle(handle: string): Promise<User | null> {
   const user = await prisma.user.findUnique({
     where: { handle },
+    select: baseUserSelect,
   });
   return user ? normalizeUser(user) : null;
 }
@@ -245,6 +277,7 @@ export async function getUserByHandle(handle: string): Promise<User | null> {
 export async function getUserByClerkId(clerkId: string): Promise<User | null> {
   const user = await prisma.user.findUnique({
     where: { clerkId },
+    select: baseUserSelect,
   });
   return user ? normalizeUser(user) : null;
 }
@@ -260,6 +293,7 @@ export async function createUser(data: {
       email: data.email,
       name: data.name,
     },
+    select: baseUserSelect,
   });
   return normalizeUser(user);
 }
@@ -274,6 +308,7 @@ export async function updateUser(
       ...data,
       links: data.links,
     },
+    select: baseUserSelect,
   });
   return normalizeUser(user);
 }
@@ -355,6 +390,7 @@ export async function getPrivateConnectionsByUser(userId: string): Promise<Place
       claimStatus: { in: ["unclaimed", "invited"] },
     },
     orderBy: { createdAt: "desc" },
+    select: basePlaceholderSelect,
   });
 
   return placeholders.map((p: PlaceholderRecord) => ({
