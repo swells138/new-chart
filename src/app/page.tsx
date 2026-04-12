@@ -74,9 +74,6 @@ export default async function Home() {
     <div className="space-y-12 pb-8">
       <section className="paper-card rise-in relative overflow-hidden rounded-3xl p-6 sm:p-10">
         {/* Customize this hero title/tagline/CTAs to fit your own community brand voice. */}
-        <div className="absolute top-4 right-6 rounded-full border border-[var(--border-soft)] bg-white/60 px-3 py-1 text-xs tracking-[0.2em] uppercase dark:bg-black/20">
-          beta circle
-        </div>
         <p className="script text-[1.55rem] leading-none text-[var(--accent)] sm:text-[2.1rem]">
           A softer web for chosen family.
         </p>
