@@ -7,6 +7,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline' https://*.clerk.com https://*.clerk.accounts.dev",
+  "worker-src 'self' blob: https://*.clerk.com https://*.clerk.accounts.dev",
   "style-src 'self' 'unsafe-inline' https:",
   "connect-src 'self' https: wss:",
   "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev",
