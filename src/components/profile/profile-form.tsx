@@ -41,10 +41,6 @@ export interface ProfileFormData {
   location: string;
   relationshipStatus: string;
   interests: string[];
-  links: {
-    website?: string;
-    social?: string;
-  };
 }
 
 export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormData }) {
@@ -222,37 +218,6 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
           />
         </label>
 
-        <label className="space-y-1">
-          <span className="text-xs font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
-            Website
-          </span>
-          <input
-            value={formData.links.website ?? ""}
-            onChange={(event) =>
-              setFormData((prev) => ({
-                ...prev,
-                links: { ...prev.links, website: event.target.value },
-              }))
-            }
-            className="w-full rounded-xl border border-[var(--border-soft)] bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] dark:bg-black/20"
-          />
-        </label>
-
-        <label className="space-y-1">
-          <span className="text-xs font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
-            Social
-          </span>
-          <input
-            value={formData.links.social ?? ""}
-            onChange={(event) =>
-              setFormData((prev) => ({
-                ...prev,
-                links: { ...prev.links, social: event.target.value },
-              }))
-            }
-            className="w-full rounded-xl border border-[var(--border-soft)] bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] dark:bg-black/20"
-          />
-        </label>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">

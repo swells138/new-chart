@@ -10,23 +10,6 @@ const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
-function normalizeLinks(input: unknown): { website?: string; social?: string } {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return {};
-  }
-
-  const record = input as Record<string, unknown>;
-
-  return {
-    ...(typeof record.website === "string" && record.website.trim().length > 0
-      ? { website: record.website.trim() }
-      : {}),
-    ...(typeof record.social === "string" && record.social.trim().length > 0
-      ? { social: record.social.trim() }
-      : {}),
-  };
-}
-
 function formatTimestamp(timestamp: Date) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -103,7 +86,6 @@ export default async function ProfilePage() {
     location: user.location ?? "",
     relationshipStatus: user.relationshipStatus ?? "",
     interests: user.interests,
-    links: normalizeLinks(user.links),
   };
 
   return (

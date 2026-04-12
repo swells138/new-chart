@@ -1,81 +1,54 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { MemberCard } from "@/components/cards/member-card";
-import { PostCard } from "@/components/cards/post-card";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
-import { getAllPosts, getAllUsers, getApprovedConnectionUserIds, getPostsByLocation, getRelationshipsByUser } from "@/lib/prisma-queries";
-import type { Relationship, Post } from "@/types/models";
+import { getAllUsers, getApprovedConnectionUserIds } from "@/lib/prisma-queries";
 
 export const dynamic = "force-dynamic";
 
+const pendingTypePrefix = "pending::";
+
+const connectionLabels: Record<string, string> = {
+  friends: "became friends",
+  married: "got married",
+  exes: "are exes",
+  collaborators: "started collaborating",
+  roommates: "became roommates",
+  crushes: "have a crush on each other",
+  mentors: "connected as mentor & mentee",
+};
+
 export default async function FeedPage() {
   let currentUserDbId: string | null = null;
-  let currentUserLocation: string | null = null;
 
-  // Get current user's location
   const { userId } = await auth();
   if (userId) {
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true, location: true },
+      select: { id: true },
     });
-    if (user) {
-      currentUserDbId = user.id;
-      currentUserLocation = user.location;
-    }
+    if (user) currentUserDbId = user.id;
   }
 
-  const [posts, users] = await Promise.all([getAllPosts(), getAllUsers()]);
-  const userById = new Map(users.map((user) => [user.id, user]));
-
-  // Get user's connections if they have a DB ID
-  let userConnections: Relationship[] = [];
-  let areaPosts: Post[] = [];
-  if (currentUserDbId) {
-    userConnections = await getRelationshipsByUser(currentUserDbId);
-  }
-
-  // Get posts from area if user has a location
-  if (currentUserLocation && userConnections.length === 0) {
-    areaPosts = await getPostsByLocation(currentUserLocation);
-  }
+  const [users, connections] = await Promise.all([
+    getAllUsers(),
+    prisma.relationship.findMany({
+      where: { NOT: { type: { startsWith: pendingTypePrefix } } },
+      include: {
+        user1: { select: { id: true, name: true, handle: true } },
+        user2: { select: { id: true, name: true, handle: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   const connectedIds = currentUserDbId ? await getApprovedConnectionUserIds(currentUserDbId) : [];
   const connectedSet = new Set(connectedIds);
 
-  // Determine which posts to show: connected activity first on feed
-  const basePosts = userConnections.length > 0
-    ? posts
-    : areaPosts.length > 0
-      ? areaPosts
-      : posts;
-
-  const displayedPosts = [...basePosts].sort((a, b) => {
-    const aConnected = connectedSet.has(a.userId) ? 1 : 0;
-    const bConnected = connectedSet.has(b.userId) ? 1 : 0;
-    if (aConnected !== bConnected) {
-      return bConnected - aConnected;
-    }
-    return 0;
-  });
-
-  const tagCounts = displayedPosts
-    .flatMap((post) => post.tags)
-    .reduce<Record<string, number>>((acc, tag) => {
-      acc[tag] = (acc[tag] ?? 0) + 1;
-      return acc;
-    }, {});
-
-  const trending = Object.entries(tagCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
-
   const featuredUsers = [...users].sort((a, b) => {
-    const aConnected = connectedSet.has(a.id) ? 1 : 0;
-    const bConnected = connectedSet.has(b.id) ? 1 : 0;
-    if (aConnected !== bConnected) {
-      return bConnected - aConnected;
-    }
+    const aConn = connectedSet.has(a.id) ? 1 : 0;
+    const bConn = connectedSet.has(b.id) ? 1 : 0;
+    if (aConn !== bConn) return bConn - aConn;
     return Number(b.featured) - Number(a.featured);
   });
 
@@ -84,34 +57,59 @@ export default async function FeedPage() {
       <section className="space-y-4">
         <SectionHeader
           title="Community Feed"
-          subtitle="The pulse of daily updates, conversations, and collaborative sparks."
+          subtitle="New connections forming across the community."
         />
-        {displayedPosts.map((post) => {
-          const author = userById.get(post.userId);
-          if (!author) return null;
+        {connections.length === 0 && (
+          <p className="text-sm text-black/60 dark:text-white/70">No connections yet.</p>
+        )}
+        {connections.map((conn) => {
+          const label = connectionLabels[conn.type] ?? "connected";
+          const isYourConnection =
+            currentUserDbId &&
+            (conn.user1Id === currentUserDbId || conn.user2Id === currentUserDbId);
 
-          return <PostCard key={post.id} post={post} author={author} />;
+          return (
+            <article
+              key={conn.id}
+              className="paper-card rounded-2xl p-5 transition hover:-translate-y-0.5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex -space-x-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/20 text-sm font-bold ring-2 ring-white dark:ring-black">
+                    {conn.user1.name.charAt(0)}
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)]/40 text-sm font-bold ring-2 ring-white dark:ring-black">
+                    {conn.user2.name.charAt(0)}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">
+                    {conn.user1.name}{" "}
+                    <span className="font-normal text-black/60 dark:text-white/65">&amp;</span>{" "}
+                    {conn.user2.name}
+                  </p>
+                  <p className="text-xs text-black/60 dark:text-white/65">
+                    {label}
+                    {isYourConnection && (
+                      <span className="ml-2 rounded-full bg-[var(--accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                        your connection
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              {conn.note ? (
+                <p className="mt-3 text-sm text-black/75 dark:text-white/80 italic">"{conn.note}"</p>
+              ) : null}
+            </article>
+          );
         })}
       </section>
 
       <aside className="space-y-4">
-        <div className="paper-card rounded-2xl p-5">
-          <h3 className="text-lg font-semibold">Trending Tags</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {trending.map(([tag, count]) => (
-              <span
-                key={tag}
-                className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs"
-              >
-                #{tag} · {count}
-              </span>
-            ))}
-          </div>
-        </div>
-
         <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Featured Users</h3>
-          {featuredUsers.map((user) => (
+          <h3 className="text-lg font-semibold">Featured Members</h3>
+          {featuredUsers.slice(0, 5).map((user) => (
             <MemberCard key={user.id} user={user} />
           ))}
         </div>
