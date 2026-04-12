@@ -258,15 +258,22 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
 
       {/* Placeholder cards grid */}
       {placeholders.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[var(--border-soft)] p-8 text-center">
+        <div
+          className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 p-10 text-center"
+          style={{ background: "#0f0819" }}
+        >
           <p className="text-3xl">👀</p>
-          <p className="mt-3 text-sm font-semibold">Your chart is empty</p>
-          <p className="mt-1 text-xs text-black/55 dark:text-white/55">
+          <p className="mt-2 text-sm font-semibold text-white/80">Your chart is empty</p>
+          <p className="mt-1 text-xs text-white/40">
             Start adding people above — no account, no email, no drama.
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className="rounded-2xl p-4"
+          style={{ background: "#0f0819", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {placeholders.map((p) => {
             const color = TYPE_COLORS[p.relationshipType] ?? "#888";
             const statusLabel = STATUS_LABELS[p.claimStatus] ?? p.claimStatus;
@@ -275,12 +282,17 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
             const isCopied = copiedId === p.id;
             const inviteLink = p.inviteToken ? `${baseUrl}/invite/${p.inviteToken}` : null;
             const isOwned = currentUserId !== null && p.ownerId === currentUserId;
+            const initial = (p.name?.[0] ?? "?").toUpperCase();
 
             return (
               <div
                 key={p.id}
-                className="paper-card rounded-2xl p-4"
-                style={{ borderLeft: `3px solid ${color}` }}
+                className="rounded-2xl p-4"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid rgba(255,255,255,0.09)`,
+                  boxShadow: `0 0 0 1px ${color}22 inset`,
+                }}
               >
                 {isEditing ? (
                   <div className="space-y-2">
@@ -289,12 +301,12 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       maxLength={80}
-                      className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1.5 text-sm outline-none"
+                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-sm text-white outline-none placeholder:text-white/30"
                     />
                     <select
                       value={editType}
                       onChange={(e) => setEditType(e.target.value as RelationshipType)}
-                      className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1.5 text-xs outline-none"
+                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none"
                     >
                       {ALL_TYPES.map((t) => (
                         <option key={t} value={t}>
@@ -308,10 +320,10 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                       onChange={(e) => setEditNote(e.target.value)}
                       maxLength={500}
                       placeholder="Note (optional)"
-                      className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1.5 text-xs outline-none"
+                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
                     />
                     {editError ? (
-                      <p className="text-xs text-red-700 dark:text-red-400">{editError}</p>
+                      <p className="text-xs text-red-400">{editError}</p>
                     ) : null}
                     <div className="flex gap-2">
                       <button
@@ -325,7 +337,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                       <button
                         type="button"
                         onClick={() => setEditingId(null)}
-                        className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                        className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70"
                       >
                         Cancel
                       </button>
@@ -333,47 +345,70 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold leading-snug">{p.name}</p>
+                    {/* Header — avatar + name + status */}
+                    <div className="flex items-start gap-3">
+                      {/* Circle avatar */}
+                      <div
+                        className="shrink-0"
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
+                          boxShadow: `0 0 14px ${color}44, 0 3px 8px rgba(0,0,0,0.4)`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "2px solid rgba(255,255,255,0.12)",
+                        }}
+                      >
+                        <span style={{ color: "white", fontWeight: 700, fontSize: 14, fontFamily: "system-ui" }}>
+                          {initial}
+                        </span>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-1">
+                          <p className="truncate font-semibold leading-snug text-white">{p.name}</p>
+                          <span
+                            className={`shrink-0 mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              p.claimStatus === "claimed"
+                                ? "bg-green-500/20 text-green-400"
+                                : p.claimStatus === "denied"
+                                  ? "bg-red-500/20 text-red-400"
+                                  : p.claimStatus === "invited"
+                                    ? "bg-amber-500/20 text-amber-400"
+                                    : "bg-white/10 text-white/55"
+                            }`}
+                          >
+                            {statusLabel}
+                          </span>
+                        </div>
                         <span
                           className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
-                          style={{ backgroundColor: color }}
+                          style={{ backgroundColor: `${color}33`, color, border: `1px solid ${color}55` }}
                         >
                           {p.relationshipType}
                         </span>
                       </div>
-                      <span
-                        className={`shrink-0 mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          p.claimStatus === "claimed"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                            : p.claimStatus === "denied"
-                              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                              : p.claimStatus === "invited"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                                : "bg-black/8 text-black/60 dark:bg-white/10 dark:text-white/60"
-                        }`}
-                      >
-                        {statusLabel}
-                      </span>
                     </div>
 
                     {p.note ? (
-                      <p className="mt-2 text-xs italic text-black/65 dark:text-white/65">
+                      <p className="mt-2 text-xs italic text-white/50">
                         &quot;{p.note}&quot;
                       </p>
                     ) : null}
 
                     {!isOwned ? (
-                      <p className="mt-2 text-[11px] text-black/55 dark:text-white/55">
-                        Shared connection. Only the person who created this entry can edit it.
+                      <p className="mt-2 text-[11px] text-white/40">
+                        Only the person who created this entry can edit it.
                       </p>
                     ) : null}
 
                     {/* Invite link display */}
                     {inviteLink && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
-                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-2.5 py-2 dark:bg-white/5">
-                        <p className="min-w-0 flex-1 truncate text-[10px] text-black/55 dark:text-white/55">
+                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                        <p className="min-w-0 flex-1 truncate text-[10px] text-white/40">
                           {inviteLink}
                         </p>
                         <button
@@ -395,7 +430,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                               type="button"
                               onClick={() => handleGenerateInvite(p.id)}
                               disabled={isWorking}
-                              className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-[11px] font-semibold transition hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/10"
+                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
                             >
                               Generate invite 🔗
                             </button>
@@ -404,7 +439,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                               type="button"
                               onClick={() => handleRevokeInvite(p.id)}
                               disabled={isWorking}
-                              className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-[11px] font-semibold text-black/60 transition hover:bg-black/5 disabled:opacity-60 dark:text-white/60 dark:hover:bg-white/10"
+                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/50 transition hover:border-white/30 hover:text-white/70 disabled:opacity-60"
                             >
                               Revoke link
                             </button>
@@ -418,7 +453,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                             type="button"
                             onClick={() => startEdit(p)}
                             disabled={isWorking}
-                            className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-[11px] font-semibold transition hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/10"
+                            className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
                           >
                             Edit
                           </button>
@@ -426,7 +461,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
                             type="button"
                             onClick={() => handleDelete(p.id)}
                             disabled={isWorking}
-                            className="rounded-full border border-red-200 px-3 py-1 text-[11px] font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                            className="rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-60"
                           >
                             {isWorking ? "…" : "Remove"}
                           </button>
@@ -438,6 +473,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId }: Pr
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>

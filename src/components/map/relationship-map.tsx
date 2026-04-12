@@ -4,6 +4,8 @@ import {
   Background,
   type Connection,
   Controls,
+  Handle,
+  Position,
   ReactFlow,
   type Edge,
   type Node,
@@ -16,6 +18,66 @@ import { useEffect, useMemo, useState } from "react";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 import { PrivateChart } from "@/components/map/private-chart";
+
+// ─── Demo-style node colours ───────────────────────────────
+const NODE_PALETTE = [
+  "#ff8f84", "#a78bfa", "#66b6a7", "#ffd08d", "#fb923c",
+  "#f472b6", "#63b1ff", "#7aa2ff", "#ee82d8", "#9b8cff",
+];
+
+function hashColor(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
+  return NODE_PALETTE[Math.abs(h) % NODE_PALETTE.length];
+}
+
+type PersonNodeData = { label: string; handle: string; color: string };
+
+function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boolean }) {
+  const initial = (data.label?.[0] ?? "?").toUpperCase();
+  return (
+    <>
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <div style={{ textAlign: "center", width: 64 }}>
+        <div
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: "50%",
+            background: `radial-gradient(circle at 38% 32%, ${data.color} 0%, color-mix(in srgb, ${data.color}, #000 28%) 100%)`,
+            boxShadow: `0 0 18px ${data.color}44, 0 4px 12px rgba(0,0,0,0.5)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto",
+            border: selected ? `2.5px solid ${data.color}` : "2px solid rgba(255,255,255,0.14)",
+            transition: "transform 0.15s, box-shadow 0.15s",
+          }}
+        >
+          <span style={{ color: "white", fontWeight: 700, fontSize: 15, fontFamily: "system-ui", userSelect: "none" }}>
+            {initial}
+          </span>
+        </div>
+        <div
+          style={{
+            marginTop: 5,
+            background: "rgba(0,0,0,0.6)",
+            borderRadius: 8,
+            padding: "2px 7px",
+            display: "inline-block",
+          }}
+        >
+          <span style={{ color: "rgba(255,255,255,0.88)", fontSize: 10, fontWeight: 600, fontFamily: "system-ui", whiteSpace: "nowrap", userSelect: "none" }}>
+            {data.label}
+          </span>
+        </div>
+      </div>
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+    </>
+  );
+}
+
+const nodeTypes = { person: PersonNode } as const;
 
 const relationColors: Record<RelationshipType, string> = {
   Talking: "#a78bfa",
@@ -106,7 +168,7 @@ export function RelationshipMap({
   baseUrl = "",
 }: Props) {
   const searchParams = useSearchParams();
-  const [chartLayer, setChartLayer] = useState<"private" | "public">("private");
+  const [chartLayer, setChartLayer] = useState<"private" | "public">("public");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "Talking",
     "Dating",
@@ -210,13 +272,20 @@ export function RelationshipMap({
       return users.filter((user) => connectedNodeIds.has(user.id));
     }
 
-    // If showing area view, use area users if available, otherwise show all
-    if (areaUsers && areaUsers.length > 0) {
-      return areaUsers;
-    }
+    const baseUsers = areaUsers && areaUsers.length > 0 ? areaUsers : users;
 
-    return users;
-  }, [showConnections, users, areaUsers, connectedNodeIds]);
+    // Only show users who appear in at least one approved connection
+    const connectedInGraph = new Set<string>();
+    allRelationships.forEach((item) => {
+      const parsed = parseRelationshipNote(item.note);
+      if (parsed.status === "approved") {
+        connectedInGraph.add(item.source);
+        connectedInGraph.add(item.target);
+      }
+    });
+
+    return baseUsers.filter((user) => connectedInGraph.has(user.id));
+  }, [showConnections, users, areaUsers, connectedNodeIds, allRelationships]);
 
   useEffect(() => {
     if (displayedUsers.length === 0) {
@@ -297,21 +366,14 @@ export function RelationshipMap({
     () =>
       displayedUsers.map((user, index) => ({
         id: user.id,
-        data: { label: `${user.name}\n@${user.handle}` },
+        type: "person",
+        data: { label: user.name, handle: user.handle, color: hashColor(user.id) },
         position: {
-          x: 120 + (index % 3) * 250,
-          y: 80 + Math.floor(index / 3) * 180,
+          x: 80 + (index % 4) * 200,
+          y: 80 + Math.floor(index / 4) * 160,
         },
-        style: {
-          borderRadius: 20,
-          padding: 8,
-          border: "1px solid var(--border-soft)",
-          background: "var(--card)",
-          width: 150,
-          whiteSpace: "pre-line",
-          fontSize: "12px",
-        },
-        draggable: currentUserId ? user.id === currentUserId : false,
+        style: { background: "transparent", border: "none", padding: 0 },
+        draggable: currentUserId ? user.id === currentUserId : true,
       })),
     [displayedUsers, currentUserId]
   );
@@ -343,12 +405,22 @@ export function RelationshipMap({
         style: {
           stroke: relationColors[item.type],
           strokeWidth: 2,
+          strokeOpacity: 0.75,
         },
         labelStyle: {
-          fontSize: 10,
+          fontSize: 9,
           fill: relationColors[item.type],
-          textTransform: "uppercase",
+          fontWeight: 600,
+          fontFamily: "system-ui",
         },
+        labelBgStyle: {
+          fill: "rgba(10,6,20,0.85)",
+          stroke: relationColors[item.type],
+          strokeWidth: 0.75,
+          strokeOpacity: 0.5,
+        },
+        labelBgPadding: [4, 6] as [number, number],
+        labelBgBorderRadius: 5,
       })),
     [graphRelationships]
   );
@@ -674,7 +746,7 @@ export function RelationshipMap({
         {connectionError ? (
           <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
         ) : null}
-        <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white/40 dark:bg-black/20">
+        <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)]" style={{ background: "#0f0819" }}>
           {userConnections && userConnections.length > 0 && areaUsers && areaUsers.length > 0 ? (
             <div className="absolute top-3 right-3 z-20">
               <div className="flex items-center rounded-xl border border-[var(--border-soft)] bg-white/90 p-1 shadow-sm backdrop-blur dark:bg-black/55">
@@ -708,6 +780,7 @@ export function RelationshipMap({
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            nodeTypes={nodeTypes}
             fitView
             onNodeClick={(_, node) => setSelectedId(node.id)}
             onNodesChange={onNodesChange}
@@ -718,7 +791,7 @@ export function RelationshipMap({
             connectOnClick={false}
           >
             <Controls showInteractive={false} />
-            <Background gap={16} size={1} />
+            <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
           </ReactFlow>
         </div>
       </section>
