@@ -113,8 +113,8 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      <section className="space-y-4">
+        <div className="space-y-4">
           <SectionHeader
             title="Latest from the Feed"
             subtitle="Fresh connection activity from across the network."
@@ -139,34 +139,6 @@ export default async function Home() {
             );
           })}
         </div>
-        <aside className="space-y-4">
-          <SectionHeader
-            title="Map Preview"
-            subtitle="Tap into how everyone connects."
-          />
-          <div className="paper-card rounded-2xl p-5">
-            <p className="text-sm text-black/70 dark:text-white/80">
-              Right now the network tracks <span className="font-bold">{users.length}</span> members and{" "}
-              <span className="font-bold">{relationships.length}</span> visible connection paths.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-xs">
-              {["friends", "exes", "collaborators", "roommates"].map((label) => (
-                <span
-                  key={label}
-                  className="rounded-full border border-[var(--border-soft)] px-3 py-1 uppercase tracking-wide"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-            <Link
-              href="/map"
-              className="mt-5 inline-block rounded-full border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold hover:bg-white/80 dark:hover:bg-black/30"
-            >
-              Explore full map
-            </Link>
-          </div>
-        </aside>
       </section>
     </div>
   );
