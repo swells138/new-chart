@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { MemberCard } from "@/components/cards/member-card";
-import { PostCard } from "@/components/cards/post-card";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
   getApprovedConnectionUserIds,
-  getAllPosts,
   getAllRelationships,
   getAllUsers,
 } from "@/lib/prisma-queries";
@@ -16,6 +14,16 @@ export const dynamic = "force-dynamic";
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+const connectionLabels: Record<string, string> = {
+  friends: "became friends",
+  married: "got married",
+  exes: "are exes",
+  collaborators: "started collaborating",
+  roommates: "became roommates",
+  crushes: "have a crush on each other",
+  mentors: "connected as mentor & mentee",
+};
 
 export default async function Home() {
   let currentUserDbId: string | null = null;
@@ -31,9 +39,8 @@ export default async function Home() {
     }
   }
 
-  const [users, posts, relationships] = await Promise.all([
+  const [users, relationships] = await Promise.all([
     getAllUsers(),
-    getAllPosts(),
     getAllRelationships(),
   ]);
 
@@ -49,9 +56,9 @@ export default async function Home() {
     return Number(b.featured) - Number(a.featured);
   });
 
-  const postsOrdered = [...posts].sort((a, b) => {
-    const aConnected = connectedSet.has(a.userId) ? 1 : 0;
-    const bConnected = connectedSet.has(b.userId) ? 1 : 0;
+  const relationshipsOrdered = [...relationships].sort((a, b) => {
+    const aConnected = connectedSet.has(a.source) || connectedSet.has(a.target) ? 1 : 0;
+    const bConnected = connectedSet.has(b.source) || connectedSet.has(b.target) ? 1 : 0;
     if (aConnected !== bConnected) {
       return bConnected - aConnected;
     }
@@ -59,7 +66,7 @@ export default async function Home() {
   });
 
   const featuredMembers = membersOrdered.slice(0, 3);
-  const featuredPosts = postsOrdered.slice(0, 3);
+  const featuredConnections = relationshipsOrdered.slice(0, 3);
   const userById = new Map(users.map((user) => [user.id, user]));
 
   return (
@@ -110,13 +117,26 @@ export default async function Home() {
         <div className="space-y-4 lg:col-span-2">
           <SectionHeader
             title="Latest from the Feed"
-            subtitle="Personal updates, tiny wins, and late-night thoughts."
+            subtitle="Fresh connection activity from across the network."
           />
-          {featuredPosts.map((post) => {
-            const author = userById.get(post.userId);
-            if (!author) return null;
+          {featuredConnections.map((connection) => {
+            const source = userById.get(connection.source);
+            const target = userById.get(connection.target);
+            if (!source || !target) return null;
 
-            return <PostCard key={post.id} post={post} author={author} />;
+            return (
+              <article
+                key={connection.id}
+                className="paper-card rounded-2xl p-5 transition hover:-translate-y-0.5"
+              >
+                <p className="text-sm font-semibold">
+                  {source.name} <span className="font-normal text-black/60 dark:text-white/65">&amp;</span> {target.name}
+                </p>
+                <p className="mt-1 text-sm text-black/70 dark:text-white/80">
+                  {connectionLabels[connection.type] ?? "connected"}
+                </p>
+              </article>
+            );
           })}
         </div>
         <aside className="space-y-4">
