@@ -11,6 +11,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
@@ -104,6 +105,7 @@ export function RelationshipMap({
   privatePlaceholders = [],
   baseUrl = "",
 }: Props) {
+  const searchParams = useSearchParams();
   const [chartLayer, setChartLayer] = useState<"private" | "public">("private");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "Talking",
@@ -131,6 +133,21 @@ export function RelationshipMap({
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const chart = searchParams.get("chart");
+    if (chart === "private" || chart === "public") {
+      setChartLayer(chart);
+    }
+
+    const focus = searchParams.get("focus");
+    if (focus === "approvals") {
+      setShowConnections(true);
+      if (currentUserId) {
+        setSelectedId(currentUserId);
+      }
+    }
+  }, [searchParams, currentUserId]);
 
   const scopedRelationships = useMemo(() => {
     const byId = new Map<string, Relationship>();
@@ -790,7 +807,7 @@ export function RelationshipMap({
         </div>
 
         {currentUserId ? (
-          <div className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
+          <div id="pending-requests" className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
             <h4 className="text-sm font-semibold uppercase tracking-wide">Pending requests</h4>
             {pendingRequests.length === 0 ? (
               <p className="mt-2 text-xs text-black/65 dark:text-white/70">No pending approvals.</p>

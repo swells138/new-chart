@@ -50,6 +50,7 @@ type ApprovalStatus = "approved" | "pending";
 const metaPrefix = "[[meta:";
 const metaSuffix = "]]";
 const pendingTypePrefix = "pending::";
+const approvalInboxLink = "/map?chart=public&focus=approvals#pending-requests";
 
 interface RelationshipMeta {
   status: ApprovalStatus;
@@ -297,7 +298,7 @@ export async function POST(request: Request) {
     await sendNotification(
       requesterId,
       responderId,
-      `You have a new connection request (${type}). Review it on /map.`
+      `You have a new connection request (${type}). Review it on ${approvalInboxLink}.`
     );
 
     return NextResponse.json({ relationship: normalizeRelationship(relationship) }, { status: 201 });
@@ -459,7 +460,7 @@ export async function PATCH(request: Request) {
     await sendNotification(
       currentDbUserId,
       otherUserIdForPublic,
-      "Someone wants to make your connection public. Review it on /map."
+      `Someone wants to make your connection public. Review it on ${approvalInboxLink}.`
     );
 
     return NextResponse.json({ relationship: normalizeRelationship(updated) });
@@ -545,7 +546,7 @@ export async function PATCH(request: Request) {
     await sendNotification(
       currentDbUserId,
       otherUserId,
-      `You have a request to change this connection to "${nextType}". Review it on /map.`
+      `You have a request to change this connection to "${nextType}". Review it on ${approvalInboxLink}.`
     );
 
     return NextResponse.json({ relationship: normalizeRelationship(updated) });
