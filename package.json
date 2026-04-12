@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "postinstall": "prisma generate",
     "db:dev": "prisma dev",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
@@ -49,7 +50,6 @@
     "vitest": "^4.1.4"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "seed": "tsx prisma/seed.ts"
   }
 }
