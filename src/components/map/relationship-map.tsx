@@ -228,9 +228,6 @@ export function RelationshipMap({
   privatePlaceholders = [],
   baseUrl = "",
 }: Props) {
-    const hasDbUser = Boolean(currentUserId);
-    const needsAccountSync = isSignedIn && !hasDbUser;
-
   const searchParams = useSearchParams();
   const [chartLayer, setChartLayer] = useState<"private" | "public">("public");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
@@ -258,6 +255,56 @@ export function RelationshipMap({
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
+  const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<string | null>(currentUserId);
+  const [isResolvingCurrentUserId, setIsResolvingCurrentUserId] = useState(false);
+
+  const activeCurrentUserId = resolvedCurrentUserId ?? currentUserId;
+  const hasDbUser = Boolean(activeCurrentUserId);
+  const needsAccountSync = isSignedIn && !hasDbUser;
+
+  useEffect(() => {
+    setResolvedCurrentUserId(currentUserId);
+  }, [currentUserId]);
+
+  async function ensureCurrentUserId() {
+    if (activeCurrentUserId) {
+      return activeCurrentUserId;
+    }
+
+    if (!isSignedIn || isResolvingCurrentUserId) {
+      return null;
+    }
+
+    setIsResolvingCurrentUserId(true);
+
+    try {
+      const response = await fetch("/api/profile", { cache: "no-store" });
+      const body = (await response.json()) as {
+        profile?: { id?: string };
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setConnectionError(body.error ?? "Could not verify your account. Please try again.");
+        return null;
+      }
+
+      const dbUserId = body.profile?.id;
+      if (!dbUserId) {
+        setConnectionError("Could not find your account record yet. Please reload shortly.");
+        return null;
+      }
+
+      setResolvedCurrentUserId(dbUserId);
+      return dbUserId;
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not verify your account. Please try again.");
+      return null;
+    } finally {
+      setIsResolvingCurrentUserId(false);
+    }
+  }
 
   useEffect(() => {
     const chart = searchParams.get("chart");
@@ -271,11 +318,11 @@ export function RelationshipMap({
 
     const focus = searchParams.get("focus");
     if (focus === "approvals") {
-      if (currentUserId) {
-        setSelectedId(currentUserId);
+      if (activeCurrentUserId) {
+        setSelectedId(activeCurrentUserId);
       }
     }
-  }, [searchParams, currentUserId]);
+  }, [searchParams, activeCurrentUserId]);
 
   const scopedRelationships = useMemo(() => {
     const byId = new Map<string, Relationship>();
@@ -284,16 +331,16 @@ export function RelationshipMap({
       byId.set(item.id, item);
     });
 
-    if (currentUserId && userConnections) {
+    if (activeCurrentUserId && userConnections) {
       userConnections.forEach((item) => {
-        if (item.source === currentUserId || item.target === currentUserId) {
+        if (item.source === activeCurrentUserId || item.target === activeCurrentUserId) {
           byId.set(item.id, item);
         }
       });
     }
 
     return Array.from(byId.values());
-  }, [relationships, userConnections, currentUserId]);
+  }, [relationships, userConnections, activeCurrentUserId]);
 
   useEffect(() => {
     setAllRelationships(scopedRelationships);
@@ -306,12 +353,12 @@ export function RelationshipMap({
         if (parsed.status !== "approved") {
           return false;
         }
-        if (!currentUserId) {
+        if (!activeCurrentUserId) {
           return false;
         }
-        return item.source === currentUserId || item.target === currentUserId;
+        return item.source === activeCurrentUserId || item.target === activeCurrentUserId;
       }),
-    [allRelationships, currentUserId]
+    [allRelationships, activeCurrentUserId]
   );
 
   const approvedRelationships = useMemo(
@@ -320,7 +367,7 @@ export function RelationshipMap({
   );
 
   const limitedExtendedNodeIds = useMemo(() => {
-    if (!currentUserId) {
+    if (!activeCurrentUserId) {
       return {
         nodeIds: new Set<string>(),
         hiddenCount: 0,
@@ -330,10 +377,10 @@ export function RelationshipMap({
 
     const directIds = new Set<string>();
     approvedUserConnections.forEach((item) => {
-      if (item.source === currentUserId) {
+      if (item.source === activeCurrentUserId) {
         directIds.add(item.target);
       }
-      if (item.target === currentUserId) {
+      if (item.target === activeCurrentUserId) {
         directIds.add(item.source);
       }
     });
@@ -341,10 +388,10 @@ export function RelationshipMap({
     const extendedScores = new Map<string, number>();
 
     approvedRelationships.forEach((item) => {
-      if (directIds.has(item.source) && item.target !== currentUserId && !directIds.has(item.target)) {
+      if (directIds.has(item.source) && item.target !== activeCurrentUserId && !directIds.has(item.target)) {
         extendedScores.set(item.target, (extendedScores.get(item.target) ?? 0) + 1);
       }
-      if (directIds.has(item.target) && item.source !== currentUserId && !directIds.has(item.source)) {
+      if (directIds.has(item.target) && item.source !== activeCurrentUserId && !directIds.has(item.source)) {
         extendedScores.set(item.source, (extendedScores.get(item.source) ?? 0) + 1);
       }
     });
@@ -362,15 +409,15 @@ export function RelationshipMap({
 
     const visibleExtendedIds = orderedExtendedIds.slice(0, 25);
     return {
-      nodeIds: new Set<string>([currentUserId, ...Array.from(directIds), ...visibleExtendedIds]),
+      nodeIds: new Set<string>([activeCurrentUserId, ...Array.from(directIds), ...visibleExtendedIds]),
       hiddenCount: Math.max(0, orderedExtendedIds.length - visibleExtendedIds.length),
       totalExtendedCount: orderedExtendedIds.length,
     };
-  }, [approvedRelationships, approvedUserConnections, currentUserId, users]);
+  }, [approvedRelationships, approvedUserConnections, activeCurrentUserId, users]);
 
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
-    if (currentUserId) {
+    if (activeCurrentUserId) {
       return users.filter((user) => limitedExtendedNodeIds.nodeIds.has(user.id));
     }
 
@@ -382,7 +429,7 @@ export function RelationshipMap({
     });
 
     return baseUsers.filter((user) => connectedInGraph.has(user.id));
-  }, [users, areaUsers, currentUserId, limitedExtendedNodeIds, approvedRelationships]);
+  }, [users, areaUsers, activeCurrentUserId, limitedExtendedNodeIds, approvedRelationships]);
 
   useEffect(() => {
     if (displayedUsers.length === 0) {
@@ -395,31 +442,31 @@ export function RelationshipMap({
     }
 
     const defaultSelected =
-      (currentUserId && displayedUsers.find((user) => user.id === currentUserId)?.id) ?? displayedUsers[0].id;
+      (activeCurrentUserId && displayedUsers.find((user) => user.id === activeCurrentUserId)?.id) ?? displayedUsers[0].id;
     setSelectedId(defaultSelected);
-  }, [displayedUsers, selectedId, currentUserId]);
+  }, [displayedUsers, selectedId, activeCurrentUserId]);
 
   const displayedUserIds = useMemo(() => new Set(displayedUsers.map((user) => user.id)), [displayedUsers]);
 
   const connectableUsers = useMemo(() => {
-    if (!currentUserId) {
+    if (!activeCurrentUserId) {
       return [] as User[];
     }
 
     return users.filter((user) => {
-      if (user.id === currentUserId) {
+      if (user.id === activeCurrentUserId) {
         return false;
       }
 
       const alreadyConnected = allRelationships.some(
         (item) =>
-          (item.source === currentUserId && item.target === user.id) ||
-          (item.source === user.id && item.target === currentUserId)
+          (item.source === activeCurrentUserId && item.target === user.id) ||
+          (item.source === user.id && item.target === activeCurrentUserId)
       );
 
       return !alreadyConnected;
     });
-  }, [users, currentUserId, allRelationships]);
+  }, [users, activeCurrentUserId, allRelationships]);
 
   const filteredConnectableUsers = useMemo(() => {
     const query = connectionQuery.trim().toLowerCase();
@@ -458,8 +505,8 @@ export function RelationshipMap({
 
   const mappedNodes: Node[] = useMemo(() => {
     const orderedUsers = [...displayedUsers].sort((left, right) => {
-      if (currentUserId && left.id === currentUserId) return -1;
-      if (currentUserId && right.id === currentUserId) return 1;
+      if (activeCurrentUserId && left.id === activeCurrentUserId) return -1;
+      if (activeCurrentUserId && right.id === activeCurrentUserId) return 1;
       return left.name.localeCompare(right.name);
     });
 
@@ -467,11 +514,11 @@ export function RelationshipMap({
       id: user.id,
       type: "person",
       data: { label: user.name, handle: user.handle, color: hashColor(user.id) },
-      position: getOrganicPosition(index, orderedUsers.length, user.id, user.id === currentUserId),
+      position: getOrganicPosition(index, orderedUsers.length, user.id, user.id === activeCurrentUserId),
       style: { background: "transparent", border: "none", padding: 0 },
-      draggable: currentUserId ? user.id === currentUserId : true,
+      draggable: activeCurrentUserId ? user.id === activeCurrentUserId : true,
     }));
-  }, [displayedUsers, currentUserId]);
+  }, [displayedUsers, activeCurrentUserId]);
 
   const filteredRelationships = useMemo(
     () => {
@@ -552,12 +599,12 @@ export function RelationshipMap({
       return;
     }
 
-    if (!currentUserId) {
+    const sourceId = activeCurrentUserId ?? (await ensureCurrentUserId());
+
+    if (!sourceId) {
       setConnectionError(needsAccountSync ? "Finishing your account setup. Please reload in a moment." : "Sign in to create connections.");
       return;
     }
-
-    const sourceId = currentUserId;
 
     if (sourceId === targetId) {
       setConnectionError("A user cannot connect to themselves.");
@@ -618,12 +665,14 @@ export function RelationshipMap({
       return;
     }
 
-    if (!currentUserId) {
+    const sourceId = activeCurrentUserId ?? (await ensureCurrentUserId());
+
+    if (!sourceId) {
       setConnectionError(needsAccountSync ? "Finishing your account setup. Please reload in a moment." : "Sign in to create connections.");
       return;
     }
 
-    if (connection.source !== currentUserId) {
+    if (connection.source !== sourceId) {
       setConnectionError("You can only create connections from your own node.");
       return;
     }
@@ -645,6 +694,12 @@ export function RelationshipMap({
   }
 
   async function saveRelationshipEdit(id: string) {
+    const actorNodeId = activeCurrentUserId ?? (await ensureCurrentUserId());
+    if (!actorNodeId) {
+      setConnectionError("Sign in to edit connections.");
+      return;
+    }
+
     setIsSavingEdit(true);
     setConnectionError(null);
 
@@ -658,7 +713,7 @@ export function RelationshipMap({
           id,
           type: editingType,
           note: editingNote,
-          actorNodeId: currentUserId,
+          actorNodeId,
         }),
       });
 
@@ -685,6 +740,12 @@ export function RelationshipMap({
   }
 
   async function respondToConnection(id: string, action: "approve" | "reject") {
+    const actorNodeId = activeCurrentUserId ?? (await ensureCurrentUserId());
+    if (!actorNodeId) {
+      setConnectionError("Sign in to manage pending requests.");
+      return;
+    }
+
     setIsRespondingId(id);
     setConnectionError(null);
 
@@ -694,7 +755,7 @@ export function RelationshipMap({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id, action, actorNodeId: currentUserId }),
+        body: JSON.stringify({ id, action, actorNodeId }),
       });
 
       const body = (await response.json()) as {
@@ -732,7 +793,7 @@ export function RelationshipMap({
     (item) => item.source === selectedId || item.target === selectedId
   );
   const pendingRequests = useMemo(() => {
-    if (!currentUserId) {
+    if (!activeCurrentUserId) {
       return [] as Relationship[];
     }
 
@@ -741,9 +802,9 @@ export function RelationshipMap({
       if (parsed.status !== "pending") {
         return false;
       }
-      return parsed.requesterId === currentUserId || parsed.responderId === currentUserId;
+      return parsed.requesterId === activeCurrentUserId || parsed.responderId === activeCurrentUserId;
     });
-  }, [allRelationships, currentUserId]);
+  }, [allRelationships, activeCurrentUserId]);
 
   return (
     <div className="space-y-4">
@@ -777,17 +838,17 @@ export function RelationshipMap({
         </p>
       </div>
 
-      {chartLayer === "private" && currentUserId ? (
+      {chartLayer === "private" && activeCurrentUserId ? (
         <PrivateChart
           initialPlaceholders={privatePlaceholders}
           baseUrl={baseUrl}
-          currentUserId={currentUserId}
+          currentUserId={activeCurrentUserId}
           approvedConnections={approvedUserConnections}
           users={users}
         />
       ) : null}
 
-      {chartLayer === "private" && !currentUserId ? (
+      {chartLayer === "private" && !activeCurrentUserId ? (
         <section
           className="rounded-2xl border border-white/10 p-6 text-center"
           style={{ background: "linear-gradient(145deg, #0f0819 0%, #160d28 100%)" }}
@@ -872,7 +933,7 @@ export function RelationshipMap({
               : "Sign in to create and edit your own connections."}
           </p>
         )}
-        {currentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
+        {activeCurrentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
           <div className="mb-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 text-sm dark:bg-white/5">
             <p className="font-semibold">You&apos;ve explored your first 25 connections</p>
             <p className="mt-1 text-xs text-black/65 dark:text-white/70">
@@ -912,7 +973,7 @@ export function RelationshipMap({
       <aside className="paper-card rounded-2xl p-5">
         <div className="rounded-xl border border-[var(--border-soft)] p-3">
           <h4 className="text-sm font-semibold uppercase tracking-wide">Add connection</h4>
-          {currentUserId ? (
+          {activeCurrentUserId ? (
             <form
               className="mt-3 space-y-2"
               onSubmit={(event) => {
@@ -994,7 +1055,7 @@ export function RelationshipMap({
           )}
         </div>
 
-        {currentUserId ? (
+        {activeCurrentUserId ? (
           <div id="pending-verification" className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
             <h4 className="text-sm font-semibold uppercase tracking-wide">Pending Verification</h4>
             {pendingRequests.length === 0 ? (
@@ -1003,9 +1064,9 @@ export function RelationshipMap({
               <div className="mt-3 space-y-2">
                 {pendingRequests.map((item) => {
                   const parsed = parseRelationshipNote(item.note);
-                  const otherUserId = item.source === currentUserId ? item.target : item.source;
+                  const otherUserId = item.source === activeCurrentUserId ? item.target : item.source;
                   const otherUser = users.find((user) => user.id === otherUserId);
-                  const needsApproval = parsed.responderId === currentUserId;
+                  const needsApproval = parsed.responderId === activeCurrentUserId;
 
                   return (
                     <div key={item.id} className="rounded-lg border border-[var(--border-soft)] p-2.5">
@@ -1067,10 +1128,10 @@ export function RelationshipMap({
                 const target = users.find((user) => user.id === targetId);
                 const parsed = parseRelationshipNote(item.note);
                 const canEdit = Boolean(
-                  currentUserId &&
-                    selectedUser.id === currentUserId &&
+                  activeCurrentUserId &&
+                    selectedUser.id === activeCurrentUserId &&
                     parsed.status === "approved" &&
-                    (item.source === currentUserId || item.target === currentUserId)
+                    (item.source === activeCurrentUserId || item.target === activeCurrentUserId)
                 );
                 const isEditing = editingRelationshipId === item.id;
 
@@ -1134,16 +1195,16 @@ export function RelationshipMap({
                             Edit connection
                           </button>
                         ) : null}
-                        {parsed.status === "approved" && currentUserId ? (
+                        {parsed.status === "approved" && activeCurrentUserId ? (
                           <div className="mt-2 flex flex-wrap gap-2">
                             <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
                               Confirmed in network
                             </span>
                           </div>
                         ) : null}
-                        {currentUserId && parsed.status === "pending" ? (
+                        {activeCurrentUserId && parsed.status === "pending" ? (
                           <div className="mt-2 flex gap-2">
-                            {selectedUser.id === currentUserId && parsed.responderId === currentUserId ? (
+                            {selectedUser.id === activeCurrentUserId && parsed.responderId === activeCurrentUserId ? (
                               <button
                                 type="button"
                                 onClick={() => respondToConnection(item.id, "approve")}
@@ -1153,14 +1214,14 @@ export function RelationshipMap({
                                 Approve
                               </button>
                             ) : null}
-                            {selectedUser.id === currentUserId && (parsed.responderId === currentUserId || parsed.requesterId === currentUserId) ? (
+                            {selectedUser.id === activeCurrentUserId && (parsed.responderId === activeCurrentUserId || parsed.requesterId === activeCurrentUserId) ? (
                               <button
                                 type="button"
                                 onClick={() => respondToConnection(item.id, "reject")}
                                 disabled={isRespondingId === item.id}
                                 className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
                               >
-                                {parsed.responderId === currentUserId ? "Decline" : "Cancel"}
+                                {parsed.responderId === activeCurrentUserId ? "Decline" : "Cancel"}
                               </button>
                             ) : null}
                           </div>
