@@ -112,18 +112,34 @@ export default async function MapPage() {
     }
   }
 
-  const allUsers = await getAllUsers();
+  let allUsers: Awaited<ReturnType<typeof getAllUsers>> = [];
+  let relationships: Awaited<ReturnType<typeof getAllRelationships>> = [];
+
+  try {
+    [allUsers, relationships] = await Promise.all([getAllUsers(), getAllRelationships()]);
+  } catch (error) {
+    console.error("Map page failed to load base network data", error);
+  }
+
   let users = allUsers;
-  const relationships = await getAllRelationships();
   let areaUsers: typeof users = [];
   let userConnections: typeof relationships = [];
   let privatePlaceholders = [] as Awaited<ReturnType<typeof getPrivateConnectionsByUser>>;
 
   // If user has a location, always build area users with fallbacks
   if (currentUserDbId && currentUserLocation) {
-    userConnections = await getRelationshipsByUser(currentUserDbId);
-    privatePlaceholders = await getPrivateConnectionsByUser(currentUserDbId);
-    areaUsers = buildAreaUsers(allUsers, currentUserDbId, currentUserLocation);
+    try {
+      [userConnections, privatePlaceholders] = await Promise.all([
+        getRelationshipsByUser(currentUserDbId),
+        getPrivateConnectionsByUser(currentUserDbId),
+      ]);
+      areaUsers = buildAreaUsers(allUsers, currentUserDbId, currentUserLocation);
+    } catch (error) {
+      console.error("Map page failed to load user-scoped network data", error);
+      userConnections = [];
+      privatePlaceholders = [];
+      areaUsers = [];
+    }
 
     // If user has no connections, start them in area mode data.
     if (userConnections.length === 0) {
