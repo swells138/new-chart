@@ -6,17 +6,22 @@ const clerkSources = [
   "https://clerk.meshylinks.com",
 ].join(" ");
 
+const captchaSources = [
+  "https://challenges.cloudflare.com",
+].join(" ");
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "font-src 'self' https: data:",
   "img-src 'self' data: blob: https:",
   "object-src 'none'",
-  `script-src 'self' 'unsafe-inline' ${clerkSources}`,
+  `script-src 'self' 'unsafe-inline' ${clerkSources} ${captchaSources}`,
+  `script-src-elem 'self' 'unsafe-inline' ${clerkSources} ${captchaSources}`,
   `worker-src 'self' blob: ${clerkSources}`,
   "style-src 'self' 'unsafe-inline' https:",
-  "connect-src 'self' https: wss:",
-  `frame-src 'self' ${clerkSources}`,
+  `connect-src 'self' https: wss: ${captchaSources}`,
+  `frame-src 'self' ${clerkSources} ${captchaSources}`,
   "form-action 'self'",
   "frame-ancestors 'none'",
   "upgrade-insecure-requests",

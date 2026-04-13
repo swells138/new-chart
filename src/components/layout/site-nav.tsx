@@ -107,11 +107,8 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
 }
 
 function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {
-  const { isSignedIn } = useUser();
-
-  if (!isSignedIn) {
-    return null;
-  }
+  const { isLoaded, isSignedIn } = useUser();
+  if (!isLoaded || !isSignedIn) return null;
 
   return links
     .filter((link) => link.requiresAuth)
@@ -132,11 +129,8 @@ function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {
 }
 
 function ClerkMobileProtectedLinks({ pathname, onClick }: { pathname: string; onClick: () => void }) {
-  const { isSignedIn } = useUser();
-
-  if (!isSignedIn) {
-    return null;
-  }
+  const { isLoaded, isSignedIn } = useUser();
+  if (!isLoaded || !isSignedIn) return null;
 
   return links
     .filter((link) => link.requiresAuth)
@@ -183,11 +177,16 @@ function DesktopAuthControls({ clerkEnabled }: { clerkEnabled: boolean }) {
 }
 
 function ClerkDesktopAuthControls() {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
 
-  if (!isSignedIn) {
-    return (
-      <>
+  if (!isLoaded) {
+    return null;
+  }
+
+  return (
+    <>
+      {!isSignedIn ? (
+        <>
         <Link
           href="/login"
           className="rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-white/70 dark:hover:bg-black/30"
@@ -200,11 +199,13 @@ function ClerkDesktopAuthControls() {
         >
           Join
         </Link>
-      </>
-    );
-  }
-
-  return <UserButton />;
+        </>
+      ) : null}
+      {isSignedIn ? (
+        <UserButton />
+      ) : null}
+    </>
+  );
 }
 
 function MobileAuthControls({
@@ -241,11 +242,16 @@ function MobileAuthControls({
 }
 
 function ClerkMobileAuthControls({ onAction }: { onAction: () => void }) {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
 
-  if (!isSignedIn) {
-    return (
-      <>
+  if (!isLoaded) {
+    return null;
+  }
+
+  return (
+    <>
+      {!isSignedIn ? (
+        <>
         <Link
           href="/login"
           onClick={onAction}
@@ -260,14 +266,14 @@ function ClerkMobileAuthControls({ onAction }: { onAction: () => void }) {
         >
           Join - create account
         </Link>
-      </>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-3 px-3 py-2">
-      <UserButton />
-      <span className="text-sm font-semibold">My account</span>
-    </div>
+        </>
+      ) : null}
+      {isSignedIn ? (
+        <div className="flex items-center gap-3 px-3 py-2">
+          <UserButton />
+          <span className="text-sm font-semibold">My account</span>
+        </div>
+      ) : null}
+    </>
   );
 }
