@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
+import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -70,35 +71,7 @@ function normalizeLinks(input: unknown): { website?: string; social?: string } {
 }
 
 async function getOrCreateCurrentDbUser(clerkId: string) {
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
-  });
-
-  if (existing) {
-    return existing;
-  }
-
-  try {
-    return await prisma.user.create({
-      data: {
-        clerkId,
-        name: "New member",
-      },
-    });
-  } catch (error) {
-    const prismaError = error as { code?: string };
-
-    if (prismaError.code === "P2002") {
-      const retry = await prisma.user.findUnique({ where: { clerkId } });
-      if (retry) {
-        return retry;
-      }
-
-      // If we still cannot find the row, bubble the original error.
-    }
-
-    throw error;
-  }
+  return ensureDbUserByClerkId(clerkId);
 }
 
 function shapeProfile(user: {

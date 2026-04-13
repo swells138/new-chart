@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { PlaceholderPerson, RelationshipType } from "@/types/models";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
+import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -87,26 +88,7 @@ function normalizePlaceholder(p: {
 }
 
 async function getOrCreateCurrentDbUserId(clerkId: string) {
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
-
-  try {
-    const created = await prisma.user.create({
-      data: { clerkId, name: "New member" },
-      select: { id: true },
-    });
-    return created.id;
-  } catch (error) {
-    const prismaError = error as { code?: string };
-    if (prismaError.code === "P2002") {
-      const retry = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
-      if (retry) return retry.id;
-    }
-    throw error;
-  }
+  return ensureDbUserIdByClerkId(clerkId);
 }
 
 async function getAuthenticatedDbUserId(request: Request) {

@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
+import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -75,6 +76,18 @@ export async function GET(request: Request) {
       report.dbUserId = dbUser?.id ?? null;
     } catch (error) {
       report.dbLookupError = safeError(error);
+    }
+
+    const shouldBootstrap = new URL(request.url).searchParams.get("bootstrap") === "1";
+    if (shouldBootstrap) {
+      try {
+        const user = await ensureDbUserByClerkId(resolvedUserId);
+        report.bootstrapCreated = true;
+        report.bootstrapUserId = user.id;
+      } catch (error) {
+        report.bootstrapCreated = false;
+        report.bootstrapError = safeError(error);
+      }
     }
   }
 
