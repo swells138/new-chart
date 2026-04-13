@@ -156,6 +156,7 @@ interface Props {
   users: User[];
   relationships: Relationship[];
   currentUserId: string | null;
+  isSignedIn?: boolean;
   userConnections?: Relationship[];
   areaUsers?: User[];
   privatePlaceholders?: PlaceholderPerson[];
@@ -221,11 +222,15 @@ export function RelationshipMap({
   users,
   relationships,
   currentUserId,
+  isSignedIn = false,
   userConnections,
   areaUsers,
   privatePlaceholders = [],
   baseUrl = "",
 }: Props) {
+    const hasDbUser = Boolean(currentUserId);
+    const needsAccountSync = isSignedIn && !hasDbUser;
+
   const searchParams = useSearchParams();
   const [chartLayer, setChartLayer] = useState<"private" | "public">("public");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
@@ -548,7 +553,7 @@ export function RelationshipMap({
     }
 
     if (!currentUserId) {
-      setConnectionError("Sign in to create connections.");
+      setConnectionError(needsAccountSync ? "Finishing your account setup. Please reload in a moment." : "Sign in to create connections.");
       return;
     }
 
@@ -614,7 +619,7 @@ export function RelationshipMap({
     }
 
     if (!currentUserId) {
-      setConnectionError("Sign in to create connections.");
+      setConnectionError(needsAccountSync ? "Finishing your account setup. Please reload in a moment." : "Sign in to create connections.");
       return;
     }
 
@@ -787,31 +792,47 @@ export function RelationshipMap({
           className="rounded-2xl border border-white/10 p-6 text-center"
           style={{ background: "linear-gradient(145deg, #0f0819 0%, #160d28 100%)" }}
         >
-          <p className="text-sm font-semibold text-white">Sign in to save your direct connections</p>
-          <p className="mt-1 text-xs text-white/60">
-            You can add people, manage placeholders, and verify connections once you have an account.
+          <p className="text-sm font-semibold text-white">
+            {needsAccountSync ? "Setting up your network" : "Sign in to save your direct connections"}
           </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <Link
-              href="/signup"
-              className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-95"
-            >
-              Create account
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
-            >
-              Sign in
-            </Link>
-            <button
-              type="button"
-              onClick={() => setChartLayer("public")}
-              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
-            >
-              View extended network
-            </button>
-          </div>
+          <p className="mt-1 text-xs text-white/60">
+            {needsAccountSync
+              ? "Your account is authenticated. We are syncing your profile data now."
+              : "You can add people, manage placeholders, and verify connections once you have an account."}
+          </p>
+          {needsAccountSync ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
+              >
+                Reload
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link
+                href="/signup"
+                className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-95"
+              >
+                Create account
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
+              >
+                Sign in
+              </Link>
+              <button
+                type="button"
+                onClick={() => setChartLayer("public")}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white/85 transition hover:bg-white/10"
+              >
+                View extended network
+              </button>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -844,9 +865,11 @@ export function RelationshipMap({
         <p className="mb-3 text-xs text-black/65 dark:text-white/70">
           Use the side form to connect with an existing member, or drag from your node to another member.
         </p>
-        {currentUserId ? null : (
+        {hasDbUser ? null : (
           <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-            Sign in to create and edit your own connections.
+            {needsAccountSync
+              ? "Your account is signed in and syncing. Reload shortly to manage connections."
+              : "Sign in to create and edit your own connections."}
           </p>
         )}
         {currentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
@@ -964,7 +987,9 @@ export function RelationshipMap({
             </form>
           ) : (
             <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-              Sign in to create and manage your connections.
+              {needsAccountSync
+                ? "Signed in. Finalizing account sync..."
+                : "Sign in to create and manage your connections."}
             </p>
           )}
         </div>

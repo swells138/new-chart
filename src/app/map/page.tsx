@@ -61,10 +61,12 @@ function buildAreaUsers(
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
   let currentUserLocation: string | null = null;
+  let sessionSignedIn = false;
 
   if (hasClerkKeys) {
     try {
       const { userId } = await auth();
+      sessionSignedIn = Boolean(userId);
 
       if (userId) {
         const existing = await prisma.user.findUnique({
@@ -113,6 +115,7 @@ export default async function MapPage() {
       console.error("Map page failed to initialize authenticated user", error);
       currentUserDbId = null;
       currentUserLocation = null;
+      sessionSignedIn = false;
     }
   }
 
@@ -169,6 +172,7 @@ export default async function MapPage() {
         users={users}
         relationships={relationships}
         currentUserId={currentUserDbId}
+        isSignedIn={sessionSignedIn}
         userConnections={userConnections}
         areaUsers={areaUsers}
         privatePlaceholders={privatePlaceholders}
