@@ -6,7 +6,28 @@ import { prisma } from "@/lib/prisma";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY
+  );
+
+async function resolveClerkUserId() {
+  try {
+    const { userId } = await auth();
+    if (userId) {
+      return userId;
+    }
+  } catch {
+    // Fall through to currentUser() when auth() cannot resolve a session.
+  }
+
+  try {
+    const clerk = await currentUser();
+    return clerk?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const actionSchema = z
   .object({
@@ -66,7 +87,7 @@ async function getAuthenticatedDbUserId() {
     return { error: NextResponse.json({ error: "Auth is not configured." }, { status: 503 }) };
   }
 
-  const { userId } = await auth();
+  const userId = await resolveClerkUserId();
   if (!userId) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }

@@ -6,7 +6,28 @@ import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY
+  );
+
+async function resolveClerkUserId() {
+  try {
+    const { userId } = await auth();
+    if (userId) {
+      return userId;
+    }
+  } catch {
+    // Fall through to currentUser() when auth() cannot resolve a session.
+  }
+
+  try {
+    const clerk = await currentUser();
+    return clerk?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const ALLOWED_PRONOUNS = new Set([
   "She/Her",
@@ -128,7 +149,7 @@ export async function GET() {
     return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
   }
 
-  const { userId } = await auth();
+  const userId = await resolveClerkUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -143,7 +164,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
   }
 
-  const { userId } = await auth();
+  const userId = await resolveClerkUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -9,7 +9,28 @@ export const dynamic = "force-dynamic";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY
+  );
+
+async function resolveClerkUserId() {
+  try {
+    const { userId } = await auth();
+    if (userId) {
+      return userId;
+    }
+  } catch {
+    // Fall through to currentUser() when auth() cannot resolve a session.
+  }
+
+  try {
+    const clerk = await currentUser();
+    return clerk?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function getStateCode(location: string | null) {
   if (!location) {
@@ -68,7 +89,7 @@ export default async function MapPage() {
 
   if (hasClerkKeys) {
     try {
-      const { userId } = await auth();
+      const userId = await resolveClerkUserId();
       sessionSignedIn = Boolean(userId) || hasSessionCookie;
 
       if (userId) {
