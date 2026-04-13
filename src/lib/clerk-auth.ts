@@ -1,4 +1,4 @@
-import { auth, currentUser, verifyToken } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 
 function getBearerToken(request?: Request) {
   if (!request) {
@@ -39,7 +39,15 @@ export async function resolveClerkUserId(request?: Request) {
   }
 
   try {
-    const verified = await verifyToken(token, {
+    const clerkServer = (await import("@clerk/nextjs/server")) as {
+      verifyToken?: (token: string, options: { secretKey: string }) => Promise<{ sub?: string }>;
+    };
+
+    if (typeof clerkServer.verifyToken !== "function") {
+      return null;
+    }
+
+    const verified = await clerkServer.verifyToken(token, {
       secretKey: process.env.CLERK_SECRET_KEY,
     });
 
