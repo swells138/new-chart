@@ -79,20 +79,50 @@ async function getOrCreateCurrentDbUser(clerkId: string) {
     return existing;
   }
 
-  const clerk = await currentUser();
+  let clerk:
+    | Awaited<ReturnType<typeof currentUser>>
+    | null = null;
+
+  try {
+    clerk = await currentUser();
+  } catch {
+    clerk = null;
+  }
+
   const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
   const email = clerk?.emailAddresses?.[0]?.emailAddress;
   const phoneNumber = clerk?.phoneNumbers?.[0]?.phoneNumber;
 
-  return prisma.user.create({
-    data: {
-      clerkId,
-      name: fullName || clerk?.username || "New member",
-      email,
-      phoneNumber,
-      handle: clerk?.username || null,
-    },
-  });
+  try {
+    return await prisma.user.create({
+      data: {
+        clerkId,
+        name: fullName || clerk?.username || "New member",
+        email,
+        phoneNumber,
+        handle: clerk?.username || null,
+      },
+    });
+  } catch (error) {
+    const prismaError = error as { code?: string };
+
+    if (prismaError.code === "P2002") {
+      const retry = await prisma.user.findUnique({ where: { clerkId } });
+      if (retry) {
+        return retry;
+      }
+
+      // A unique collision on optional fields (email/handle/phone) should not block account bootstrap.
+      return prisma.user.create({
+        data: {
+          clerkId,
+          name: fullName || clerk?.username || "New member",
+        },
+      });
+    }
+
+    throw error;
+  }
 }
 
 function shapeProfile(user: {
@@ -137,9 +167,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await getOrCreateCurrentDbUser(userId);
-
-  return NextResponse.json({ profile: shapeProfile(user) });
+  try {
+    const user = await getOrCreateCurrentDbUser(userId);
+    return NextResponse.json({ profile: shapeProfile(user) });
+  } catch (error) {
+    console.error("Failed to load profile", error);
+    return NextResponse.json({ error: "Failed to load profile." }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {

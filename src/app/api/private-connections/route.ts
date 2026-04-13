@@ -94,7 +94,16 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
   });
   if (existing) return existing.id;
 
-  const clerk = await currentUser();
+  let clerk:
+    | Awaited<ReturnType<typeof currentUser>>
+    | null = null;
+
+  try {
+    clerk = await currentUser();
+  } catch {
+    clerk = null;
+  }
+
   const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
 
   try {
