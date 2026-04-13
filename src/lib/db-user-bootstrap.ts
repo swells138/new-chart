@@ -1,5 +1,23 @@
 import { prisma } from "@/lib/prisma";
 
+const bootstrapUserSelect = {
+  id: true,
+  clerkId: true,
+  name: true,
+  handle: true,
+  email: true,
+  pronouns: true,
+  bio: true,
+  location: true,
+  interests: true,
+  relationshipStatus: true,
+  featured: true,
+  profileImage: true,
+  links: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 function makeSeed(clerkId: string) {
   const cleaned = clerkId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   return (cleaned.slice(-10) || "member");
@@ -8,6 +26,7 @@ function makeSeed(clerkId: string) {
 export async function ensureDbUserByClerkId(clerkId: string) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
+    select: bootstrapUserSelect,
   });
 
   if (existing) {
@@ -24,17 +43,18 @@ export async function ensureDbUserByClerkId(clerkId: string) {
     clerkId: string;
     handle?: string;
     email?: string;
-    phoneNumber?: string;
   }> = [
     { clerkId, name: "New member" },
     { clerkId, name: "New member", handle: handleBase },
     { clerkId, name: "New member", handle: handleBase, email: emailBase },
-    { clerkId, name: "New member", handle: handleBase, email: emailBase, phoneNumber: `+1000${nonce}` },
   ];
 
   for (const data of attempts) {
     try {
-      return await prisma.user.create({ data });
+      return await prisma.user.create({
+        data,
+        select: bootstrapUserSelect,
+      });
     } catch (error) {
       const prismaError = error as { code?: string };
 
@@ -46,7 +66,10 @@ export async function ensureDbUserByClerkId(clerkId: string) {
     }
   }
 
-  const retry = await prisma.user.findUnique({ where: { clerkId } });
+  const retry = await prisma.user.findUnique({
+    where: { clerkId },
+    select: bootstrapUserSelect,
+  });
   if (retry) {
     return retry;
   }

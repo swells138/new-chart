@@ -5,6 +5,21 @@ import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 
+const profileSafeSelect = {
+  id: true,
+  clerkId: true,
+  name: true,
+  handle: true,
+  pronouns: true,
+  bio: true,
+  location: true,
+  relationshipStatus: true,
+  interests: true,
+  links: true,
+  profileImage: true,
+  email: true,
+} as const;
+
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(
@@ -87,7 +102,7 @@ function shapeProfile(user: {
   links: unknown;
   profileImage: string | null;
   email: string | null;
-  phoneNumber: string | null;
+  phoneNumber?: string | null;
 }) {
   return {
     id: user.id,
@@ -198,6 +213,7 @@ export async function PATCH(request: Request) {
         ...(interests !== undefined ? { interests } : {}),
         ...(links !== undefined ? { links } : {}),
       },
+      select: profileSafeSelect,
     });
 
     return NextResponse.json({ profile: shapeProfile(updated) });
