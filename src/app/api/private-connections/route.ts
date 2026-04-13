@@ -1,10 +1,11 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { PlaceholderPerson, RelationshipType } from "@/types/models";
+import { resolveClerkUserId } from "@/lib/clerk-auth";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -12,24 +13,6 @@ const hasClerkKeys =
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
       process.env.CLERK_PUBLISHABLE_KEY
   );
-
-async function resolveClerkUserId() {
-  try {
-    const { userId } = await auth();
-    if (userId) {
-      return userId;
-    }
-  } catch {
-    // Fall through to currentUser() when auth() cannot resolve a session.
-  }
-
-  try {
-    const clerk = await currentUser();
-    return clerk?.id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 const relationshipTypeValues = [
   "Talking",
@@ -130,11 +113,11 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
   }
 }
 
-async function getAuthenticatedDbUserId() {
+async function getAuthenticatedDbUserId(request: Request) {
   if (!hasClerkKeys) {
     return { error: NextResponse.json({ error: "Auth is not configured." }, { status: 503 }) };
   }
-  const userId = await resolveClerkUserId();
+  const userId = await resolveClerkUserId(request);
   if (!userId) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
@@ -145,8 +128,8 @@ async function getAuthenticatedDbUserId() {
 // ───────────────────────────────────────────────
 // GET — list the current user's private connections
 // ───────────────────────────────────────────────
-export async function GET() {
-  const authResult = await getAuthenticatedDbUserId();
+export async function GET(request: Request) {
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) return authResult.error;
   const currentDbUserId = authResult.dbUserId;
 
@@ -165,7 +148,7 @@ export async function GET() {
 // POST — add someone as a placeholder node (no account required for target)
 // ───────────────────────────────────────────────
 export async function POST(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) return authResult.error;
   const currentDbUserId = authResult.dbUserId;
 
@@ -223,7 +206,7 @@ export async function POST(request: Request) {
 // PATCH — update / generate invite / revoke invite
 // ───────────────────────────────────────────────
 export async function PATCH(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) return authResult.error;
   const currentDbUserId = authResult.dbUserId;
 
@@ -305,7 +288,7 @@ export async function PATCH(request: Request) {
 // DELETE — remove a private connection
 // ───────────────────────────────────────────────
 export async function DELETE(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) return authResult.error;
   const currentDbUserId = authResult.dbUserId;
 

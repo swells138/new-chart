@@ -258,10 +258,65 @@ export function RelationshipMap({
   const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<string | null>(currentUserId);
   const [isResolvingCurrentUserId, setIsResolvingCurrentUserId] = useState(false);
   const [hasAttemptedUserBootstrap, setHasAttemptedUserBootstrap] = useState(false);
+  const [hasBrowserSession, setHasBrowserSession] = useState(false);
+
+  async function getBrowserClerkToken() {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const maybeClerk = (window as Window & {
+      Clerk?: {
+        session?: {
+          getToken?: () => Promise<string | null>;
+        };
+      };
+    }).Clerk;
+
+    if (!maybeClerk?.session?.getToken) {
+      return null;
+    }
+
+    try {
+      return await maybeClerk.session.getToken();
+    } catch {
+      return null;
+    }
+  }
 
   const activeCurrentUserId = resolvedCurrentUserId ?? currentUserId;
   const hasDbUser = Boolean(activeCurrentUserId);
-  const needsAccountSync = isSignedIn && !hasDbUser;
+  const isSignedInEffective = Boolean(isSignedIn || hasBrowserSession);
+  const needsAccountSync = isSignedInEffective && !hasDbUser;
+
+  async function authFetch(input: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+
+    const token = await getBrowserClerkToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const token = await getBrowserClerkToken();
+      if (!cancelled && token) {
+        setHasBrowserSession(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setResolvedCurrentUserId(currentUserId);
@@ -281,7 +336,7 @@ export function RelationshipMap({
     setIsResolvingCurrentUserId(true);
 
     try {
-      const response = await fetch("/api/profile", { cache: "no-store" });
+      const response = await authFetch("/api/profile", { cache: "no-store" });
       const body = (await response.json()) as {
         profile?: { id?: string };
         error?: string;
@@ -644,7 +699,7 @@ export function RelationshipMap({
     setConnectionError(null);
 
     try {
-      const response = await fetch("/api/relationships", {
+      const response = await authFetch("/api/relationships", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -722,7 +777,7 @@ export function RelationshipMap({
     setConnectionError(null);
 
     try {
-      const response = await fetch("/api/relationships", {
+      const response = await authFetch("/api/relationships", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -768,7 +823,7 @@ export function RelationshipMap({
     setConnectionError(null);
 
     try {
-      const response = await fetch("/api/relationships", {
+      const response = await authFetch("/api/relationships", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

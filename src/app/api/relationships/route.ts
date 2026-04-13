@@ -1,9 +1,10 @@
-﻿import { auth, currentUser } from "@clerk/nextjs/server";
+﻿import { currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { RelationshipType } from "@/types/models";
+import { resolveClerkUserId } from "@/lib/clerk-auth";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -11,24 +12,6 @@ const hasClerkKeys =
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
       process.env.CLERK_PUBLISHABLE_KEY
   );
-
-async function resolveClerkUserId() {
-  try {
-    const { userId } = await auth();
-    if (userId) {
-      return userId;
-    }
-  } catch {
-    // Fall through to currentUser() when auth() cannot resolve a session.
-  }
-
-  try {
-    const clerk = await currentUser();
-    return clerk?.id ?? null;
-  } catch {
-    return null;
-  }
-}
 
 const relationshipTypeValues = [
   "Talking",
@@ -204,12 +187,12 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
   }
 }
 
-async function getAuthenticatedDbUserId() {
+async function getAuthenticatedDbUserId(request: Request) {
   if (!hasClerkKeys) {
     return { error: NextResponse.json({ error: "Auth is not configured." }, { status: 503 }) };
   }
 
-  const userId = await resolveClerkUserId();
+  const userId = await resolveClerkUserId(request);
   if (!userId) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
@@ -219,7 +202,7 @@ async function getAuthenticatedDbUserId() {
 }
 
 export async function POST(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) {
     return authResult.error;
   }
@@ -336,7 +319,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) {
     return authResult.error;
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 
 const ALL_TYPES: RelationshipType[] = [
@@ -48,6 +49,25 @@ interface Props {
 
 export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, approvedConnections = [], users = [] }: Props) {
   const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
+  const { getToken } = useAuth();
+
+  async function authFetch(input: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+
+    try {
+      const token = await getToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    } catch {
+      // Continue without token if Clerk token retrieval fails.
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  }
 
   const currentUserName = useMemo(() => {
     if (!currentUserId) return "You";
@@ -123,7 +143,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
     setAddError(null);
 
     try {
-      const res = await fetch("/api/private-connections", {
+      const res = await authFetch("/api/private-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -154,7 +174,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   async function handleGenerateInvite(id: string) {
     setWorkingId(id);
     try {
-      const res = await fetch("/api/private-connections", {
+      const res = await authFetch("/api/private-connections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action: "generateInvite" }),
@@ -171,7 +191,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   async function handleRevokeInvite(id: string) {
     setWorkingId(id);
     try {
-      const res = await fetch("/api/private-connections", {
+      const res = await authFetch("/api/private-connections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action: "revokeInvite" }),
@@ -188,7 +208,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   async function handleDelete(id: string) {
     setWorkingId(id);
     try {
-      const res = await fetch("/api/private-connections", {
+      const res = await authFetch("/api/private-connections", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -216,7 +236,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
     setIsSaving(true);
     setEditError(null);
     try {
-      const res = await fetch("/api/private-connections", {
+      const res = await authFetch("/api/private-connections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
