@@ -63,12 +63,13 @@ export default async function MapPage() {
   let currentUserDbId: string | null = null;
   let currentUserLocation: string | null = null;
   const cookieStore = await cookies();
-  let sessionSignedIn = cookieStore.has("__session");
+  const hasSessionCookie = cookieStore.has("__session");
+  let sessionSignedIn = hasSessionCookie;
 
   if (hasClerkKeys) {
     try {
       const { userId } = await auth();
-      sessionSignedIn = Boolean(userId);
+      sessionSignedIn = Boolean(userId) || hasSessionCookie;
 
       if (userId) {
         const existing = await prisma.user.findUnique({
@@ -117,7 +118,7 @@ export default async function MapPage() {
       console.error("Map page failed to initialize authenticated user", error);
       currentUserDbId = null;
       currentUserLocation = null;
-      sessionSignedIn = false;
+      sessionSignedIn = hasSessionCookie;
     }
   }
 
