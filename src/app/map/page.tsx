@@ -78,16 +78,36 @@ export default async function MapPage() {
         const clerk = await currentUser();
         const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
 
-        const created = await prisma.user.create({
-          data: {
-            clerkId: userId,
-            name: fullName || clerk?.username || "New member",
-          },
-          select: { id: true, location: true },
-        });
+        try {
+          const created = await prisma.user.create({
+            data: {
+              clerkId: userId,
+              name: fullName || clerk?.username || "New member",
+            },
+            select: { id: true, location: true },
+          });
 
-        currentUserDbId = created.id;
-        currentUserLocation = created.location;
+          currentUserDbId = created.id;
+          currentUserLocation = created.location;
+        } catch (error) {
+          const prismaError = error as { code?: string };
+
+          if (prismaError.code === "P2002") {
+            const retry = await prisma.user.findUnique({
+              where: { clerkId: userId },
+              select: { id: true, location: true },
+            });
+
+            if (retry) {
+              currentUserDbId = retry.id;
+              currentUserLocation = retry.location;
+            } else {
+              throw error;
+            }
+          } else {
+            throw error;
+          }
+        }
       }
     }
   }
