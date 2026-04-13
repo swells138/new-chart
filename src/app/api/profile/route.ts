@@ -1,4 +1,3 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -79,28 +78,11 @@ async function getOrCreateCurrentDbUser(clerkId: string) {
     return existing;
   }
 
-  let clerk:
-    | Awaited<ReturnType<typeof currentUser>>
-    | null = null;
-
-  try {
-    clerk = await currentUser();
-  } catch {
-    clerk = null;
-  }
-
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-  const email = clerk?.emailAddresses?.[0]?.emailAddress;
-  const phoneNumber = clerk?.phoneNumbers?.[0]?.phoneNumber;
-
   try {
     return await prisma.user.create({
       data: {
         clerkId,
-        name: fullName || clerk?.username || "New member",
-        email,
-        phoneNumber,
-        handle: clerk?.username || null,
+        name: "New member",
       },
     });
   } catch (error) {
@@ -112,13 +94,7 @@ async function getOrCreateCurrentDbUser(clerkId: string) {
         return retry;
       }
 
-      // A unique collision on optional fields (email/handle/phone) should not block account bootstrap.
-      return prisma.user.create({
-        data: {
-          clerkId,
-          name: fullName || clerk?.username || "New member",
-        },
-      });
+      // If we still cannot find the row, bubble the original error.
     }
 
     throw error;

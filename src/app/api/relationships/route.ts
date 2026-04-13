@@ -1,5 +1,4 @@
-﻿import { currentUser } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
@@ -156,23 +155,11 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
     return existing.id;
   }
 
-  let clerk:
-    | Awaited<ReturnType<typeof currentUser>>
-    | null = null;
-
-  try {
-    clerk = await currentUser();
-  } catch {
-    clerk = null;
-  }
-
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-
   try {
     const created = await prisma.user.create({
       data: {
         clerkId,
-        name: fullName || clerk?.username || "New member",
+        name: "New member",
       },
       select: { id: true },
     });
