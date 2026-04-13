@@ -15,7 +15,7 @@ export default function SignUpPage() {
 
   return (
     <div className="flex justify-center py-8">
-      <SignUp fallbackRedirectUrl="/claim-connections" />
+      <SignUp path="/signup" routing="path" fallbackRedirectUrl="/claim-connections" />
     </div>
   );
 }

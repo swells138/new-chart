@@ -15,7 +15,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex justify-center py-8">
-      <SignIn />
+      <SignIn path="/login" routing="path" fallbackRedirectUrl="/map" />
     </div>
   );
 }
