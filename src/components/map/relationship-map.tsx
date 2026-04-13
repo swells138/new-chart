@@ -257,6 +257,7 @@ export function RelationshipMap({
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
   const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<string | null>(currentUserId);
   const [isResolvingCurrentUserId, setIsResolvingCurrentUserId] = useState(false);
+  const [hasAttemptedUserBootstrap, setHasAttemptedUserBootstrap] = useState(false);
 
   const activeCurrentUserId = resolvedCurrentUserId ?? currentUserId;
   const hasDbUser = Boolean(activeCurrentUserId);
@@ -266,12 +267,14 @@ export function RelationshipMap({
     setResolvedCurrentUserId(currentUserId);
   }, [currentUserId]);
 
-  async function ensureCurrentUserId() {
+  async function ensureCurrentUserId(options?: { silent?: boolean }) {
+    const silent = options?.silent ?? false;
+
     if (activeCurrentUserId) {
       return activeCurrentUserId;
     }
 
-    if (!isSignedIn || isResolvingCurrentUserId) {
+    if (isResolvingCurrentUserId) {
       return null;
     }
 
@@ -285,13 +288,17 @@ export function RelationshipMap({
       };
 
       if (!response.ok) {
-        setConnectionError(body.error ?? "Could not verify your account. Please try again.");
+        if (!silent && response.status !== 401) {
+          setConnectionError(body.error ?? "Could not verify your account. Please try again.");
+        }
         return null;
       }
 
       const dbUserId = body.profile?.id;
       if (!dbUserId) {
-        setConnectionError("Could not find your account record yet. Please reload shortly.");
+        if (!silent) {
+          setConnectionError("Could not find your account record yet. Please reload shortly.");
+        }
         return null;
       }
 
@@ -299,12 +306,23 @@ export function RelationshipMap({
       return dbUserId;
     } catch (error) {
       console.error(error);
-      setConnectionError("Could not verify your account. Please try again.");
+      if (!silent) {
+        setConnectionError("Could not verify your account. Please try again.");
+      }
       return null;
     } finally {
       setIsResolvingCurrentUserId(false);
     }
   }
+
+  useEffect(() => {
+    if (activeCurrentUserId || hasAttemptedUserBootstrap) {
+      return;
+    }
+
+    setHasAttemptedUserBootstrap(true);
+    void ensureCurrentUserId({ silent: true });
+  }, [activeCurrentUserId, hasAttemptedUserBootstrap, ensureCurrentUserId]);
 
   useEffect(() => {
     const chart = searchParams.get("chart");
@@ -928,7 +946,9 @@ export function RelationshipMap({
         </p>
         {hasDbUser ? null : (
           <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-            {needsAccountSync
+            {isResolvingCurrentUserId
+              ? "Checking your account status..."
+              : needsAccountSync
               ? "Your account is signed in and syncing. Reload shortly to manage connections."
               : "Sign in to create and edit your own connections."}
           </p>
@@ -1048,7 +1068,9 @@ export function RelationshipMap({
             </form>
           ) : (
             <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-              {needsAccountSync
+              {isResolvingCurrentUserId || !hasAttemptedUserBootstrap
+                ? "Checking your account status..."
+                : needsAccountSync
                 ? "Signed in. Finalizing account sync..."
                 : "Sign in to create and manage your connections."}
             </p>
