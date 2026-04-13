@@ -63,52 +63,56 @@ export default async function MapPage() {
   let currentUserLocation: string | null = null;
 
   if (hasClerkKeys) {
-    const { userId } = await auth();
+    try {
+      const { userId } = await auth();
 
-    if (userId) {
-      const existing = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: { id: true, location: true },
-      });
+      if (userId) {
+        const existing = await prisma.user.findUnique({
+          where: { clerkId: userId },
+          select: { id: true, location: true },
+        });
 
-      if (existing) {
-        currentUserDbId = existing.id;
-        currentUserLocation = existing.location;
-      } else {
-        const clerk = await currentUser();
-        const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+        if (existing) {
+          currentUserDbId = existing.id;
+          currentUserLocation = existing.location;
+        } else {
+          const clerk = await currentUser();
+          const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
 
-        try {
-          const created = await prisma.user.create({
-            data: {
-              clerkId: userId,
-              name: fullName || clerk?.username || "New member",
-            },
-            select: { id: true, location: true },
-          });
-
-          currentUserDbId = created.id;
-          currentUserLocation = created.location;
-        } catch (error) {
-          const prismaError = error as { code?: string };
-
-          if (prismaError.code === "P2002") {
-            const retry = await prisma.user.findUnique({
-              where: { clerkId: userId },
+          try {
+            const created = await prisma.user.create({
+              data: {
+                clerkId: userId,
+                name: fullName || clerk?.username || "New member",
+              },
               select: { id: true, location: true },
             });
 
-            if (retry) {
-              currentUserDbId = retry.id;
-              currentUserLocation = retry.location;
+            currentUserDbId = created.id;
+            currentUserLocation = created.location;
+          } catch (error) {
+            const prismaError = error as { code?: string };
+
+            if (prismaError.code === "P2002") {
+              const retry = await prisma.user.findUnique({
+                where: { clerkId: userId },
+                select: { id: true, location: true },
+              });
+
+              if (retry) {
+                currentUserDbId = retry.id;
+                currentUserLocation = retry.location;
+              }
             } else {
               throw error;
             }
-          } else {
-            throw error;
           }
         }
       }
+    } catch (error) {
+      console.error("Map page failed to initialize authenticated user", error);
+      currentUserDbId = null;
+      currentUserLocation = null;
     }
   }
 
