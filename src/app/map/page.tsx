@@ -1,4 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
@@ -61,7 +62,8 @@ function buildAreaUsers(
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
   let currentUserLocation: string | null = null;
-  let sessionSignedIn = false;
+  const cookieStore = await cookies();
+  let sessionSignedIn = cookieStore.has("__session");
 
   if (hasClerkKeys) {
     try {
