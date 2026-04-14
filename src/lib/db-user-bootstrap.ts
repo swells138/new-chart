@@ -27,10 +27,19 @@ function isPrismaKnownError(error: unknown): error is { code?: string } {
   return typeof error === "object" && error !== null && "code" in error;
 }
 
+function makeLegacyUserId(clerkId: string) {
+  const seed = makeSeed(clerkId);
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `c${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
+}
+
 async function insertLegacyCompatibleUser(clerkId: string) {
+  const id = makeLegacyUserId(clerkId);
+  const now = new Date();
+
   await prisma.$executeRaw`
-    INSERT INTO "User" ("clerkId", "name")
-    VALUES (${clerkId}, ${"New member"})
+    INSERT INTO "User" ("id", "clerkId", "name", "createdAt", "updatedAt")
+    VALUES (${id}, ${clerkId}, ${"New member"}, ${now}, ${now})
     ON CONFLICT ("clerkId") DO NOTHING
   `;
 }

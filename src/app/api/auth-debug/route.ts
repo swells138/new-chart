@@ -37,6 +37,13 @@ function safeError(error: unknown) {
   };
 }
 
+function makeLegacyUserId(seedSource: string) {
+  const cleaned = seedSource.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const seed = (cleaned.slice(-10) || "member");
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `c${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
+}
+
 export async function GET(request: Request) {
   const report: Record<string, unknown> = {
     hasClerkKeys,
@@ -91,9 +98,11 @@ export async function GET(request: Request) {
         const err = error as { code?: string };
         if (err?.code === "P2022") {
           try {
+            const id = makeLegacyUserId(resolvedUserId);
+            const now = new Date();
             await prisma.$executeRaw`
-              INSERT INTO "User" ("clerkId", "name")
-              VALUES (${resolvedUserId}, ${"New member"})
+              INSERT INTO "User" ("id", "clerkId", "name", "createdAt", "updatedAt")
+              VALUES (${id}, ${resolvedUserId}, ${"New member"}, ${now}, ${now})
               ON CONFLICT ("clerkId") DO NOTHING
             `;
 
