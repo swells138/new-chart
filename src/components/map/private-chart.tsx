@@ -118,6 +118,30 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   const [addError, setAddError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
+  function getAddErrorMessage(status: number, apiMessage?: string) {
+    if (apiMessage && apiMessage.trim()) {
+      return apiMessage;
+    }
+
+    if (status === 400) {
+      return "Check the form values and try again.";
+    }
+
+    if (status === 401 || status === 403) {
+      return "Sign in again, then retry.";
+    }
+
+    if (status === 409) {
+      return "Your profile session changed. Refresh and try again.";
+    }
+
+    if (status === 429) {
+      return "Too many attempts. Wait a moment and retry.";
+    }
+
+    return "Could not add that connection right now.";
+  }
+
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -156,7 +180,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       });
       const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
       if (!res.ok || !body.placeholder) {
-        setAddError(body.error ?? "Could not add that connection.");
+        setAddError(getAddErrorMessage(res.status, body.error));
         return;
       }
       setPlaceholders((prev) => [body.placeholder!, ...prev]);
@@ -165,7 +189,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       setAddPhoneNumber("");
       setAddNote("");
     } catch {
-      setAddError("Could not add that connection.");
+      setAddError("Could not add that connection right now.");
     } finally {
       setIsAdding(false);
     }
@@ -495,13 +519,16 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
       {/* Add-connection form */}
       <div className="paper-card rounded-2xl p-5">
-        <h3 className="text-sm font-bold uppercase tracking-wider">Add a direct connection</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider">Add to your private chart (step 1)</h3>
+        <p className="mt-2 text-xs text-black/65 dark:text-white/65">
+          New entries start as private placeholders (dashed line). They become part of the confirmed network after invite + verification.
+        </p>
         <form className="mt-3 space-y-3" onSubmit={handleAdd}>
           <input
             type="text"
             value={addName}
             onChange={(e) => setAddName(e.target.value)}
-            placeholder="Their name"
+            placeholder="Name (required)"
             maxLength={80}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
             disabled={isAdding}
@@ -540,6 +567,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
               ))}
             </select>
           </div>
+          <p className="-mt-1 text-[11px] text-black/55 dark:text-white/55">
+            Relationship type controls color/tagging in your chart.
+          </p>
           <input
             type="text"
             value={addNote}
@@ -557,8 +587,11 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             disabled={isAdding || !addName.trim()}
             className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >
-            {isAdding ? "Adding..." : "Add connection"}
+            {isAdding ? "Adding..." : "Add private connection"}
           </button>
+          <p className="text-[11px] text-black/55 dark:text-white/55">
+            After adding, use <strong>Generate invite</strong> on their card to start confirmation.
+          </p>
         </form>
       </div>
 

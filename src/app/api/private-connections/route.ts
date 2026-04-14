@@ -59,6 +59,15 @@ const deleteSchema = z
   })
   .strict();
 
+function getPrismaErrorCode(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const maybeCode = (error as { code?: unknown }).code;
+    return typeof maybeCode === "string" ? maybeCode : null;
+  }
+
+  return null;
+}
+
 function normalizePlaceholder(p: {
   id: string;
   ownerId: string;
@@ -107,77 +116,99 @@ async function getAuthenticatedDbUserId(request: Request) {
 // GET — list the current user's private connections
 // ───────────────────────────────────────────────
 export async function GET(request: Request) {
-  const authResult = await getAuthenticatedDbUserId(request);
-  if (authResult.error) return authResult.error;
-  const currentDbUserId = authResult.dbUserId;
+  try {
+    const authResult = await getAuthenticatedDbUserId(request);
+    if (authResult.error) return authResult.error;
+    const currentDbUserId = authResult.dbUserId;
 
-  const placeholders = await prisma.placeholderPerson.findMany({
-    where: {
-      ownerId: currentDbUserId,
-      claimStatus: { in: ["unclaimed", "invited"] },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+    const placeholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: currentDbUserId,
+        claimStatus: { in: ["unclaimed", "invited"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-  return NextResponse.json({ placeholders: placeholders.map(normalizePlaceholder) });
+    return NextResponse.json({ placeholders: placeholders.map(normalizePlaceholder) });
+  } catch (error) {
+    console.error("Failed to load private connections", error);
+    return NextResponse.json({ error: "Could not load your direct connections." }, { status: 500 });
+  }
 }
 
 // ───────────────────────────────────────────────
 // POST — add someone as a placeholder node (no account required for target)
 // ───────────────────────────────────────────────
 export async function POST(request: Request) {
-  const authResult = await getAuthenticatedDbUserId(request);
-  if (authResult.error) return authResult.error;
-  const currentDbUserId = authResult.dbUserId;
-
-  const ip = getRequestIp(request);
-  const rateLimit = await checkRateLimit(`private-connections-post:${currentDbUserId}:${ip}`, {
-    windowMs: 5 * 60 * 1000,
-    maxRequests: 30,
-  });
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many entries. Please slow down." },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
-    );
-  }
-
-  let payload: unknown;
   try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
+    const authResult = await getAuthenticatedDbUserId(request);
+    if (authResult.error) return authResult.error;
+    const currentDbUserId = authResult.dbUserId;
 
-  const parsed = createSchema.safeParse(payload);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
-  }
+    const ip = getRequestIp(request);
+    const rateLimit = await checkRateLimit(`private-connections-post:${currentDbUserId}:${ip}`, {
+      windowMs: 5 * 60 * 1000,
+      maxRequests: 30,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many entries. Please slow down." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      );
+    }
 
-  const { name, email, phoneNumber, relationshipType, note } = parsed.data;
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
 
-  // Enforce a reasonable per-user cap (200 private entries)
-  const existing = await prisma.placeholderPerson.count({ where: { ownerId: currentDbUserId } });
-  if (existing >= 200) {
+    const parsed = createSchema.safeParse(payload);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
+    }
+
+    const { name, email, phoneNumber, relationshipType, note } = parsed.data;
+
+    // Enforce a reasonable per-user cap (200 private entries)
+    const existing = await prisma.placeholderPerson.count({ where: { ownerId: currentDbUserId } });
+    if (existing >= 200) {
+      return NextResponse.json(
+        { error: "You have reached the placeholder limit (200 entries)." },
+        { status: 422 }
+      );
+    }
+
+    const placeholder = await prisma.placeholderPerson.create({
+      data: {
+        ownerId: currentDbUserId,
+        name: name.trim(),
+        email: email?.trim() || null,
+        phoneNumber: phoneNumber?.trim() || null,
+        relationshipType,
+        note: note?.trim() ?? null,
+        claimStatus: "unclaimed",
+      },
+    });
+
+    return NextResponse.json({ placeholder: normalizePlaceholder(placeholder) }, { status: 201 });
+  } catch (error) {
+    const code = getPrismaErrorCode(error);
+    console.error("Failed to create private connection", error);
+
+    if (code === "P2003") {
+      return NextResponse.json(
+        { error: "Your profile could not be linked. Refresh and try again." },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "You have reached the placeholder limit (200 entries)." },
-      { status: 422 }
+      { error: "Could not add that connection right now. Please try again." },
+      { status: 500 }
     );
   }
-
-  const placeholder = await prisma.placeholderPerson.create({
-    data: {
-      ownerId: currentDbUserId,
-      name: name.trim(),
-      email: email?.trim() || null,
-      phoneNumber: phoneNumber?.trim() || null,
-      relationshipType,
-      note: note?.trim() ?? null,
-      claimStatus: "unclaimed",
-    },
-  });
-
-  return NextResponse.json({ placeholder: normalizePlaceholder(placeholder) }, { status: 201 });
 }
 
 // ───────────────────────────────────────────────
