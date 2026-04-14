@@ -149,6 +149,16 @@ function normalizePlaceholder(p: {
   };
 }
 
+interface ExistingUserSuggestion {
+  kind: "existing-user";
+  user: {
+    id: string;
+    name: string | null;
+    handle: string | null;
+  };
+  message: string;
+}
+
 async function getOrCreateCurrentDbUserId(clerkId: string) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
@@ -278,6 +288,8 @@ export async function POST(request: Request) {
     }
 
     const { name, email, phoneNumber, relationshipType, note } = parsed.data;
+    const normalizedEmail = email?.trim() || null;
+    const normalizedPhoneNumber = phoneNumber?.trim() || null;
 
     // Enforce a reasonable per-user cap (200 private entries)
     const existing = await prisma.placeholderPerson.count({ where: { ownerId: currentDbUserId } });
@@ -286,6 +298,37 @@ export async function POST(request: Request) {
         { error: "You have reached the placeholder limit (200 entries)." },
         { status: 422 }
       );
+    }
+
+    let existingUserSuggestion: ExistingUserSuggestion | null = null;
+    if (normalizedEmail || normalizedPhoneNumber) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          id: { not: currentDbUserId },
+          OR: [
+            ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+            ...(normalizedPhoneNumber ? [{ phoneNumber: normalizedPhoneNumber }] : []),
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          handle: true,
+        },
+      });
+
+      if (existingUser) {
+        existingUserSuggestion = {
+          kind: "existing-user",
+          user: {
+            id: existingUser.id,
+            name: existingUser.name,
+            handle: existingUser.handle,
+          },
+          message:
+            "This contact already appears to be a Chart user. You can keep this as a private node, but consider adding a public connection too.",
+        };
+      }
     }
 
     let placeholder: {
@@ -307,8 +350,8 @@ export async function POST(request: Request) {
         data: {
           ownerId: currentDbUserId,
           name: name.trim(),
-          email: email?.trim() || null,
-          phoneNumber: phoneNumber?.trim() || null,
+          email: normalizedEmail,
+          phoneNumber: normalizedPhoneNumber,
           relationshipType,
           note: note?.trim() ?? null,
           claimStatus: "unclaimed",
@@ -327,7 +370,13 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ placeholder: normalizePlaceholder(placeholder) }, { status: 201 });
+    return NextResponse.json(
+      {
+        placeholder: normalizePlaceholder(placeholder),
+        suggestion: existingUserSuggestion,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     const code = getPrismaErrorCode(error);
     console.error("Failed to create private connection", error);

@@ -47,6 +47,23 @@ interface Props {
   users?: User[];
 }
 
+interface ExistingUserSuggestion {
+  kind: "existing-user";
+  user: {
+    id: string;
+    name: string | null;
+    handle: string | null;
+  };
+  message: string;
+}
+
+interface PublicConnectCandidate {
+  placeholderId: string;
+  userId: string;
+  name: string;
+  relationshipType: RelationshipType;
+}
+
 export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, approvedConnections = [], users = [] }: Props) {
   const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
   const { getToken } = useAuth();
@@ -116,6 +133,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   const [addType, setAddType] = useState<RelationshipType>("Friends");
   const [addNote, setAddNote] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
+  const [addHint, setAddHint] = useState<string | null>(null);
+  const [publicConnectCandidates, setPublicConnectCandidates] = useState<Record<string, PublicConnectCandidate>>({});
+  const [publicConnectingPlaceholderId, setPublicConnectingPlaceholderId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   function getAddErrorMessage(status: number, apiMessage?: string) {
@@ -155,6 +175,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   // Invite/action state
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -165,6 +187,7 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
     }
     setIsAdding(true);
     setAddError(null);
+    setAddHint(null);
 
     try {
       const res = await authFetch("/api/private-connections", {
@@ -178,12 +201,32 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           note: addNote.trim() || undefined,
         }),
       });
-      const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
+      const body = (await res.json()) as {
+        placeholder?: PlaceholderPerson;
+        error?: string;
+        suggestion?: ExistingUserSuggestion | null;
+      };
       if (!res.ok || !body.placeholder) {
         setAddError(getAddErrorMessage(res.status, body.error));
         return;
       }
-      setPlaceholders((prev) => [body.placeholder!, ...prev]);
+      const createdPlaceholder = body.placeholder;
+      const suggestion = body.suggestion;
+
+      setPlaceholders((prev) => [createdPlaceholder, ...prev]);
+      if (suggestion?.kind === "existing-user") {
+        const displayName = suggestion.user.name || suggestion.user.handle || "that person";
+        setAddHint(`${suggestion.message} We found a likely match: ${displayName}.`);
+        setPublicConnectCandidates((prev) => ({
+          ...prev,
+          [createdPlaceholder.id]: {
+            placeholderId: createdPlaceholder.id,
+            userId: suggestion.user.id,
+          name: displayName,
+            relationshipType: createdPlaceholder.relationshipType,
+          },
+        }));
+      }
       setAddName("");
       setAddEmail("");
       setAddPhoneNumber("");
@@ -197,6 +240,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
   async function handleGenerateInvite(id: string) {
     setWorkingId(id);
+    setActionError(null);
+    setActionMessage(null);
     try {
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
@@ -204,9 +249,12 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         body: JSON.stringify({ id, action: "generateInvite" }),
       });
       const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
-      if (body.placeholder) {
-        setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      if (!res.ok || !body.placeholder) {
+        setActionError(body.error ?? "Could not generate invite. Please try again.");
+        return;
       }
+      setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      setActionMessage("Invite generated. Copy and share the link.");
     } finally {
       setWorkingId(null);
     }
@@ -214,6 +262,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
   async function handleRevokeInvite(id: string) {
     setWorkingId(id);
+    setActionError(null);
+    setActionMessage(null);
     try {
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
@@ -221,9 +271,12 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         body: JSON.stringify({ id, action: "revokeInvite" }),
       });
       const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
-      if (body.placeholder) {
-        setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      if (!res.ok || !body.placeholder) {
+        setActionError(body.error ?? "Could not revoke invite right now.");
+        return;
       }
+      setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      setActionMessage("Invite link revoked.");
     } finally {
       setWorkingId(null);
     }
@@ -239,6 +292,11 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       });
       if (res.ok) {
         setPlaceholders((prev) => prev.filter((p) => p.id !== id));
+        setPublicConnectCandidates((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         if (editingId === id) setEditingId(null);
       }
     } finally {
@@ -293,6 +351,46 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
     await navigator.clipboard.writeText(link).catch(() => null);
     setCopiedId(p.id);
     setTimeout(() => setCopiedId((prev) => (prev === p.id ? null : prev)), 2000);
+  }
+
+  async function handleConnectPublicly(candidate: PublicConnectCandidate) {
+    if (!currentUserId) {
+      setActionError("Sign in and reload to connect publicly.");
+      return;
+    }
+
+    setPublicConnectingPlaceholderId(candidate.placeholderId);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const res = await authFetch("/api/relationships", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: currentUserId,
+          target: candidate.userId,
+          type: candidate.relationshipType,
+        }),
+      });
+
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setActionError(body.error ?? "Could not send a public connection request.");
+        return;
+      }
+
+      setActionMessage(`Public connection request sent to ${candidate.name}.`);
+      setPublicConnectCandidates((prev) => {
+        const next = { ...prev };
+        delete next[candidate.placeholderId];
+        return next;
+      });
+    } catch {
+      setActionError("Could not send a public connection request.");
+    } finally {
+      setPublicConnectingPlaceholderId(null);
+    }
   }
 
   return (
@@ -582,6 +680,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           {addError ? (
             <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
           ) : null}
+          {addHint ? (
+            <p className="text-xs text-amber-700 dark:text-amber-300">{addHint}</p>
+          ) : null}
           <button
             type="submit"
             disabled={isAdding || !addName.trim()}
@@ -594,6 +695,13 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           </p>
         </form>
       </div>
+
+      {actionError ? (
+        <p className="text-xs text-red-700 dark:text-red-400">{actionError}</p>
+      ) : null}
+      {actionMessage ? (
+        <p className="text-xs text-green-700 dark:text-green-400">{actionMessage}</p>
+      ) : null}
 
       {/* Placeholder cards grid */}
       {placeholders.length === 0 ? (
@@ -622,6 +730,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             const inviteLink = p.inviteToken ? `${baseUrl}/invite/${p.inviteToken}` : null;
             const isOwned = currentUserId !== null && p.ownerId === currentUserId;
             const initial = (p.name?.[0] ?? "?").toUpperCase();
+            const publicConnectCandidate = publicConnectCandidates[p.id] ?? null;
+            const isPublicConnecting = publicConnectingPlaceholderId === p.id;
 
             return (
               <div
@@ -745,6 +855,11 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                         >
                           {p.relationshipType}
                         </span>
+                        {publicConnectCandidate ? (
+                          <span className="ml-2 mt-1 inline-block rounded-full border border-amber-300/45 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                            Existing user match
+                          </span>
+                        ) : null}
                       </div>
                     </div>
 
@@ -811,6 +926,16 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
                       {isOwned ? (
                         <>
+                          {publicConnectCandidate && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
+                            <button
+                              type="button"
+                              onClick={() => handleConnectPublicly(publicConnectCandidate)}
+                              disabled={isWorking || isPublicConnecting || !currentUserId}
+                              className="rounded-full border border-[var(--accent)]/50 bg-[var(--accent)]/15 px-3 py-1 text-[11px] font-semibold text-[var(--accent)] transition hover:brightness-110 disabled:opacity-60"
+                            >
+                              {isPublicConnecting ? "Sending..." : `Connect publicly with ${publicConnectCandidate.name}`}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => startEdit(p)}
