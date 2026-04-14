@@ -106,14 +106,20 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
     return existing.id;
   }
 
-  const clerk = await currentUser();
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+  let fallbackName = "New member";
+  try {
+    const clerk = await currentUser();
+    const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+    fallbackName = fullName || clerk?.username || fallbackName;
+  } catch {
+    // Bearer-token auth can succeed without a request-bound Clerk session.
+  }
 
   try {
     const created = await prisma.user.create({
       data: {
         clerkId,
-        name: fullName || clerk?.username || "New member",
+        name: fallbackName,
       },
       select: { id: true },
     });
