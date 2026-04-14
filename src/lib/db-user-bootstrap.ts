@@ -23,6 +23,18 @@ function makeSeed(clerkId: string) {
   return (cleaned.slice(-10) || "member");
 }
 
+function isPrismaKnownError(error: unknown): error is { code?: string } {
+  return typeof error === "object" && error !== null && "code" in error;
+}
+
+async function insertLegacyCompatibleUser(clerkId: string) {
+  await prisma.$executeRaw`
+    INSERT INTO "User" ("clerkId", "name")
+    VALUES (${clerkId}, ${"New member"})
+    ON CONFLICT ("clerkId") DO NOTHING
+  `;
+}
+
 export async function ensureDbUserByClerkId(clerkId: string) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
@@ -56,9 +68,26 @@ export async function ensureDbUserByClerkId(clerkId: string) {
         select: bootstrapUserSelect,
       });
     } catch (error) {
-      const prismaError = error as { code?: string };
+      if (!isPrismaKnownError(error)) {
+        throw error;
+      }
 
-      if (prismaError.code === "P2002") {
+      if (error.code === "P2002") {
+        continue;
+      }
+
+      // Schema drift in production (missing newer columns) should still allow bootstrap by clerkId.
+      if (error.code === "P2022") {
+        await insertLegacyCompatibleUser(clerkId);
+        const legacyRetry = await prisma.user.findUnique({
+          where: { clerkId },
+          select: bootstrapUserSelect,
+        });
+
+        if (legacyRetry) {
+          return legacyRetry;
+        }
+
         continue;
       }
 

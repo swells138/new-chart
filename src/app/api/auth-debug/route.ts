@@ -87,6 +87,28 @@ export async function GET(request: Request) {
       } catch (error) {
         report.bootstrapCreated = false;
         report.bootstrapError = safeError(error);
+
+        const err = error as { code?: string };
+        if (err?.code === "P2022") {
+          try {
+            await prisma.$executeRaw`
+              INSERT INTO "User" ("clerkId", "name")
+              VALUES (${resolvedUserId}, ${"New member"})
+              ON CONFLICT ("clerkId") DO NOTHING
+            `;
+
+            const legacyUser = await prisma.user.findUnique({
+              where: { clerkId: resolvedUserId },
+              select: { id: true },
+            });
+
+            report.bootstrapCreated = Boolean(legacyUser);
+            report.bootstrapUserId = legacyUser?.id ?? null;
+            report.bootstrapFallback = "raw-sql-legacy";
+          } catch (fallbackError) {
+            report.bootstrapFallbackError = safeError(fallbackError);
+          }
+        }
       }
     }
   }
