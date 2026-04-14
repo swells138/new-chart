@@ -75,6 +75,13 @@ function makeLegacyUserId(clerkId: string) {
   return `c${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
 }
 
+function makeLegacyPlaceholderId(ownerId: string) {
+  const cleaned = ownerId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const seed = cleaned.slice(-10) || "node";
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `p${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
+}
+
 async function insertLegacyCompatibleUser(clerkId: string, fallbackName: string) {
   const id = makeLegacyUserId(clerkId);
   const now = new Date();
@@ -84,6 +91,34 @@ async function insertLegacyCompatibleUser(clerkId: string, fallbackName: string)
     VALUES (${id}, ${clerkId}, ${fallbackName}, ${now}, ${now})
     ON CONFLICT ("clerkId") DO NOTHING
   `;
+}
+
+async function insertLegacyPlaceholder(data: {
+  ownerId: string;
+  name: string;
+  relationshipType: string;
+}) {
+  const id = makeLegacyPlaceholderId(data.ownerId);
+  const now = new Date();
+
+  await prisma.$executeRaw`
+    INSERT INTO "PlaceholderPerson" ("id", "ownerId", "name", "relationshipType", "createdAt", "updatedAt")
+    VALUES (${id}, ${data.ownerId}, ${data.name}, ${data.relationshipType}, ${now}, ${now})
+  `;
+
+  return {
+    id,
+    ownerId: data.ownerId,
+    name: data.name,
+    email: null,
+    phoneNumber: null,
+    relationshipType: data.relationshipType,
+    note: null,
+    inviteToken: null,
+    linkedUserId: null,
+    claimStatus: "unclaimed",
+    createdAt: now,
+  };
 }
 
 function normalizePlaceholder(p: {
@@ -253,17 +288,44 @@ export async function POST(request: Request) {
       );
     }
 
-    const placeholder = await prisma.placeholderPerson.create({
-      data: {
+    let placeholder: {
+      id: string;
+      ownerId: string;
+      name: string;
+      email: string | null;
+      phoneNumber: string | null;
+      relationshipType: string;
+      note: string | null;
+      inviteToken: string | null;
+      linkedUserId: string | null;
+      claimStatus: string;
+      createdAt: Date;
+    };
+
+    try {
+      placeholder = await prisma.placeholderPerson.create({
+        data: {
+          ownerId: currentDbUserId,
+          name: name.trim(),
+          email: email?.trim() || null,
+          phoneNumber: phoneNumber?.trim() || null,
+          relationshipType,
+          note: note?.trim() ?? null,
+          claimStatus: "unclaimed",
+        },
+      });
+    } catch (error) {
+      const code = getPrismaErrorCode(error);
+      if (code !== "P2022") {
+        throw error;
+      }
+
+      placeholder = await insertLegacyPlaceholder({
         ownerId: currentDbUserId,
         name: name.trim(),
-        email: email?.trim() || null,
-        phoneNumber: phoneNumber?.trim() || null,
         relationshipType,
-        note: note?.trim() ?? null,
-        claimStatus: "unclaimed",
-      },
-    });
+      });
+    }
 
     return NextResponse.json({ placeholder: normalizePlaceholder(placeholder) }, { status: 201 });
   } catch (error) {
