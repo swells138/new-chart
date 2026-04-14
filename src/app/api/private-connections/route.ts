@@ -68,6 +68,24 @@ function getPrismaErrorCode(error: unknown) {
   return null;
 }
 
+function makeLegacyUserId(clerkId: string) {
+  const cleaned = clerkId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const seed = cleaned.slice(-10) || "member";
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `c${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
+}
+
+async function insertLegacyCompatibleUser(clerkId: string, fallbackName: string) {
+  const id = makeLegacyUserId(clerkId);
+  const now = new Date();
+
+  await prisma.$executeRaw`
+    INSERT INTO "User" ("id", "clerkId", "name", "createdAt", "updatedAt")
+    VALUES (${id}, ${clerkId}, ${fallbackName}, ${now}, ${now})
+    ON CONFLICT ("clerkId") DO NOTHING
+  `;
+}
+
 function normalizePlaceholder(p: {
   id: string;
   ownerId: string;
@@ -135,6 +153,19 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
 
       if (retry) {
         return retry.id;
+      }
+    }
+
+    if (code === "P2022") {
+      await insertLegacyCompatibleUser(clerkId, fallbackName);
+
+      const legacyRetry = await prisma.user.findUnique({
+        where: { clerkId },
+        select: { id: true },
+      });
+
+      if (legacyRetry) {
+        return legacyRetry.id;
       }
     }
 
