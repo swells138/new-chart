@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { PlaceholderPerson, RelationshipType } from "@/types/models";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
-import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
+import { currentUser } from "@clerk/nextjs/server";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -97,7 +97,43 @@ function normalizePlaceholder(p: {
 }
 
 async function getOrCreateCurrentDbUserId(clerkId: string) {
-  return ensureDbUserIdByClerkId(clerkId);
+  const existing = await prisma.user.findUnique({
+    where: { clerkId },
+    select: { id: true },
+  });
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const clerk = await currentUser();
+  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+
+  try {
+    const created = await prisma.user.create({
+      data: {
+        clerkId,
+        name: fullName || clerk?.username || "New member",
+      },
+      select: { id: true },
+    });
+
+    return created.id;
+  } catch (error) {
+    const code = getPrismaErrorCode(error);
+    if (code === "P2002") {
+      const retry = await prisma.user.findUnique({
+        where: { clerkId },
+        select: { id: true },
+      });
+
+      if (retry) {
+        return retry.id;
+      }
+    }
+
+    throw error;
+  }
 }
 
 async function getAuthenticatedDbUserId(request: Request) {
