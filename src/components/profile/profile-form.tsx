@@ -96,6 +96,8 @@ export interface ProfileFormData {
 
 export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormData }) {
   const [formData, setFormData] = useState<ProfileFormData>(initialProfile);
+  const [interestsInput, setInterestsInput] = useState(initialProfile.interests.join(", "));
+  const [handleLocked, setHandleLocked] = useState(Boolean(initialProfile.handle));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
         },
         body: JSON.stringify({
           ...formData,
-          handle: undefined,
+          handle: handleLocked ? undefined : formData.handle.trim(),
         }),
       });
 
@@ -133,6 +135,10 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
 
       if (body.profile) {
         setFormData(body.profile);
+        setInterestsInput(body.profile.interests.join(", "));
+        if (body.profile.handle) {
+          setHandleLocked(true);
+        }
       }
 
       setMessage("Profile updated.");
@@ -167,9 +173,14 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
           <input
             value={formData.handle}
             placeholder="your.handle"
-            readOnly
-            title="Username cannot be changed"
-            className="w-full cursor-not-allowed rounded-xl border border-[var(--border-soft)] bg-white/60 px-3 py-2 text-sm outline-none dark:bg-black/20"
+            onChange={(event) => setFormData((prev) => ({ ...prev, handle: event.target.value }))}
+            readOnly={handleLocked}
+            title={handleLocked ? "Username cannot be changed" : "Set your username"}
+            className={`w-full rounded-xl border border-[var(--border-soft)] px-3 py-2 text-sm outline-none dark:bg-black/20 ${
+              handleLocked
+                ? "cursor-not-allowed bg-white/60"
+                : "bg-white/80 focus:ring-2 focus:ring-[var(--accent)]"
+            }`}
           />
         </label>
 
@@ -255,16 +266,18 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
             Interests (comma separated)
           </span>
           <input
-            value={formData.interests.join(", ")}
-            onChange={(event) =>
+            value={interestsInput}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setInterestsInput(raw);
               setFormData((prev) => ({
                 ...prev,
-                interests: event.target.value
+                interests: raw
                   .split(",")
                   .map((item) => item.trim())
                   .filter(Boolean),
-              }))
-            }
+              }));
+            }}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] dark:bg-black/20"
           />
         </label>

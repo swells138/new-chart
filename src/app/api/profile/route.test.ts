@@ -4,6 +4,7 @@ const authMock = vi.fn();
 const currentUserMock = vi.fn();
 
 const findUniqueMock = vi.fn();
+const findFirstMock = vi.fn();
 const createMock = vi.fn();
 const updateMock = vi.fn();
 
@@ -16,6 +17,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       findUnique: findUniqueMock,
+      findFirst: findFirstMock,
       create: createMock,
       update: updateMock,
     },
@@ -28,6 +30,7 @@ describe("/api/profile PATCH", () => {
     authMock.mockReset();
     currentUserMock.mockReset();
     findUniqueMock.mockReset();
+    findFirstMock.mockReset();
     createMock.mockReset();
     updateMock.mockReset();
 
@@ -49,6 +52,7 @@ describe("/api/profile PATCH", () => {
       profileImage: null,
       email: "existing@example.com",
     });
+    findFirstMock.mockResolvedValue(null);
   });
 
   it("returns 400 for invalid JSON", async () => {
@@ -113,5 +117,77 @@ describe("/api/profile PATCH", () => {
 
     expect(response.status).toBe(200);
     expect(updateMock).toHaveBeenCalledOnce();
+  });
+
+  it("allows setting a username when it does not exist yet", async () => {
+    findUniqueMock.mockResolvedValueOnce(null);
+    createMock.mockResolvedValueOnce({
+      id: "db_123",
+      clerkId: "clerk_123",
+      name: "Existing User",
+      handle: null,
+      pronouns: null,
+      bio: null,
+      location: null,
+      relationshipStatus: null,
+      interests: [],
+      links: {},
+      profileImage: null,
+      email: "existing@example.com",
+    });
+
+    updateMock.mockResolvedValue({
+      id: "db_123",
+      clerkId: "clerk_123",
+      name: "Existing User",
+      handle: "new.user",
+      pronouns: null,
+      bio: null,
+      location: "Ohio",
+      relationshipStatus: null,
+      interests: ["music production", "camping"],
+      links: {},
+      profileImage: null,
+      email: "existing@example.com",
+    });
+
+    const { PATCH } = await import("./route");
+
+    const request = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        handle: "new.user",
+        location: "Ohio",
+        interests: ["music production", "camping"],
+      }),
+    });
+
+    const response = await PATCH(request);
+
+    expect(response.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          handle: "new.user",
+          location: "Ohio",
+        }),
+      })
+    );
+  });
+
+  it("rejects username change when one already exists", async () => {
+    const { PATCH } = await import("./route");
+
+    const request = new Request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ handle: "another_name" }),
+    });
+
+    const response = await PATCH(request);
+
+    expect(response.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

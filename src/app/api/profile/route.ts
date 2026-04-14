@@ -37,20 +37,7 @@ const ALLOWED_PRONOUNS = new Set([
   "Prefer not to say",
 ]);
 
-const ALLOWED_LOCATIONS = new Set([
-  "California",
-  "Florida",
-  "New York",
-  "Texas",
-  "Washington",
-  "Austin, TX",
-  "Chicago, IL",
-  "Los Angeles, CA",
-  "Miami, FL",
-  "New York City, NY",
-  "San Francisco, CA",
-  "Seattle, WA",
-]);
+const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,30}$/;
 
 const profilePatchSchema = z
   .object({
@@ -185,24 +172,54 @@ export async function PATCH(request: Request) {
   const { name, pronouns, bio, location, relationshipStatus, interests, links, handle } =
     parsed.data;
 
-  if (handle !== undefined) {
-    return NextResponse.json({ error: "Username cannot be changed." }, { status: 400 });
-  }
-
   if (pronouns !== undefined && pronouns.length > 0 && !ALLOWED_PRONOUNS.has(pronouns)) {
     return NextResponse.json({ error: "Please select a valid pronouns option." }, { status: 400 });
   }
 
-  if (location !== undefined && location.length > 0 && !ALLOWED_LOCATIONS.has(location)) {
-    return NextResponse.json({ error: "Please select a valid location option." }, { status: 400 });
-  }
-
   try {
-    await getOrCreateCurrentDbUser(userId);
+    const currentUser = await getOrCreateCurrentDbUser(userId);
+
+    const handleUpdate: { handle?: string | null } = {};
+    if (handle !== undefined) {
+      const normalizedHandle = handle.trim();
+
+      if (!normalizedHandle) {
+        return NextResponse.json({ error: "Username is required." }, { status: 400 });
+      }
+
+      if (currentUser.handle) {
+        return NextResponse.json({ error: "Username cannot be changed." }, { status: 400 });
+      }
+
+      if (!USERNAME_PATTERN.test(normalizedHandle)) {
+        return NextResponse.json(
+          {
+            error:
+              "Username must be 3-30 characters and only include letters, numbers, dots, underscores, or dashes.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const existingHandle = await prisma.user.findFirst({
+        where: {
+          handle: { equals: normalizedHandle, mode: "insensitive" },
+          clerkId: { not: userId },
+        },
+        select: { id: true },
+      });
+
+      if (existingHandle) {
+        return NextResponse.json({ error: "Username is already taken." }, { status: 409 });
+      }
+
+      handleUpdate.handle = normalizedHandle;
+    }
 
     const updated = await prisma.user.update({
       where: { clerkId: userId },
       data: {
+        ...handleUpdate,
         ...(name !== undefined ? { name: name || null } : {}),
         ...(pronouns !== undefined ? { pronouns: pronouns || null } : {}),
         ...(bio !== undefined ? { bio: bio || null } : {}),
