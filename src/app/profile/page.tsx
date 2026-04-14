@@ -1,10 +1,11 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import { ProfileForm, type ProfileFormData } from "@/components/profile/profile-form";
 import { SectionHeader } from "@/components/ui/section-header";
 import { getClaimCandidatesForUser } from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
+import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -36,106 +37,56 @@ interface ProfileConnection {
 }
 
 async function getOrCreateProfile(clerkId: string) {
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
-    include: {
-      relationships: {
-        where: {
-          NOT: {
-            type: {
-              startsWith: pendingTypePrefix,
-            },
-          },
-        },
-        include: {
-          user2: {
-            select: {
-              name: true,
-              handle: true,
-              location: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      },
-      reverseRelationships: {
-        where: {
-          NOT: {
-            type: {
-              startsWith: pendingTypePrefix,
-            },
-          },
-        },
-        include: {
-          user1: {
-            select: {
-              name: true,
-              handle: true,
-              location: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
+  const user = await ensureDbUserByClerkId(clerkId);
 
-  if (existing) {
-    return existing;
-  }
-
-  const clerk = await currentUser();
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-  const email = clerk?.emailAddresses?.[0]?.emailAddress;
-
-  return prisma.user.create({
-    data: {
-      clerkId,
-      name: fullName || clerk?.username || "New member",
-      email,
-      handle: clerk?.username || null,
-    },
-    include: {
-      relationships: {
-        where: {
-          NOT: {
-            type: {
-              startsWith: pendingTypePrefix,
-            },
+  const [relationships, reverseRelationships] = await Promise.all([
+    prisma.relationship.findMany({
+      where: {
+        user1Id: user.id,
+        NOT: {
+          type: {
+            startsWith: pendingTypePrefix,
           },
         },
-        include: {
-          user2: {
-            select: {
-              name: true,
-              handle: true,
-              location: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
       },
-      reverseRelationships: {
-        where: {
-          NOT: {
-            type: {
-              startsWith: pendingTypePrefix,
-            },
+      include: {
+        user2: {
+          select: {
+            name: true,
+            handle: true,
+            location: true,
           },
         },
-        include: {
-          user1: {
-            select: {
-              name: true,
-              handle: true,
-              location: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
       },
-    },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.relationship.findMany({
+      where: {
+        user2Id: user.id,
+        NOT: {
+          type: {
+            startsWith: pendingTypePrefix,
+          },
+        },
+      },
+      include: {
+        user1: {
+          select: {
+            name: true,
+            handle: true,
+            location: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  return {
+    ...user,
+    relationships,
+    reverseRelationships,
+  };
 }
 
 export default async function ProfilePage() {
@@ -162,7 +113,7 @@ export default async function ProfilePage() {
     bio: user.bio ?? "",
     location: user.location ?? "",
     relationshipStatus: user.relationshipStatus ?? "",
-    interests: user.interests,
+    interests: user.interests ?? [],
   };
 
   const claimCandidates = await getClaimCandidatesForUser(user.id, {
