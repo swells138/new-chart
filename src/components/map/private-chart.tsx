@@ -311,21 +311,36 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
   async function handleDelete(id: string) {
     setWorkingId(id);
+    setActionError(null);
     try {
       const res = await authFetch("/api/private-connections", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (res.ok) {
-        setPlaceholders((prev) => prev.filter((p) => p.id !== id));
-        setPublicConnectCandidates((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-        if (editingId === id) setEditingId(null);
+      let body: unknown;
+      try {
+        body = (await res.json()) as { deleted?: boolean; id?: string; error?: string };
+      } catch {
+        setActionError("Invalid response from server.");
+        return;
       }
+      const parsed = body as { deleted?: boolean; id?: string; error?: string };
+      if (!res.ok || !parsed.deleted) {
+        setActionError(parsed.error ?? "Could not remove this connection. Please try again.");
+        return;
+      }
+      setPlaceholders((prev) => prev.filter((p) => p.id !== id));
+      setPublicConnectCandidates((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (editingId === id) setEditingId(null);
+      setActionMessage("Connection removed.");
+    } catch (error) {
+      console.error("Delete error:", error);
+      setActionError("Could not remove this connection. Please try again.");
     } finally {
       setWorkingId(null);
     }
