@@ -467,7 +467,14 @@ export async function PATCH(request: Request) {
   const { id, action, name, email, phoneNumber, relationshipType, note } =
     parsed.data;
 
-  const existing = await prisma.placeholderPerson.findUnique({ where: { id } });
+  const existing = await prisma.placeholderPerson.findUnique({
+    where: { id },
+    select: {
+      id: true, ownerId: true, name: true, email: true, phoneNumber: true,
+      relationshipType: true, note: true, inviteToken: true, linkedUserId: true,
+      claimStatus: true, createdAt: true,
+    },
+  });
   if (!existing) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
@@ -565,26 +572,46 @@ export async function DELETE(request: Request) {
 
     const { id } = parsed.data;
 
-    // Check existence and ownership so we can preserve 404/403 semantics.
+    // Use a minimal select to avoid P2022 schema-drift errors on newer columns
     const existing = await prisma.placeholderPerson.findUnique({
       where: { id },
-      select: { ownerId: true, linkedUserId: true },
+      select: { id: true, ownerId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
-    // Allow deletion by either the owner or the linked (claimed) user.
-    if (
-      existing.ownerId !== currentDbUserId &&
-      existing.linkedUserId !== currentDbUserId
-    ) {
+
+    // Allow deletion by owner; if available, also allow the linked (claimed) user.
+    let canDelete = existing.ownerId === currentDbUserId;
+    if (!canDelete) {
+      try {
+        const withLinkedUser = await prisma.placeholderPerson.findUnique({
+          where: { id },
+          select: { linkedUserId: true },
+        });
+        canDelete = withLinkedUser?.linkedUserId === currentDbUserId;
+      } catch (permissionError) {
+        const code = getPrismaErrorCode(permissionError);
+        if (code !== "P2022" && code !== "P2021") {
+          throw permissionError;
+        }
+      }
+    }
+
+    if (!canDelete) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
-    // Use deleteMany to avoid throwing if the row disappears concurrently.
-    const result = await prisma.placeholderPerson.deleteMany({ where: { id } });
-    if (result.count === 0) {
-      return NextResponse.json({ error: "Not found." }, { status: 404 });
+    try {
+      await prisma.placeholderPerson.delete({ where: { id } });
+    } catch (deleteError) {
+      const code = getPrismaErrorCode(deleteError);
+      if (code === "P2022" || code === "P2021") {
+        // Schema drift: fall back to raw SQL delete
+        await prisma.$executeRaw`DELETE FROM "PlaceholderPerson" WHERE "id" = ${id}`;
+      } else {
+        throw deleteError;
+      }
     }
 
     return NextResponse.json({ deleted: true, id });
