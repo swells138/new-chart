@@ -87,38 +87,30 @@ export default async function Home() {
 
       {/* ─── HERO ─────────────────────────────────────────────── */}
       <section
-        className="rise-in relative overflow-hidden rounded-3xl px-6 py-16 sm:px-14 sm:py-20"
+        className="rise-in relative overflow-hidden rounded-3xl px-6 py-16 text-center sm:px-10 sm:py-20 lg:min-h-[68vh] lg:px-14"
         style={{ background: "linear-gradient(135deg, #0f0819 0%, #130d24 100%)" }}
       >
-        {/* Decorative blobs */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-          <div className="hero-blob absolute -top-20 left-[15%] h-72 w-72 rounded-full bg-[#ff8f84]/20 blur-3xl" />
-          <div className="hero-blob absolute top-10 right-[15%] h-56 w-56 rounded-full bg-[#a78bfa]/20 blur-3xl" style={{ animationDelay: "3s" }} />
-          <div className="hero-blob absolute bottom-0 left-[40%] h-40 w-40 rounded-full bg-[#66b6a7]/15 blur-3xl" style={{ animationDelay: "6s" }} />
-        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,143,132,0.22),transparent_45%)]" aria-hidden />
 
-        <div className="relative z-10 max-w-3xl">
-          <p className="script text-2xl leading-none text-[#ff8f84] sm:text-3xl">
-            for the ones who know
-          </p>
-          <h1 className="mt-3 text-[2.6rem] leading-tight font-semibold text-white sm:text-6xl lg:text-7xl">
-            Who&apos;s connected<br className="hidden sm:block" /> to who?&nbsp;👀
+        <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center justify-center lg:min-h-[56vh]">
+          <h1 className="text-balance text-4xl leading-tight font-bold text-white sm:text-6xl lg:text-7xl">
+            See How Everyone Is Connected
           </h1>
-          <p className="mt-5 max-w-xl text-base text-white/65 sm:text-lg">
-            Build your network, add direct connections, and discover how confirmed relationships link people together.
+          <p className="mt-6 max-w-2xl text-base text-white/70 sm:text-lg">
+            Build and explore a live map of relationships - discover who knows who and uncover hidden connections.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
             <a
               href={isSignedIn ? "/map" : "#start"}
-              className="rounded-full bg-[#ff8f84] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:brightness-95 hover:-translate-y-0.5"
+              className="inline-flex min-w-44 items-center justify-center rounded-full bg-[#ff8f84] px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:-translate-y-0.5 hover:brightness-95"
             >
-              {isSignedIn ? "Open your network" : "Start your network"}
+              Start Mapping
             </a>
             <a
               href="#demo"
-              className="rounded-full border border-white/20 bg-white/8 px-7 py-3.5 text-sm font-semibold text-white/85 backdrop-blur transition hover:bg-white/15 hover:-translate-y-0.5"
+              className="inline-flex min-w-44 items-center justify-center rounded-full border border-white/25 bg-white/10 px-8 py-3.5 text-base font-semibold text-white/90 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15"
             >
-              View example
+              View Demo
             </a>
           </div>
         </div>
@@ -151,24 +143,30 @@ export default async function Home() {
       </section>
 
       {/* ─── DEMO GRAPH ───────────────────────────────────────── */}
-      <section id="demo" className="scroll-mt-24 space-y-4">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold sm:text-3xl">See it in action</h2>
-          <p className="mt-2 text-sm text-black/55 dark:text-white/55">
-            This is what a real network view looks like — hover the nodes.
-          </p>
-        </div>
+      <section id="demo" className="scroll-mt-24 py-8 sm:py-10">
+        <div className="paper-card mx-auto max-w-5xl rounded-3xl p-5 sm:p-7">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold sm:text-3xl">
+              Explore a sample connection map
+            </h2>
+            <p className="mt-2 text-sm text-black/60 dark:text-white/60 sm:text-base">
+              Click a person to see how they connect.
+            </p>
+          </div>
 
-        <DemoGraph />
+          <div className="mt-5 overflow-hidden rounded-2xl border border-black/10 bg-white/45 p-2 shadow-inner dark:border-white/15 dark:bg-black/20 sm:p-3">
+            <DemoGraph />
+          </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap justify-center gap-x-5 gap-y-2">
-          {EDGE_LEGEND.map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5 text-xs">
-              <div className="h-2 w-5 rounded-full" style={{ background: color }} />
-              <span className="text-black/55 dark:text-white/55">{label}</span>
-            </div>
-          ))}
+          {/* Legend */}
+          <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2">
+            {EDGE_LEGEND.map(({ label, color }) => (
+              <div key={label} className="flex items-center gap-1.5 text-xs">
+                <div className="h-2 w-5 rounded-full" style={{ background: color }} />
+                <span className="text-black/55 dark:text-white/55">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
