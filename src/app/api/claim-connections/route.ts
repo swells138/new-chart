@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { currentUser } from "@clerk/nextjs/server";
 import { claimPlaceholderForUser, dismissClaimCandidate, getClaimCandidatesForUser } from "@/lib/network-claims";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
@@ -28,7 +29,16 @@ async function getAuthenticatedDbUserId(request: Request) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  return { dbUserId: await ensureDbUserIdByClerkId(userId) };
+  // Get the user's actual name from Clerk
+  const clerkUser = await currentUser();
+  const fullName =
+    clerkUser?.firstName && clerkUser?.lastName
+      ? `${clerkUser.firstName} ${clerkUser.lastName}`
+      : clerkUser?.username ||
+        clerkUser?.firstName ||
+        "New member";
+
+  return { dbUserId: await ensureDbUserIdByClerkId(userId, fullName) };
 }
 
 export async function GET(request: Request) {

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -26,7 +26,16 @@ export default async function ClaimConnectionsPage() {
     redirect("/login");
   }
 
-  const currentUserId = await ensureDbUserIdByClerkId(userId);
+  // Get the user's actual name from Clerk
+  const clerkUser = await currentUser();
+  const fullName =
+    clerkUser?.firstName && clerkUser?.lastName
+      ? `${clerkUser.firstName} ${clerkUser.lastName}`
+      : clerkUser?.username ||
+        clerkUser?.firstName ||
+        "New member";
+
+  const currentUserId = await ensureDbUserIdByClerkId(userId, fullName);
   const candidates = await getClaimCandidatesForUser(currentUserId, {
     includeDismissed: false,
     limit: 5,

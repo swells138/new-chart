@@ -33,18 +33,18 @@ function makeLegacyUserId(clerkId: string) {
   return `c${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
 }
 
-async function insertLegacyCompatibleUser(clerkId: string) {
+async function insertLegacyCompatibleUser(clerkId: string, name: string = "New member") {
   const id = makeLegacyUserId(clerkId);
   const now = new Date();
 
   await prisma.$executeRaw`
     INSERT INTO "User" ("id", "clerkId", "name", "createdAt", "updatedAt")
-    VALUES (${id}, ${clerkId}, ${"New member"}, ${now}, ${now})
+    VALUES (${id}, ${clerkId}, ${name}, ${now}, ${now})
     ON CONFLICT ("clerkId") DO NOTHING
   `;
 }
 
-export async function ensureDbUserByClerkId(clerkId: string) {
+export async function ensureDbUserByClerkId(clerkId: string, name: string = "New member") {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
     select: bootstrapUserSelect,
@@ -65,9 +65,9 @@ export async function ensureDbUserByClerkId(clerkId: string) {
     handle?: string;
     email?: string;
   }> = [
-    { clerkId, name: "New member" },
-    { clerkId, name: "New member", handle: handleBase },
-    { clerkId, name: "New member", handle: handleBase, email: emailBase },
+    { clerkId, name },
+    { clerkId, name, handle: handleBase },
+    { clerkId, name, handle: handleBase, email: emailBase },
   ];
 
   for (const data of attempts) {
@@ -115,7 +115,7 @@ export async function ensureDbUserByClerkId(clerkId: string) {
   throw new Error("Could not provision user profile record.");
 }
 
-export async function ensureDbUserIdByClerkId(clerkId: string) {
-  const user = await ensureDbUserByClerkId(clerkId);
+export async function ensureDbUserIdByClerkId(clerkId: string, name: string = "New member") {
+  const user = await ensureDbUserByClerkId(clerkId, name);
   return user.id;
 }
