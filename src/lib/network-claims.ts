@@ -6,6 +6,15 @@ const wordCharacters = /[^a-z0-9\s]/g;
 const whitespaceCharacters = /\s+/g;
 const phoneCharacters = /\D/g;
 
+function isColumnMissingError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2022"
+  );
+}
+
 type PlaceholderWithOwner = {
   id: string;
   ownerId: string;
@@ -270,10 +279,20 @@ export async function getClaimCandidatesForUser(
 }
 
 export async function dismissClaimCandidate(userId: string, placeholderId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { ignoredClaimPlaceholderIds: true },
-  });
+  let user: { ignoredClaimPlaceholderIds: string[] } | null = null;
+
+  try {
+    user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { ignoredClaimPlaceholderIds: true },
+    });
+  } catch (error) {
+    if (isColumnMissingError(error)) {
+      // Older DB schema without ignored placeholders: treat dismiss as a no-op.
+      return;
+    }
+    throw error;
+  }
 
   if (!user) {
     throw new Error("User not found.");
@@ -283,12 +302,20 @@ export async function dismissClaimCandidate(userId: string, placeholderId: strin
     return;
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ignoredClaimPlaceholderIds: [...user.ignoredClaimPlaceholderIds, placeholderId],
-    },
-  });
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ignoredClaimPlaceholderIds: [...user.ignoredClaimPlaceholderIds, placeholderId],
+      },
+    });
+  } catch (error) {
+    if (isColumnMissingError(error)) {
+      // Older DB schema without ignored placeholders: treat dismiss as a no-op.
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function claimPlaceholderForUser(userId: string, placeholderId: string) {
@@ -350,20 +377,27 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       },
     });
 
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      select: { ignoredClaimPlaceholderIds: true },
-    });
-
-    if (user && user.ignoredClaimPlaceholderIds.includes(placeholder.id)) {
-      await tx.user.update({
+    try {
+      const user = await tx.user.findUnique({
         where: { id: userId },
-        data: {
-          ignoredClaimPlaceholderIds: user.ignoredClaimPlaceholderIds.filter(
-            (item) => item !== placeholder.id
-          ),
-        },
+        select: { ignoredClaimPlaceholderIds: true },
       });
+
+      if (user && user.ignoredClaimPlaceholderIds.includes(placeholder.id)) {
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            ignoredClaimPlaceholderIds: user.ignoredClaimPlaceholderIds.filter(
+              (item) => item !== placeholder.id
+            ),
+          },
+        });
+      }
+    } catch (error) {
+      if (!isColumnMissingError(error)) {
+        throw error;
+      }
+      // Older DB schema without ignored placeholders: skip cleanup.
     }
 
     return {

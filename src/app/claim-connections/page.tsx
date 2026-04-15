@@ -1,42 +1,16 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import { SectionHeader } from "@/components/ui/section-header";
+import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { getClaimCandidatesForUser } from "@/lib/network-claims";
-import { prisma } from "@/lib/prisma";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
-async function getOrCreateCurrentDbUserId(clerkId: string) {
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const clerk = await currentUser();
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-  const email = clerk?.emailAddresses?.[0]?.emailAddress;
-  const phoneNumber = clerk?.phoneNumbers?.[0]?.phoneNumber;
-
-  const created = await prisma.user.create({
-    data: {
-      clerkId,
-      name: fullName || clerk?.username || "New member",
-      email,
-      phoneNumber,
-      handle: clerk?.username || null,
-    },
-    select: { id: true },
-  });
-
-  return created.id;
-}
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY
+  );
 
 export default async function ClaimConnectionsPage() {
   if (!hasClerkKeys) {
@@ -52,7 +26,7 @@ export default async function ClaimConnectionsPage() {
     redirect("/login");
   }
 
-  const currentUserId = await getOrCreateCurrentDbUserId(userId);
+  const currentUserId = await ensureDbUserIdByClerkId(userId);
   const candidates = await getClaimCandidatesForUser(currentUserId, {
     includeDismissed: false,
     limit: 5,

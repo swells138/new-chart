@@ -1,8 +1,8 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { claimPlaceholderForUser, dismissClaimCandidate, getClaimCandidatesForUser } from "@/lib/network-claims";
-import { prisma } from "@/lib/prisma";
+import { resolveClerkUserId } from "@/lib/clerk-auth";
+import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -11,24 +11,6 @@ const hasClerkKeys =
       process.env.CLERK_PUBLISHABLE_KEY
   );
 
-async function resolveClerkUserId() {
-  try {
-    const { userId } = await auth();
-    if (userId) {
-      return userId;
-    }
-  } catch {
-    // Fall through to currentUser() when auth() cannot resolve a session.
-  }
-
-  try {
-    const clerk = await currentUser();
-    return clerk?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 const actionSchema = z
   .object({
     action: z.enum(["claim", "dismiss"]),
@@ -36,67 +18,21 @@ const actionSchema = z
   })
   .strict();
 
-async function getOrCreateCurrentDbUserId(clerkId: string) {
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const clerk = await currentUser();
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-  const email = clerk?.emailAddresses?.[0]?.emailAddress;
-  const phoneNumber = clerk?.phoneNumbers?.[0]?.phoneNumber;
-
-  try {
-    const created = await prisma.user.create({
-      data: {
-        clerkId,
-        name: fullName || clerk?.username || "New member",
-        email,
-        phoneNumber,
-        handle: clerk?.username || null,
-      },
-      select: { id: true },
-    });
-
-    return created.id;
-  } catch (error) {
-    const prismaError = error as { code?: string };
-
-    if (prismaError.code === "P2002") {
-      const retry = await prisma.user.findUnique({
-        where: { clerkId },
-        select: { id: true },
-      });
-
-      if (retry) {
-        return retry.id;
-      }
-    }
-
-    throw error;
-  }
-}
-
-async function getAuthenticatedDbUserId() {
+async function getAuthenticatedDbUserId(request: Request) {
   if (!hasClerkKeys) {
     return { error: NextResponse.json({ error: "Auth is not configured." }, { status: 503 }) };
   }
 
-  const userId = await resolveClerkUserId();
+  const userId = await resolveClerkUserId(request);
   if (!userId) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  return { dbUserId: await getOrCreateCurrentDbUserId(userId) };
+  return { dbUserId: await ensureDbUserIdByClerkId(userId) };
 }
 
 export async function GET(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) {
     return authResult.error;
   }
@@ -111,7 +47,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const authResult = await getAuthenticatedDbUserId();
+  const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) {
     return authResult.error;
   }
