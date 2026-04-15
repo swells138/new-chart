@@ -481,33 +481,38 @@ export async function PATCH(request: Request) {
 // DELETE — remove a private connection
 // ───────────────────────────────────────────────
 export async function DELETE(request: Request) {
-  const authResult = await getAuthenticatedDbUserId(request);
-  if (authResult.error) return authResult.error;
-  const currentDbUserId = authResult.dbUserId;
-
-  let payload: unknown;
   try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    const authResult = await getAuthenticatedDbUserId(request);
+    if (authResult.error) return authResult.error;
+    const currentDbUserId = authResult.dbUserId;
+
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
+
+    const parsed = deleteSchema.safeParse(payload);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
+    }
+
+    const { id } = parsed.data;
+
+    const existing = await prisma.placeholderPerson.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
+    }
+    if (existing.ownerId !== currentDbUserId) {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
+    await prisma.placeholderPerson.delete({ where: { id } });
+
+    return NextResponse.json({ deleted: true, id });
+  } catch (error) {
+    console.error("Failed to delete private connection", error);
+    return NextResponse.json({ error: "Could not delete this connection." }, { status: 500 });
   }
-
-  const parsed = deleteSchema.safeParse(payload);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
-  }
-
-  const { id } = parsed.data;
-
-  const existing = await prisma.placeholderPerson.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
-  }
-  if (existing.ownerId !== currentDbUserId) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-  }
-
-  await prisma.placeholderPerson.delete({ where: { id } });
-
-  return NextResponse.json({ deleted: true, id });
 }
