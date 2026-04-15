@@ -16,7 +16,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "db:cleanup-dev": "tsx scripts/cleanup-dev-data.ts"
+    "db:cleanup-dev": "tsx scripts/cleanup-dev-data.ts",
+    "db:fake-pending": "tsx scripts/fake-pending-connections.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.12",
