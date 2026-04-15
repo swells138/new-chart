@@ -15,7 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 import { PrivateChart } from "@/components/map/private-chart";
@@ -59,7 +59,13 @@ function getOrganicPosition(index: number, total: number, id: string, isCurrentU
   };
 }
 
-type PersonNodeData = { label: string; handle: string; color: string };
+type PersonNodeData = {
+  label: string;
+  handle: string;
+  color: string;
+  isPulsing?: boolean;
+  isBouncing?: boolean;
+};
 
 function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boolean }) {
   const initial = (data.label?.[0] ?? "?").toUpperCase();
@@ -80,25 +86,28 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
       <div style={{ textAlign: "center", width: 86 }}>
-        <div
-          style={{
-            width: 50,
-            height: 50,
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 38% 32%, ${data.color} 0%, color-mix(in srgb, ${data.color}, #000 28%) 100%)`,
-            boxShadow: `0 0 22px ${data.color}44, 0 8px 24px rgba(0,0,0,0.42)`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto",
-            border: selected ? `2.5px solid ${data.color}` : "2px solid rgba(255,255,255,0.14)",
-            transition: "transform 0.22s ease, box-shadow 0.22s ease",
-            transform: selected ? "translateY(-1px) scale(1.03)" : "translateY(0) scale(1)",
-          }}
-        >
-          <span style={{ color: "white", fontWeight: 700, fontSize: 15, fontFamily: "system-ui", userSelect: "none" }}>
-            {initial}
-          </span>
+        <div className={data.isBouncing ? "map-node-bounce" : undefined}>
+          <div
+            className={data.isPulsing ? "map-node-pulse" : undefined}
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: "50%",
+              background: `radial-gradient(circle at 38% 32%, ${data.color} 0%, color-mix(in srgb, ${data.color}, #000 28%) 100%)`,
+              boxShadow: `0 0 22px ${data.color}44, 0 8px 24px rgba(0,0,0,0.42)`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto",
+              border: selected ? `2.5px solid ${data.color}` : "2px solid rgba(255,255,255,0.14)",
+              transition: "transform 0.22s ease, box-shadow 0.22s ease",
+              transform: selected ? "translateY(-1px) scale(1.03)" : "translateY(0) scale(1)",
+            }}
+          >
+            <span style={{ color: "white", fontWeight: 700, fontSize: 15, fontFamily: "system-ui", userSelect: "none" }}>
+              {initial}
+            </span>
+          </div>
         </div>
         <div
           style={{
@@ -259,6 +268,27 @@ export function RelationshipMap({
   const [isResolvingCurrentUserId, setIsResolvingCurrentUserId] = useState(false);
   const [hasAttemptedUserBootstrap, setHasAttemptedUserBootstrap] = useState(false);
   const [hasBrowserSession, setHasBrowserSession] = useState(false);
+  const [recentEdgeId, setRecentEdgeId] = useState<string | null>(null);
+  const [pulsingNodeIds, setPulsingNodeIds] = useState<string[]>([]);
+  const [bouncingNodeId, setBouncingNodeId] = useState<string | null>(null);
+  const feedbackTimeoutRef = useRef<number | null>(null);
+
+  function triggerConnectionFeedback(edgeId: string, sourceId: string, targetId: string) {
+    setRecentEdgeId(edgeId);
+    setPulsingNodeIds([sourceId, targetId]);
+    setBouncingNodeId(targetId);
+
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+    }
+
+    feedbackTimeoutRef.current = window.setTimeout(() => {
+      setRecentEdgeId((current) => (current === edgeId ? null : current));
+      setPulsingNodeIds([]);
+      setBouncingNodeId((current) => (current === targetId ? null : current));
+      feedbackTimeoutRef.current = null;
+    }, 1300);
+  }
 
   async function getBrowserClerkToken() {
     if (typeof window === "undefined") {
@@ -321,6 +351,14 @@ export function RelationshipMap({
   useEffect(() => {
     setResolvedCurrentUserId(currentUserId);
   }, [currentUserId]);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current !== null) {
+        window.clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   async function ensureCurrentUserId(options?: { silent?: boolean }) {
     const silent = options?.silent ?? false;
@@ -586,12 +624,18 @@ export function RelationshipMap({
     return orderedUsers.map((user, index) => ({
       id: user.id,
       type: "person",
-      data: { label: user.name, handle: user.handle, color: hashColor(user.id) },
+      data: {
+        label: user.name,
+        handle: user.handle,
+        color: hashColor(user.id),
+        isPulsing: pulsingNodeIds.includes(user.id),
+        isBouncing: bouncingNodeId === user.id,
+      },
       position: getOrganicPosition(index, orderedUsers.length, user.id, user.id === activeCurrentUserId),
       style: { background: "transparent", border: "none", padding: 0 },
       draggable: activeCurrentUserId ? user.id === activeCurrentUserId : true,
     }));
-  }, [displayedUsers, activeCurrentUserId]);
+  }, [displayedUsers, activeCurrentUserId, pulsingNodeIds, bouncingNodeId]);
 
   const filteredRelationships = useMemo(
     () => {
@@ -610,6 +654,16 @@ export function RelationshipMap({
     [filteredRelationships]
   );
 
+  const graphConnectionCount = graphRelationships.length;
+  const progressionMessage =
+    graphConnectionCount === 0
+      ? "Start building your network"
+      : graphConnectionCount <= 2
+      ? "Nice start"
+      : graphConnectionCount <= 4
+      ? "Your network is forming"
+      : "Now it’s getting interesting";
+
   const mappedEdges: Edge[] = useMemo(
     () => {
       const nodeById = new Map(mappedNodes.map((node) => [node.id, node]));
@@ -625,6 +679,7 @@ export function RelationshipMap({
           id: item.id,
           source: item.source,
           target: item.target,
+          className: recentEdgeId === item.id ? "map-edge-reveal" : undefined,
           sourceHandle: sourceIsLeft ? "source-right" : "source-left",
           targetHandle: sourceIsLeft ? "target-left" : "target-right",
           type: "bezier",
@@ -652,7 +707,7 @@ export function RelationshipMap({
         };
       });
     },
-    [graphRelationships, mappedNodes]
+    [graphRelationships, mappedNodes, recentEdgeId]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
@@ -725,6 +780,7 @@ export function RelationshipMap({
 
       setAllRelationships((prev) => [...prev, relationship]);
       setSelectedId(relationship.target);
+      triggerConnectionFeedback(relationship.id, sourceId, relationship.target);
     } catch (error) {
       console.error(error);
       setConnectionError("Could not create that connection.");
@@ -999,6 +1055,13 @@ export function RelationshipMap({
         <p className="mb-3 text-xs text-black/65 dark:text-white/70">
           Use the side form to connect with an existing member, or drag from your node to another member.
         </p>
+        <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-white/90 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium">Add someone to begin your network</p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">Connections: {graphConnectionCount}</p>
+            <p className="text-[11px] text-white/60">{progressionMessage}</p>
+          </div>
+        </div>
         {hasDbUser ? null : (
           <p className="mb-3 text-xs text-black/65 dark:text-white/70">
             {isResolvingCurrentUserId
@@ -1026,6 +1089,12 @@ export function RelationshipMap({
           <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
         ) : null}
         <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)]" style={{ background: "#0f0819" }}>
+          <div className="pointer-events-none absolute inset-0 z-0">
+            <span className="map-bg-dot map-bg-dot-1" aria-hidden="true" />
+            <span className="map-bg-dot map-bg-dot-2" aria-hidden="true" />
+            <span className="map-bg-dot map-bg-dot-3" aria-hidden="true" />
+            <span className="map-bg-dot map-bg-dot-4" aria-hidden="true" />
+          </div>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -1038,6 +1107,7 @@ export function RelationshipMap({
             minZoom={0.4}
             maxZoom={1.8}
             connectOnClick={false}
+            className="relative z-10"
           >
             <Controls showInteractive={false} />
             <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
@@ -1047,7 +1117,8 @@ export function RelationshipMap({
 
       <aside className="paper-card rounded-2xl p-5">
         <div className="rounded-xl border border-[var(--border-soft)] p-3">
-          <h4 className="text-sm font-semibold uppercase tracking-wide">Add connection</h4>
+          <h4 className="text-sm font-semibold uppercase tracking-wide">Grow Your Network</h4>
+          <p className="mt-1 text-xs text-black/65 dark:text-white/70">Every person you add reveals more connections.</p>
           {activeCurrentUserId ? (
             <form
               className="mt-3 space-y-2"
@@ -1065,6 +1136,25 @@ export function RelationshipMap({
                 className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2 text-sm outline-none"
                 disabled={connectableUsers.length === 0 || isConnecting}
               />
+              <div className="rounded-lg border border-[var(--border-soft)] bg-black/[0.02] p-2 dark:bg-white/[0.04]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">Suggestions</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {[
+                    "Add your best friend",
+                    "Add your partner",
+                    "Add someone you used to date",
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setConnectionQuery(suggestion.replace(/^Add\s+/i, ""))}
+                      className="rounded-full border border-[var(--border-soft)] px-2.5 py-1 text-[11px] text-black/75 transition hover:bg-black/5 dark:text-white/75 dark:hover:bg-white/10"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {connectableUsers.length === 0 ? (
                 <p className="text-xs text-black/60 dark:text-white/70">No available members to connect with.</p>
               ) : (

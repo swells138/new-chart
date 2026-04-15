@@ -181,3 +181,120 @@ h4 {
     animation: none;
   }
 }
+
+.map-edge-reveal path {
+  stroke-dasharray: 14 10;
+  animation: map-edge-reveal 900ms ease-out;
+}
+
+.map-node-pulse {
+  animation: map-node-pulse 1000ms ease-out;
+}
+
+.map-node-bounce {
+  animation: map-node-bounce 760ms cubic-bezier(0.2, 0.85, 0.25, 1.08);
+  transform-origin: center;
+}
+
+.map-bg-dot {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 55%, rgba(255, 255, 255, 0) 100%);
+  filter: blur(1px);
+  opacity: 0.28;
+  animation: map-bg-drift 10s ease-in-out infinite;
+}
+
+.map-bg-dot-1 {
+  width: 42px;
+  height: 42px;
+  left: 11%;
+  top: 14%;
+  animation-delay: -1s;
+}
+
+.map-bg-dot-2 {
+  width: 30px;
+  height: 30px;
+  left: 72%;
+  top: 20%;
+  animation-delay: -3s;
+}
+
+.map-bg-dot-3 {
+  width: 34px;
+  height: 34px;
+  left: 23%;
+  top: 68%;
+  animation-delay: -5s;
+}
+
+.map-bg-dot-4 {
+  width: 26px;
+  height: 26px;
+  left: 82%;
+  top: 74%;
+  animation-delay: -7s;
+}
+
+@keyframes map-edge-reveal {
+  0% {
+    stroke-dashoffset: 56;
+    stroke-opacity: 0.15;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+  55% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.32));
+  }
+  100% {
+    stroke-dashoffset: 0;
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+}
+
+@keyframes map-node-pulse {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0), 0 8px 24px rgba(0, 0, 0, 0.42);
+  }
+  45% {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.35), 0 8px 24px rgba(0, 0, 0, 0.42);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0), 0 8px 24px rgba(0, 0, 0, 0.42);
+  }
+}
+
+@keyframes map-node-bounce {
+  0% {
+    transform: scale(0.88);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes map-bg-drift {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(-10px) scale(1.05);
+    opacity: 0.34;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-edge-reveal path,
+  .map-node-pulse,
+  .map-node-bounce,
+  .map-bg-dot {
+    animation: none;
+  }
+}
