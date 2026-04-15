@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
 
@@ -66,7 +66,28 @@ interface PublicConnectCandidate {
 
 export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, approvedConnections = [], users = [] }: Props) {
   const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
+  const [highlightedConnectionId, setHighlightedConnectionId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
   const { getToken } = useAuth();
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function highlightConnection(id: string) {
+    setHighlightedConnectionId(id);
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedConnectionId((current) => (current === id ? null : current));
+      highlightTimeoutRef.current = null;
+    }, 1400);
+  }
 
   async function authFetch(input: string, init?: RequestInit) {
     const headers = new Headers(init?.headers);
@@ -125,6 +146,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
     return [...privateItems, ...publicItems].slice(0, 12);
   }, [placeholders, approvedConnections, users, currentUserId]);
+
+  const discoveredConnections = chartConnections.length;
 
   // Add-form state
   const [addName, setAddName] = useState("");
@@ -212,8 +235,12 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       }
       const createdPlaceholder = body.placeholder;
       const suggestion = body.suggestion;
+      const nextPrivateCount = placeholders.length + 1;
 
       setPlaceholders((prev) => [createdPlaceholder, ...prev]);
+      if (nextPrivateCount === 2 || nextPrivateCount === 3) {
+        highlightConnection(`private-${createdPlaceholder.id}`);
+      }
       if (suggestion?.kind === "existing-user") {
         const displayName = suggestion.user.name || suggestion.user.handle || "that person";
         setAddHint(`${suggestion.message} We found a likely match: ${displayName}.`);
@@ -408,6 +435,12 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             <span className="rounded-full border border-white/15 px-2 py-0.5">Confirmed solid</span>
           </div>
         </div>
+        <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3 text-white/70 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium">Add more people to reveal deeper connections</p>
+          <p className="self-start rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/65 sm:self-auto">
+            Connections discovered: {discoveredConnections}
+          </p>
+        </div>
         <svg viewBox="0 0 880 460" className="block h-auto w-full" aria-label="Direct connection chart">
           <defs>
             <pattern id="private-grid" x="0" y="0" width="26" height="26" patternUnits="userSpaceOnUse">
@@ -437,9 +470,10 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                   x2={x}
                   y2={y}
                   stroke={item.color}
-                  strokeWidth="2"
-                  strokeOpacity="0.75"
+                  strokeWidth={highlightedConnectionId === item.id ? 3 : 2}
+                  strokeOpacity={highlightedConnectionId === item.id ? 0.95 : 0.75}
                   strokeDasharray={item.kind === "private" ? "7 4" : undefined}
+                  className={highlightedConnectionId === item.id ? "private-connection-line-reveal" : undefined}
                 />
                 <rect
                   x={mx - 31}
@@ -464,8 +498,15 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                   {item.type}
                 </text>
 
-                <circle cx={x} cy={y} r="28" fill={item.color} fillOpacity="0.17" />
-                <circle cx={x} cy={y} r="22" fill={item.color} />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="28"
+                  fill={item.color}
+                  fillOpacity="0.17"
+                  className={highlightedConnectionId === item.id ? "private-connection-node-reveal" : undefined}
+                />
+                <circle cx={x} cy={y} r="22" fill={item.color} className={highlightedConnectionId === item.id ? "private-connection-node-reveal" : undefined} />
                 <text
                   x={x}
                   y={y + 5}
@@ -536,6 +577,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             </text>
           ) : null}
         </svg>
+        <p className="border-t border-white/10 px-4 py-3 text-center text-xs text-white/55">
+          The more people you add, the more connections you uncover.
+        </p>
       </section>
 
       {/* Confirmed direct connections */}

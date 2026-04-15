@@ -136,3 +136,48 @@ h4 {
   opacity: 0;
   transition: opacity 200ms ease;
 }
+
+.private-connection-line-reveal {
+  animation: private-connection-line-reveal 700ms ease-out;
+}
+
+.private-connection-node-reveal {
+  animation: private-connection-node-reveal 700ms ease-out;
+}
+
+@keyframes private-connection-line-reveal {
+  0% {
+    stroke-opacity: 0;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+  50% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
+  }
+  100% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+}
+
+@keyframes private-connection-node-reveal {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .private-connection-line-reveal,
+  .private-connection-node-reveal {
+    animation: none;
+  }
+}
