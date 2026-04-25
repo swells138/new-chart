@@ -569,10 +569,34 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ deleted: true, id });
   } catch (error) {
+    // Log the full error server-side for debugging
     console.error("Failed to delete private connection", error);
-    return NextResponse.json(
-      { error: "Could not delete this connection." },
-      { status: 500 },
-    );
+
+    // Include additional details in the JSON response when not in production
+    const code = getPrismaErrorCode(error);
+    const details = (() => {
+      try {
+        // Prefer error.message if available
+        if (error && typeof error === "object" && "message" in error) {
+          const e = error as Record<string, unknown>;
+          const m = e.message;
+          return typeof m === "string" ? m : String(m);
+        }
+        return String(error);
+      } catch {
+        return undefined;
+      }
+    })();
+
+    const responseBody: Record<string, unknown> = {
+      error: "Could not delete this connection.",
+    };
+
+    if (code) responseBody.prismaCode = code;
+    if (process.env.NODE_ENV !== "production") {
+      responseBody.details = details;
+    }
+
+    return NextResponse.json(responseBody, { status: 500 });
   }
 }
