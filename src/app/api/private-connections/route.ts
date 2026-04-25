@@ -507,6 +507,19 @@ export async function PATCH(request: Request) {
   }
 
   // Default: "update" — patch name/type/note
+  // Determine whether the update changes any meaningful fields.
+  const willModifyFields =
+    name !== undefined ||
+    email !== undefined ||
+    phoneNumber !== undefined ||
+    relationshipType !== undefined ||
+    note !== undefined;
+
+  // If this placeholder was previously claimed and the owner changes it,
+  // revert it to private (unclaimed) until verified again. Also clear any
+  // linked user and invite token so the claim must be re-established.
+  const revokeClaim = existing.claimStatus === "claimed" && willModifyFields;
+
   const updated = await prisma.placeholderPerson.update({
     where: { id },
     data: {
@@ -517,6 +530,9 @@ export async function PATCH(request: Request) {
       }),
       ...(relationshipType !== undefined && { relationshipType }),
       ...(note !== undefined && { note: note.trim() }),
+      ...(revokeClaim && { claimStatus: "unclaimed" }),
+      ...(revokeClaim && { linkedUserId: null }),
+      ...(revokeClaim && { inviteToken: null }),
     },
   });
 
@@ -552,12 +568,16 @@ export async function DELETE(request: Request) {
     // Check existence and ownership so we can preserve 404/403 semantics.
     const existing = await prisma.placeholderPerson.findUnique({
       where: { id },
-      select: { ownerId: true },
+      select: { ownerId: true, linkedUserId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
-    if (existing.ownerId !== currentDbUserId) {
+    // Allow deletion by either the owner or the linked (claimed) user.
+    if (
+      existing.ownerId !== currentDbUserId &&
+      existing.linkedUserId !== currentDbUserId
+    ) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
