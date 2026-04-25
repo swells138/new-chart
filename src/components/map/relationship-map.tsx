@@ -740,6 +740,16 @@ export function RelationshipMap({
     [approvedRelationships],
   );
 
+  // ensure filteredRelationships is declared before mappedNodes (used to build degree map)
+  const filteredRelationships = useMemo(() => {
+    return displayedRelationships.filter(
+      (item) =>
+        activeTypes.includes(item.type) &&
+        displayedUserIds.has(item.source) &&
+        displayedUserIds.has(item.target),
+    );
+  }, [activeTypes, displayedRelationships, displayedUserIds]);
+
   const mappedNodes: Node[] = useMemo(() => {
     const orderedUsers = [...displayedUsers].sort((left, right) => {
       if (activeCurrentUserId && left.id === activeCurrentUserId) return -1;
@@ -848,15 +858,6 @@ export function RelationshipMap({
     bouncingNodeId,
     filteredRelationships,
   ]);
-
-  const filteredRelationships = useMemo(() => {
-    return displayedRelationships.filter(
-      (item) =>
-        activeTypes.includes(item.type) &&
-        displayedUserIds.has(item.source) &&
-        displayedUserIds.has(item.target),
-    );
-  }, [activeTypes, displayedRelationships, displayedUserIds]);
 
   const graphRelationships = useMemo(
     () =>
