@@ -352,23 +352,33 @@ export function PrivateChart({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      let body: unknown;
+      // Read raw response text so debugging always surfaces the server body.
+      let parsed:
+        | { deleted?: boolean; id?: string; error?: string }
+        | undefined;
       try {
-        body = (await res.json()) as {
-          deleted?: boolean;
-          id?: string;
-          error?: string;
-        };
-      } catch {
+        const text = await res.text();
+        console.error("Delete raw response:", res.status, text);
+        try {
+          parsed = JSON.parse(text) as {
+            deleted?: boolean;
+            id?: string;
+            error?: string;
+          };
+        } catch {
+          // If response isn't JSON, keep the raw text in the error field.
+          parsed = { error: text };
+        }
+      } catch (e) {
         setActionError("Invalid response from server.");
         return;
       }
-      const parsed = body as { deleted?: boolean; id?: string; error?: string };
-      if (!res.ok || !parsed.deleted) {
-        // Log full response for debugging so we can see why deletion failed locally
+      if (!res.ok || !parsed?.deleted) {
+        // Log full parsed response for debugging so we can see why deletion failed locally
         console.error("Delete failed:", { status: res.status, body: parsed });
         setActionError(
-          parsed.error ?? "Could not remove this connection. Please try again.",
+          parsed?.error ??
+            "Could not remove this connection. Please try again.",
         );
         return;
       }
