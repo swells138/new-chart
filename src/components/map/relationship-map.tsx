@@ -15,43 +15,66 @@ import {
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import type {
+  PlaceholderPerson,
+  Relationship,
+  RelationshipType,
+  User,
+} from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 import { PrivateChart } from "@/components/map/private-chart";
 
 // ─── Demo-style node colours ───────────────────────────────
 const NODE_PALETTE = [
-  "#ff8f84", "#a78bfa", "#66b6a7", "#ffd08d", "#fb923c",
-  "#f472b6", "#63b1ff", "#7aa2ff", "#ee82d8", "#9b8cff",
+  "#ff8f84",
+  "#a78bfa",
+  "#66b6a7",
+  "#ffd08d",
+  "#fb923c",
+  "#f472b6",
+  "#63b1ff",
+  "#7aa2ff",
+  "#ee82d8",
+  "#9b8cff",
 ];
 
 function hashColor(id: string): string {
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
+  for (let i = 0; i < id.length; i++)
+    h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
   return NODE_PALETTE[Math.abs(h) % NODE_PALETTE.length];
 }
 
 function hashNumber(id: string): number {
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 33 + id.charCodeAt(i)) & 0xffffffff;
+  for (let i = 0; i < id.length; i++)
+    h = (h * 33 + id.charCodeAt(i)) & 0xffffffff;
   return Math.abs(h);
 }
 
-function getOrganicPosition(index: number, total: number, id: string, isCurrentUser: boolean) {
+function getOrganicPosition(
+  index: number,
+  total: number,
+  id: string,
+  isCurrentUser: boolean,
+  degree = 1,
+) {
   if (isCurrentUser) {
     return { x: 430, y: 250 };
   }
 
   const seed = hashNumber(id);
   const safeTotal = Math.max(total, 1);
-  const ring = 1 + (index % 3);
-  const baseRadius = 120 + ring * 70;
+  // nodes with no connections are intentionally pushed further out for visibility
+  const isIsolated = degree === 0;
+  const ring = isIsolated ? 4 + (index % 2) : 1 + (index % 3);
+  const baseRadius = 120 + ring * 70 + (isIsolated ? 180 : 0);
   const jitterRadius = (seed % 35) - 17;
   const jitterY = (seed % 30) - 15;
   const baseAngle = (index / safeTotal) * Math.PI * 2;
   const seededAngle = ((seed % 360) * Math.PI) / 180;
-  const angle = baseAngle + seededAngle * 0.2;
+  const angle = baseAngle + seededAngle * 0.18;
 
   return {
     x: 430 + Math.cos(angle) * (baseRadius + jitterRadius),
@@ -65,11 +88,18 @@ type PersonNodeData = {
   color: string;
   isPulsing?: boolean;
   isBouncing?: boolean;
+  isConnected?: boolean;
+  degree?: number;
 };
 
-function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boolean }) {
+function PersonNode({
+  data,
+  selected,
+}: {
+  data: PersonNodeData;
+  selected?: boolean;
+}) {
   const initial = (data.label?.[0] ?? "?").toUpperCase();
-  // Show first name only so the pill stays compact below the circle
   const displayName = data.label.split(" ")[0] ?? data.label;
   return (
     <>
@@ -86,45 +116,65 @@ function PersonNode({ data, selected }: { data: PersonNodeData; selected?: boole
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
       <div style={{ textAlign: "center", width: 86 }}>
-        <div className={data.isBouncing ? "map-node-bounce" : undefined}>
+        <div style={{ display: "flex", justifyContent: "center" }}>
           <div
-            className={data.isPulsing ? "map-node-pulse" : undefined}
+            className={data.isBouncing ? "map-node-bounce" : undefined}
             style={{
-              width: 50,
-              height: 50,
+              width: 40,
+              height: 40,
               borderRadius: "50%",
-              background: `radial-gradient(circle at 38% 32%, ${data.color} 0%, color-mix(in srgb, ${data.color}, #000 28%) 100%)`,
-              boxShadow: `0 0 22px ${data.color}44, 0 8px 24px rgba(0,0,0,0.42)`,
+              background: data.color,
+              boxShadow: data.isPulsing
+                ? `0 6px 18px ${data.color}22`
+                : `0 2px 6px rgba(2,6,23,0.18)`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               margin: "0 auto",
-              border: selected ? `2.5px solid ${data.color}` : "2px solid rgba(255,255,255,0.14)",
-              transition: "transform 0.22s ease, box-shadow 0.22s ease",
-              transform: selected ? "translateY(-1px) scale(1.03)" : "translateY(0) scale(1)",
+              border: selected
+                ? `2px solid ${data.color}`
+                : "1px solid rgba(255,255,255,0.06)",
+              transition: "transform 0.18s ease, box-shadow 0.18s ease",
+              transform: selected
+                ? "translateY(-1px) scale(1.04)"
+                : "translateY(0) scale(1)",
             }}
           >
-            <span style={{ color: "white", fontWeight: 700, fontSize: 15, fontFamily: "system-ui", userSelect: "none" }}>
+            <span
+              style={{
+                color: "white",
+                fontWeight: 700,
+                fontSize: 13,
+                fontFamily: "system-ui",
+                userSelect: "none",
+              }}
+            >
               {initial}
             </span>
           </div>
         </div>
+
         <div
           style={{
             marginTop: 6,
-            background: "linear-gradient(180deg, rgba(11,9,27,0.8), rgba(4,3,16,0.72))",
-            border: "1px solid rgba(255,255,255,0.16)",
             borderRadius: 999,
-            padding: "3px 10px",
+            padding: "2px 8px",
             maxWidth: 86,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             margin: "6px auto 0",
-            backdropFilter: "blur(6px)",
           }}
         >
-          <span style={{ color: "rgba(255,255,255,0.88)", fontSize: 10, fontWeight: 600, fontFamily: "system-ui", userSelect: "none" }}>
+          <span
+            style={{
+              color: "rgba(255,255,255,0.9)",
+              fontSize: 11,
+              fontWeight: 600,
+              fontFamily: "system-ui",
+              userSelect: "none",
+            }}
+          >
             {displayName}
           </span>
         </div>
@@ -213,8 +263,10 @@ function parseRelationshipNote(input: string): {
 
     return {
       status: meta.status === "pending" ? "pending" : "approved",
-      requesterId: typeof meta.requesterId === "string" ? meta.requesterId : null,
-      responderId: typeof meta.responderId === "string" ? meta.responderId : null,
+      requesterId:
+        typeof meta.requesterId === "string" ? meta.requesterId : null,
+      responderId:
+        typeof meta.responderId === "string" ? meta.responderId : null,
       note: raw.slice(endIndex + metaSuffix.length).trim(),
     };
   } catch {
@@ -252,28 +304,42 @@ export function RelationshipMap({
     "complicated",
     "FWB",
   ]);
-  const [selectedId, setSelectedId] = useState<string | null>(users[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    users[0]?.id ?? null,
+  );
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionQuery, setConnectionQuery] = useState<string>("");
-  const [connectionType, setConnectionType] = useState<RelationshipType>("Friends");
-  const [allRelationships, setAllRelationships] = useState<Relationship[]>(relationships);
+  const [connectionType, setConnectionType] =
+    useState<RelationshipType>("Friends");
+  const [allRelationships, setAllRelationships] =
+    useState<Relationship[]>(relationships);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [editingRelationshipId, setEditingRelationshipId] = useState<string | null>(null);
+  const [editingRelationshipId, setEditingRelationshipId] = useState<
+    string | null
+  >(null);
   const [editingType, setEditingType] = useState<RelationshipType>("Friends");
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
-  const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<string | null>(currentUserId);
-  const [isResolvingCurrentUserId, setIsResolvingCurrentUserId] = useState(false);
-  const [hasAttemptedUserBootstrap, setHasAttemptedUserBootstrap] = useState(false);
+  const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<
+    string | null
+  >(currentUserId);
+  const [isResolvingCurrentUserId, setIsResolvingCurrentUserId] =
+    useState(false);
+  const [hasAttemptedUserBootstrap, setHasAttemptedUserBootstrap] =
+    useState(false);
   const [hasBrowserSession, setHasBrowserSession] = useState(false);
   const [recentEdgeId, setRecentEdgeId] = useState<string | null>(null);
   const [pulsingNodeIds, setPulsingNodeIds] = useState<string[]>([]);
   const [bouncingNodeId, setBouncingNodeId] = useState<string | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
 
-  function triggerConnectionFeedback(edgeId: string, sourceId: string, targetId: string) {
+  function triggerConnectionFeedback(
+    edgeId: string,
+    sourceId: string,
+    targetId: string,
+  ) {
     setRecentEdgeId(edgeId);
     setPulsingNodeIds([sourceId, targetId]);
     setBouncingNodeId(targetId);
@@ -295,13 +361,15 @@ export function RelationshipMap({
       return null;
     }
 
-    const maybeClerk = (window as Window & {
-      Clerk?: {
-        session?: {
-          getToken?: () => Promise<string | null>;
+    const maybeClerk = (
+      window as Window & {
+        Clerk?: {
+          session?: {
+            getToken?: () => Promise<string | null>;
+          };
         };
-      };
-    }).Clerk;
+      }
+    ).Clerk;
 
     if (!maybeClerk?.session?.getToken) {
       return null;
@@ -382,7 +450,9 @@ export function RelationshipMap({
 
       if (!response.ok) {
         if (!silent && response.status !== 401) {
-          setConnectionError(body.error ?? "Could not verify your account. Please try again.");
+          setConnectionError(
+            body.error ?? "Could not verify your account. Please try again.",
+          );
         }
         return null;
       }
@@ -390,7 +460,9 @@ export function RelationshipMap({
       const dbUserId = body.profile?.id;
       if (!dbUserId) {
         if (!silent) {
-          setConnectionError("Could not find your account record yet. Please reload shortly.");
+          setConnectionError(
+            "Could not find your account record yet. Please reload shortly.",
+          );
         }
         return null;
       }
@@ -444,7 +516,10 @@ export function RelationshipMap({
 
     if (activeCurrentUserId && userConnections) {
       userConnections.forEach((item) => {
-        if (item.source === activeCurrentUserId || item.target === activeCurrentUserId) {
+        if (
+          item.source === activeCurrentUserId ||
+          item.target === activeCurrentUserId
+        ) {
           byId.set(item.id, item);
         }
       });
@@ -467,14 +542,20 @@ export function RelationshipMap({
         if (!activeCurrentUserId) {
           return false;
         }
-        return item.source === activeCurrentUserId || item.target === activeCurrentUserId;
+        return (
+          item.source === activeCurrentUserId ||
+          item.target === activeCurrentUserId
+        );
       }),
-    [allRelationships, activeCurrentUserId]
+    [allRelationships, activeCurrentUserId],
   );
 
   const approvedRelationships = useMemo(
-    () => allRelationships.filter((item) => parseRelationshipNote(item.note).status === "approved"),
-    [allRelationships]
+    () =>
+      allRelationships.filter(
+        (item) => parseRelationshipNote(item.note).status === "approved",
+      ),
+    [allRelationships],
   );
 
   const limitedExtendedNodeIds = useMemo(() => {
@@ -499,18 +580,34 @@ export function RelationshipMap({
     const extendedScores = new Map<string, number>();
 
     approvedRelationships.forEach((item) => {
-      if (directIds.has(item.source) && item.target !== activeCurrentUserId && !directIds.has(item.target)) {
-        extendedScores.set(item.target, (extendedScores.get(item.target) ?? 0) + 1);
+      if (
+        directIds.has(item.source) &&
+        item.target !== activeCurrentUserId &&
+        !directIds.has(item.target)
+      ) {
+        extendedScores.set(
+          item.target,
+          (extendedScores.get(item.target) ?? 0) + 1,
+        );
       }
-      if (directIds.has(item.target) && item.source !== activeCurrentUserId && !directIds.has(item.source)) {
-        extendedScores.set(item.source, (extendedScores.get(item.source) ?? 0) + 1);
+      if (
+        directIds.has(item.target) &&
+        item.source !== activeCurrentUserId &&
+        !directIds.has(item.source)
+      ) {
+        extendedScores.set(
+          item.source,
+          (extendedScores.get(item.source) ?? 0) + 1,
+        );
       }
     });
 
     const orderedExtendedIds = users
       .filter((user) => extendedScores.has(user.id))
       .sort((left, right) => {
-        const scoreDifference = (extendedScores.get(right.id) ?? 0) - (extendedScores.get(left.id) ?? 0);
+        const scoreDifference =
+          (extendedScores.get(right.id) ?? 0) -
+          (extendedScores.get(left.id) ?? 0);
         if (scoreDifference !== 0) {
           return scoreDifference;
         }
@@ -520,16 +617,30 @@ export function RelationshipMap({
 
     const visibleExtendedIds = orderedExtendedIds.slice(0, 25);
     return {
-      nodeIds: new Set<string>([activeCurrentUserId, ...Array.from(directIds), ...visibleExtendedIds]),
-      hiddenCount: Math.max(0, orderedExtendedIds.length - visibleExtendedIds.length),
+      nodeIds: new Set<string>([
+        activeCurrentUserId,
+        ...Array.from(directIds),
+        ...visibleExtendedIds,
+      ]),
+      hiddenCount: Math.max(
+        0,
+        orderedExtendedIds.length - visibleExtendedIds.length,
+      ),
       totalExtendedCount: orderedExtendedIds.length,
     };
-  }, [approvedRelationships, approvedUserConnections, activeCurrentUserId, users]);
+  }, [
+    approvedRelationships,
+    approvedUserConnections,
+    activeCurrentUserId,
+    users,
+  ]);
 
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
     if (activeCurrentUserId) {
-      return users.filter((user) => limitedExtendedNodeIds.nodeIds.has(user.id));
+      return users.filter((user) =>
+        limitedExtendedNodeIds.nodeIds.has(user.id),
+      );
     }
 
     const baseUsers = areaUsers && areaUsers.length > 0 ? areaUsers : users;
@@ -540,7 +651,13 @@ export function RelationshipMap({
     });
 
     return baseUsers.filter((user) => connectedInGraph.has(user.id));
-  }, [users, areaUsers, activeCurrentUserId, limitedExtendedNodeIds, approvedRelationships]);
+  }, [
+    users,
+    areaUsers,
+    activeCurrentUserId,
+    limitedExtendedNodeIds,
+    approvedRelationships,
+  ]);
 
   useEffect(() => {
     if (displayedUsers.length === 0) {
@@ -553,11 +670,16 @@ export function RelationshipMap({
     }
 
     const defaultSelected =
-      (activeCurrentUserId && displayedUsers.find((user) => user.id === activeCurrentUserId)?.id) ?? displayedUsers[0].id;
+      (activeCurrentUserId &&
+        displayedUsers.find((user) => user.id === activeCurrentUserId)?.id) ??
+      displayedUsers[0].id;
     setSelectedId(defaultSelected);
   }, [displayedUsers, selectedId, activeCurrentUserId]);
 
-  const displayedUserIds = useMemo(() => new Set(displayedUsers.map((user) => user.id)), [displayedUsers]);
+  const displayedUserIds = useMemo(
+    () => new Set(displayedUsers.map((user) => user.id)),
+    [displayedUsers],
+  );
 
   const connectableUsers = useMemo(() => {
     if (!activeCurrentUserId) {
@@ -572,7 +694,7 @@ export function RelationshipMap({
       const alreadyConnected = allRelationships.some(
         (item) =>
           (item.source === activeCurrentUserId && item.target === user.id) ||
-          (item.source === user.id && item.target === activeCurrentUserId)
+          (item.source === user.id && item.target === activeCurrentUserId),
       );
 
       return !alreadyConnected;
@@ -589,13 +711,14 @@ export function RelationshipMap({
       (user) =>
         user.name.toLowerCase().includes(query) ||
         user.handle.toLowerCase().includes(query) ||
-        user.location.toLowerCase().includes(query)
+        user.location.toLowerCase().includes(query),
     );
   }, [connectableUsers, connectionQuery]);
 
   const selectedConnectionTarget = useMemo(
-    () => connectableUsers.find((user) => user.id === connectionTargetId) ?? null,
-    [connectableUsers, connectionTargetId]
+    () =>
+      connectableUsers.find((user) => user.id === connectionTargetId) ?? null,
+    [connectableUsers, connectionTargetId],
   );
 
   useEffect(() => {
@@ -612,7 +735,10 @@ export function RelationshipMap({
   }, [connectableUsers, connectionTargetId]);
 
   // Determine which relationships to display
-  const displayedRelationships = useMemo(() => approvedRelationships, [approvedRelationships]);
+  const displayedRelationships = useMemo(
+    () => approvedRelationships,
+    [approvedRelationships],
+  );
 
   const mappedNodes: Node[] = useMemo(() => {
     const orderedUsers = [...displayedUsers].sort((left, right) => {
@@ -621,37 +747,123 @@ export function RelationshipMap({
       return left.name.localeCompare(right.name);
     });
 
-    return orderedUsers.map((user, index) => ({
-      id: user.id,
-      type: "person",
-      data: {
-        label: user.name,
-        handle: user.handle,
-        color: hashColor(user.id),
-        isPulsing: pulsingNodeIds.includes(user.id),
-        isBouncing: bouncingNodeId === user.id,
-      },
-      position: getOrganicPosition(index, orderedUsers.length, user.id, user.id === activeCurrentUserId),
-      style: { background: "transparent", border: "none", padding: 0 },
-      draggable: activeCurrentUserId ? user.id === activeCurrentUserId : true,
-    }));
-  }, [displayedUsers, activeCurrentUserId, pulsingNodeIds, bouncingNodeId]);
+    // build a quick degree map so isolated nodes can be pushed out for visibility
+    const degreeMap = new Map<string, number>();
+    filteredRelationships.forEach((rel) => {
+      degreeMap.set(rel.source, (degreeMap.get(rel.source) ?? 0) + 1);
+      degreeMap.set(rel.target, (degreeMap.get(rel.target) ?? 0) + 1);
+    });
 
-  const filteredRelationships = useMemo(
-    () => {
-      return displayedRelationships.filter(
-        (item) =>
-          activeTypes.includes(item.type) &&
-          displayedUserIds.has(item.source) &&
-          displayedUserIds.has(item.target)
+    // initial placement
+    const items = orderedUsers.map((user, index) => {
+      const degree = degreeMap.get(user.id) ?? 0;
+      const pos = getOrganicPosition(
+        index,
+        orderedUsers.length,
+        user.id,
+        user.id === activeCurrentUserId,
+        degree,
       );
-    },
-    [activeTypes, displayedRelationships, displayedUserIds]
-  );
+      return {
+        id: user.id,
+        type: "person",
+        data: {
+          label: user.name,
+          handle: user.handle,
+          color: hashColor(user.id),
+          isPulsing: pulsingNodeIds.includes(user.id),
+          isBouncing: bouncingNodeId === user.id,
+          isConnected: degree > 0,
+          degree,
+        },
+        position: { x: pos.x, y: pos.y },
+        style: { background: "transparent", border: "none", padding: 0 },
+        draggable: activeCurrentUserId ? user.id === activeCurrentUserId : true,
+      } as Node & { position: { x: number; y: number } };
+    });
+
+    // simple collision separation pass to keep nodes visually distinct
+    const minDist = 110; // minimum center-to-center distance
+    const iterations = 6;
+
+    for (let it = 0; it < iterations; it++) {
+      let moved = false;
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const a = items[i];
+          const b = items[j];
+          // keep active current user anchored
+          const aFixed = a.id === activeCurrentUserId;
+          const bFixed = b.id === activeCurrentUserId;
+
+          const dx = b.position.x - a.position.x;
+          const dy = b.position.y - a.position.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+          if (dist < minDist) {
+            const overlap = (minDist - dist) / 2;
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            if (!aFixed) {
+              a.position.x -= nx * overlap;
+              a.position.y -= ny * overlap;
+              moved = true;
+            }
+            if (!bFixed) {
+              b.position.x += nx * overlap;
+              b.position.y += ny * overlap;
+              moved = true;
+            }
+
+            // if one is fixed, push the other fully
+            if (aFixed && !bFixed) {
+              b.position.x = a.position.x + nx * minDist;
+              b.position.y = a.position.y + ny * minDist;
+            }
+            if (bFixed && !aFixed) {
+              a.position.x = b.position.x - nx * minDist;
+              a.position.y = b.position.y - ny * minDist;
+            }
+          }
+        }
+      }
+      if (!moved) break;
+    }
+
+    return items.map((item) => ({
+      id: item.id,
+      type: item.type,
+      data: item.data,
+      position: {
+        x: Math.round(item.position.x),
+        y: Math.round(item.position.y),
+      },
+      style: item.style,
+      draggable: item.draggable,
+    }));
+  }, [
+    displayedUsers,
+    activeCurrentUserId,
+    pulsingNodeIds,
+    bouncingNodeId,
+    filteredRelationships,
+  ]);
+
+  const filteredRelationships = useMemo(() => {
+    return displayedRelationships.filter(
+      (item) =>
+        activeTypes.includes(item.type) &&
+        displayedUserIds.has(item.source) &&
+        displayedUserIds.has(item.target),
+    );
+  }, [activeTypes, displayedRelationships, displayedUserIds]);
 
   const graphRelationships = useMemo(
-    () => filteredRelationships.filter((item) => parseRelationshipNote(item.note).status === "approved"),
-    [filteredRelationships]
+    () =>
+      filteredRelationships.filter(
+        (item) => parseRelationshipNote(item.note).status === "approved",
+      ),
+    [filteredRelationships],
   );
 
   const graphConnectionCount = graphRelationships.length;
@@ -659,56 +871,53 @@ export function RelationshipMap({
     graphConnectionCount === 0
       ? "Start building your network"
       : graphConnectionCount <= 2
-      ? "Nice start"
-      : graphConnectionCount <= 4
-      ? "Your network is forming"
-      : "Now it’s getting interesting";
+        ? "Nice start"
+        : graphConnectionCount <= 4
+          ? "Your network is forming"
+          : "Now it’s getting interesting";
 
-  const mappedEdges: Edge[] = useMemo(
-    () => {
-      const nodeById = new Map(mappedNodes.map((node) => [node.id, node]));
+  const mappedEdges: Edge[] = useMemo(() => {
+    const nodeById = new Map(mappedNodes.map((node) => [node.id, node]));
 
-      return graphRelationships.map((item) => {
-        const sourceNode = nodeById.get(item.source);
-        const targetNode = nodeById.get(item.target);
-        const sourceX = sourceNode?.position.x ?? 0;
-        const targetX = targetNode?.position.x ?? 0;
-        const sourceIsLeft = sourceX <= targetX;
+    return graphRelationships.map((item) => {
+      const sourceNode = nodeById.get(item.source);
+      const targetNode = nodeById.get(item.target);
+      const sourceX = sourceNode?.position.x ?? 0;
+      const targetX = targetNode?.position.x ?? 0;
+      const sourceIsLeft = sourceX <= targetX;
 
-        return {
-          id: item.id,
-          source: item.source,
-          target: item.target,
-          className: recentEdgeId === item.id ? "map-edge-reveal" : undefined,
-          sourceHandle: sourceIsLeft ? "source-right" : "source-left",
-          targetHandle: sourceIsLeft ? "target-left" : "target-right",
-          type: "bezier",
-          label: item.type,
-          animated: true,
-          style: {
-            stroke: relationColors[item.type],
-            strokeWidth: 2.4,
-            strokeOpacity: 0.8,
-          },
-          labelStyle: {
-            fontSize: 10,
-            fill: relationColors[item.type],
-            fontWeight: 600,
-            fontFamily: "system-ui",
-          },
-          labelBgStyle: {
-            fill: "rgba(8,6,22,0.8)",
-            stroke: relationColors[item.type],
-            strokeWidth: 0.75,
-            strokeOpacity: 0.55,
-          },
-          labelBgPadding: [6, 8] as [number, number],
-          labelBgBorderRadius: 999,
-        };
-      });
-    },
-    [graphRelationships, mappedNodes, recentEdgeId]
-  );
+      return {
+        id: item.id,
+        source: item.source,
+        target: item.target,
+        className: recentEdgeId === item.id ? "map-edge-reveal" : undefined,
+        sourceHandle: sourceIsLeft ? "source-right" : "source-left",
+        targetHandle: sourceIsLeft ? "target-left" : "target-right",
+        type: "bezier",
+        label: item.type,
+        animated: true,
+        style: {
+          stroke: relationColors[item.type],
+          strokeWidth: 2.4,
+          strokeOpacity: 0.8,
+        },
+        labelStyle: {
+          fontSize: 10,
+          fill: relationColors[item.type],
+          fontWeight: 600,
+          fontFamily: "system-ui",
+        },
+        labelBgStyle: {
+          fill: "rgba(8,6,22,0.8)",
+          stroke: relationColors[item.type],
+          strokeWidth: 0.75,
+          strokeOpacity: 0.55,
+        },
+        labelBgPadding: [6, 8] as [number, number],
+        labelBgBorderRadius: 999,
+      };
+    });
+  }, [graphRelationships, mappedNodes, recentEdgeId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(mappedEdges);
@@ -730,7 +939,11 @@ export function RelationshipMap({
     const sourceId = activeCurrentUserId ?? (await ensureCurrentUserId());
 
     if (!sourceId) {
-      setConnectionError(needsAccountSync ? "Finishing your account setup. Please reload in a moment." : "Sign in to create connections.");
+      setConnectionError(
+        needsAccountSync
+          ? "Finishing your account setup. Please reload in a moment."
+          : "Sign in to create connections.",
+      );
       return;
     }
 
@@ -742,7 +955,7 @@ export function RelationshipMap({
     const duplicate = allRelationships.some(
       (item) =>
         (item.source === sourceId && item.target === targetId) ||
-        (item.source === targetId && item.target === sourceId)
+        (item.source === targetId && item.target === sourceId),
     );
 
     if (duplicate) {
@@ -797,7 +1010,11 @@ export function RelationshipMap({
     const sourceId = activeCurrentUserId ?? (await ensureCurrentUserId());
 
     if (!sourceId) {
-      setConnectionError(needsAccountSync ? "Finishing your account setup. Please reload in a moment." : "Sign in to create connections.");
+      setConnectionError(
+        needsAccountSync
+          ? "Finishing your account setup. Please reload in a moment."
+          : "Sign in to create connections.",
+      );
       return;
     }
 
@@ -858,7 +1075,9 @@ export function RelationshipMap({
 
       const updated = body.relationship;
 
-      setAllRelationships((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setAllRelationships((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item)),
+      );
       setEditingRelationshipId(null);
     } catch (error) {
       console.error(error);
@@ -900,13 +1119,17 @@ export function RelationshipMap({
       }
 
       if (body.deleted && body.id) {
-        setAllRelationships((prev) => prev.filter((item) => item.id !== body.id));
+        setAllRelationships((prev) =>
+          prev.filter((item) => item.id !== body.id),
+        );
         return;
       }
 
       if (body.relationship) {
         setAllRelationships((prev) =>
-          prev.map((item) => (item.id === body.relationship?.id ? body.relationship : item))
+          prev.map((item) =>
+            item.id === body.relationship?.id ? body.relationship : item,
+          ),
         );
       }
     } catch (error) {
@@ -919,7 +1142,7 @@ export function RelationshipMap({
 
   const selectedUser = displayedUsers.find((user) => user.id === selectedId);
   const selectedConnections = filteredRelationships.filter(
-    (item) => item.source === selectedId || item.target === selectedId
+    (item) => item.source === selectedId || item.target === selectedId,
   );
   const pendingRequests = useMemo(() => {
     if (!activeCurrentUserId) {
@@ -931,7 +1154,10 @@ export function RelationshipMap({
       if (parsed.status !== "pending") {
         return false;
       }
-      return parsed.requesterId === activeCurrentUserId || parsed.responderId === activeCurrentUserId;
+      return (
+        parsed.requesterId === activeCurrentUserId ||
+        parsed.responderId === activeCurrentUserId
+      );
     });
   }, [allRelationships, activeCurrentUserId]);
 
@@ -963,7 +1189,8 @@ export function RelationshipMap({
           </button>
         </div>
         <p className="mt-2 text-xs text-black/60 dark:text-white/60">
-          Direct connections are always visible to you. Extended exploration shows up to 25 confirmed connections for free.
+          Direct connections are always visible to you. Extended exploration
+          shows up to 25 confirmed connections for free.
         </p>
       </div>
 
@@ -980,10 +1207,14 @@ export function RelationshipMap({
       {chartLayer === "private" && !activeCurrentUserId ? (
         <section
           className="rounded-2xl border border-white/10 p-6 text-center"
-          style={{ background: "linear-gradient(145deg, #0f0819 0%, #160d28 100%)" }}
+          style={{
+            background: "linear-gradient(145deg, #0f0819 0%, #160d28 100%)",
+          }}
         >
           <p className="text-sm font-semibold text-white">
-            {needsAccountSync ? "Setting up your network" : "Sign in to save your direct connections"}
+            {needsAccountSync
+              ? "Setting up your network"
+              : "Sign in to save your direct connections"}
           </p>
           <p className="mt-1 text-xs text-white/60">
             {needsAccountSync
@@ -1028,384 +1259,502 @@ export function RelationshipMap({
 
       {chartLayer === "public" ? (
         <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
-      <section className="paper-card rounded-2xl p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {(Object.keys(relationColors) as RelationshipType[]).map((type) => {
-            const active = activeTypes.includes(type);
-            return (
-              <button
-                type="button"
-                key={type}
-                onClick={() =>
-                  setActiveTypes((prev) =>
-                    prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type]
-                  )
-                }
-                className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
-                style={{
-                  borderColor: active ? relationColors[type] : "var(--border-soft)",
-                  backgroundColor: active ? `${relationColors[type]}20` : "transparent",
-                }}
-              >
-                {type}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-          Use the side form to connect with an existing member, or drag from your node to another member.
-        </p>
-        <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-white/90 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium">Add someone to begin your network</p>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">Connections: {graphConnectionCount}</p>
-            <p className="text-[11px] text-white/60">{progressionMessage}</p>
-          </div>
-        </div>
-        {hasDbUser ? null : (
-          <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-            {isResolvingCurrentUserId
-              ? "Checking your account status..."
-              : needsAccountSync
-              ? "Your account is signed in and syncing. Reload shortly to manage connections."
-              : "Sign in to create and edit your own connections."}
-          </p>
-        )}
-        {activeCurrentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
-          <div className="mb-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 text-sm dark:bg-white/5">
-            <p className="font-semibold">You&apos;ve explored your first 25 connections</p>
-            <p className="mt-1 text-xs text-black/65 dark:text-white/70">
-              +{limitedExtendedNodeIds.hiddenCount} more hidden
-            </p>
-            <Link
-              href="/profile"
-              className="mt-3 inline-flex rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white"
-            >
-              Unlock full network
-            </Link>
-          </div>
-        ) : null}
-        {connectionError ? (
-          <p className="mb-3 text-sm text-red-700 dark:text-red-400">{connectionError}</p>
-        ) : null}
-        <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)]" style={{ background: "#0f0819" }}>
-          <div className="pointer-events-none absolute inset-0 z-0">
-            <span className="map-bg-dot map-bg-dot-1" aria-hidden="true" />
-            <span className="map-bg-dot map-bg-dot-2" aria-hidden="true" />
-            <span className="map-bg-dot map-bg-dot-3" aria-hidden="true" />
-            <span className="map-bg-dot map-bg-dot-4" aria-hidden="true" />
-          </div>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            fitView
-            onNodeClick={(_, node) => setSelectedId(node.id)}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            minZoom={0.4}
-            maxZoom={1.8}
-            connectOnClick={false}
-            className="relative z-10"
-          >
-            <Controls showInteractive={false} />
-            <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
-          </ReactFlow>
-        </div>
-      </section>
-
-      <aside className="paper-card rounded-2xl p-5">
-        <div className="rounded-xl border border-[var(--border-soft)] p-3">
-          <h4 className="text-sm font-semibold uppercase tracking-wide">Grow Your Network</h4>
-          <p className="mt-1 text-xs text-black/65 dark:text-white/70">Every person you add reveals more connections.</p>
-          {activeCurrentUserId ? (
-            <form
-              className="mt-3 space-y-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const targetId = selectedConnectionTarget?.id ?? filteredConnectableUsers[0]?.id ?? "";
-                void createConnection(targetId);
-              }}
-            >
-              <input
-                type="search"
-                value={connectionQuery}
-                onChange={(event) => setConnectionQuery(event.target.value)}
-                placeholder="Search by name, @handle, or location"
-                className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2 text-sm outline-none"
-                disabled={connectableUsers.length === 0 || isConnecting}
-              />
-              <div className="rounded-lg border border-[var(--border-soft)] bg-black/[0.02] p-2 dark:bg-white/[0.04]">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">Suggestions</p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {[
-                    "Add your best friend",
-                    "Add your partner",
-                    "Add someone you used to date",
-                  ].map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => setConnectionQuery(suggestion.replace(/^Add\s+/i, ""))}
-                      className="rounded-full border border-[var(--border-soft)] px-2.5 py-1 text-[11px] text-black/75 transition hover:bg-black/5 dark:text-white/75 dark:hover:bg-white/10"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {connectableUsers.length === 0 ? (
-                <p className="text-xs text-black/60 dark:text-white/70">No available members to connect with.</p>
-              ) : (
-                <div className="max-h-32 overflow-y-auto rounded-lg border border-[var(--border-soft)] p-1">
-                  {filteredConnectableUsers.slice(0, 8).map((user) => {
-                    const isSelected = user.id === connectionTargetId;
-                    return (
-                      <button
-                        type="button"
-                        key={user.id}
-                        onClick={() => setConnectionTargetId(user.id)}
-                        className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition ${
-                          isSelected
-                            ? "bg-[var(--accent)]/15 text-[var(--accent)]"
-                            : "hover:bg-black/5 dark:hover:bg-white/10"
-                        }`}
-                      >
-                        <span>{user.name}</span>
-                        <span className="text-xs text-black/60 dark:text-white/70">@{user.handle}</span>
-                      </button>
-                    );
-                  })}
-                  {filteredConnectableUsers.length === 0 ? (
-                    <p className="px-2 py-1 text-xs text-black/60 dark:text-white/70">No matches found.</p>
-                  ) : null}
-                </div>
-              )}
-              <p className="text-xs text-black/65 dark:text-white/70">
-                {selectedConnectionTarget
-                  ? `Selected: ${selectedConnectionTarget.name} (@${selectedConnectionTarget.handle})`
-                  : "Choose a member from the results above."}
-              </p>
-              <select
-                value={connectionType}
-                onChange={(event) => setConnectionType(event.target.value as RelationshipType)}
-                className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-2 text-sm outline-none"
-                disabled={isConnecting}
-              >
-                {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                disabled={
-                  (!selectedConnectionTarget && filteredConnectableUsers.length === 0) ||
-                  isConnecting ||
-                  connectableUsers.length === 0
-                }
-                className="w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {isConnecting ? "Creating..." : "Create connection"}
-              </button>
-            </form>
-          ) : (
-            <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-              {isResolvingCurrentUserId || !hasAttemptedUserBootstrap
-                ? "Checking your account status..."
-                : needsAccountSync
-                ? "Signed in. Finalizing account sync..."
-                : "Sign in to create and manage your connections."}
-            </p>
-          )}
-        </div>
-
-        {activeCurrentUserId ? (
-          <div id="pending-verification" className="mt-4 rounded-xl border border-[var(--border-soft)] p-3">
-            <h4 className="text-sm font-semibold uppercase tracking-wide">Pending Verification</h4>
-            {pendingRequests.length === 0 ? (
-              <p className="mt-2 text-xs text-black/65 dark:text-white/70">No pending verifications.</p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {pendingRequests.map((item) => {
-                  const parsed = parseRelationshipNote(item.note);
-                  const otherUserId = item.source === activeCurrentUserId ? item.target : item.source;
-                  const otherUser = users.find((user) => user.id === otherUserId);
-                  const needsApproval = parsed.responderId === activeCurrentUserId;
-
+          <section className="paper-card rounded-2xl p-4">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(Object.keys(relationColors) as RelationshipType[]).map(
+                (type) => {
+                  const active = activeTypes.includes(type);
                   return (
-                    <div key={item.id} className="rounded-lg border border-[var(--border-soft)] p-2.5">
-                      <p className="text-sm font-semibold">{otherUser?.name ?? "Member"}</p>
-                      <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
-                      <p className="mt-1 text-[11px] text-black/65 dark:text-white/70">
-                        {needsApproval ? "Waiting for your verification" : "Waiting for their verification"}
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        {needsApproval ? (
-                          <button
-                            type="button"
-                            onClick={() => respondToConnection(item.id, "approve")}
-                            disabled={isRespondingId === item.id}
-                            className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                          >
-                            Approve
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => respondToConnection(item.id, "reject")}
-                          disabled={isRespondingId === item.id}
-                          className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                        >
-                          {needsApproval ? "Decline" : "Cancel"}
-                        </button>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      key={type}
+                      onClick={() =>
+                        setActiveTypes((prev) =>
+                          prev.includes(type)
+                            ? prev.filter((item) => item !== type)
+                            : [...prev, type],
+                        )
+                      }
+                      className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
+                      style={{
+                        borderColor: active
+                          ? relationColors[type]
+                          : "var(--border-soft)",
+                        backgroundColor: active
+                          ? `${relationColors[type]}20`
+                          : "transparent",
+                      }}
+                    >
+                      {type}
+                    </button>
                   );
-                })}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        <div className="mt-4">
-        {selectedUser ? (
-          <>
-            <div className="flex items-center gap-3">
-              <Avatar name={selectedUser.name} className="h-14 w-14" />
+                },
+              )}
+            </div>
+            <p className="mb-3 text-xs text-black/65 dark:text-white/70">
+              Use the side form to connect with an existing member, or drag from
+              your node to another member.
+            </p>
+            <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-white/90 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium">
+                Add someone to begin your network
+              </p>
               <div>
-                <h3 className="text-xl font-semibold">{selectedUser.name}</h3>
-                <p className="text-sm text-black/65 dark:text-white/75">@{selectedUser.handle}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                  Connections: {graphConnectionCount}
+                </p>
+                <p className="text-[11px] text-white/60">
+                  {progressionMessage}
+                </p>
               </div>
             </div>
-            <p className="mt-3 text-sm text-black/80 dark:text-white/85">{selectedUser.bio}</p>
-            <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-              Status: {selectedUser.relationshipStatus}
-            </p>
+            {hasDbUser ? null : (
+              <p className="mb-3 text-xs text-black/65 dark:text-white/70">
+                {isResolvingCurrentUserId
+                  ? "Checking your account status..."
+                  : needsAccountSync
+                    ? "Your account is signed in and syncing. Reload shortly to manage connections."
+                    : "Sign in to create and edit your own connections."}
+              </p>
+            )}
+            {activeCurrentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
+              <div className="mb-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 text-sm dark:bg-white/5">
+                <p className="font-semibold">
+                  You&apos;ve explored your first 25 connections
+                </p>
+                <p className="mt-1 text-xs text-black/65 dark:text-white/70">
+                  +{limitedExtendedNodeIds.hiddenCount} more hidden
+                </p>
+                <Link
+                  href="/profile"
+                  className="mt-3 inline-flex rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white"
+                >
+                  Unlock full network
+                </Link>
+              </div>
+            ) : null}
+            {connectionError ? (
+              <p className="mb-3 text-sm text-red-700 dark:text-red-400">
+                {connectionError}
+              </p>
+            ) : null}
+            <div
+              className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)]"
+              style={{ background: "#0f0819" }}
+            >
+              <div className="pointer-events-none absolute inset-0 z-0">
+                <span className="map-bg-dot map-bg-dot-1" aria-hidden="true" />
+                <span className="map-bg-dot map-bg-dot-2" aria-hidden="true" />
+                <span className="map-bg-dot map-bg-dot-3" aria-hidden="true" />
+                <span className="map-bg-dot map-bg-dot-4" aria-hidden="true" />
+              </div>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                fitView
+                onNodeClick={(_, node) => setSelectedId(node.id)}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                minZoom={0.4}
+                maxZoom={1.8}
+                connectOnClick={false}
+                className="relative z-10"
+              >
+                <Controls showInteractive={false} />
+                <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
+              </ReactFlow>
+            </div>
+          </section>
 
-            <div className="mt-5 space-y-2">
-              <h4 className="text-sm font-semibold uppercase tracking-wide">Direct Connections</h4>
-              {isConnecting ? (
-                <p className="text-xs text-black/65 dark:text-white/70">Saving new connection...</p>
-              ) : null}
-              {selectedConnections.map((item) => {
-                const targetId = item.source === selectedUser.id ? item.target : item.source;
-                const target = users.find((user) => user.id === targetId);
-                const parsed = parseRelationshipNote(item.note);
-                const canEdit = Boolean(
-                  activeCurrentUserId &&
-                    selectedUser.id === activeCurrentUserId &&
-                    parsed.status === "approved" &&
-                    (item.source === activeCurrentUserId || item.target === activeCurrentUserId)
-                );
-                const isEditing = editingRelationshipId === item.id;
-
-                return (
-                  <div key={item.id} className="rounded-xl border border-[var(--border-soft)] p-3">
-                    <p className="font-semibold">{target?.name}</p>
-                    {isEditing ? (
-                      <>
-                        <select
-                          value={editingType}
-                          onChange={(event) => setEditingType(event.target.value as RelationshipType)}
-                          className="mt-1 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs uppercase tracking-wide outline-none"
+          <aside className="paper-card rounded-2xl p-5">
+            <div className="rounded-xl border border-[var(--border-soft)] p-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide">
+                Grow Your Network
+              </h4>
+              <p className="mt-1 text-xs text-black/65 dark:text-white/70">
+                Every person you add reveals more connections.
+              </p>
+              {activeCurrentUserId ? (
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const targetId =
+                      selectedConnectionTarget?.id ??
+                      filteredConnectableUsers[0]?.id ??
+                      "";
+                    void createConnection(targetId);
+                  }}
+                >
+                  <input
+                    type="search"
+                    value={connectionQuery}
+                    onChange={(event) => setConnectionQuery(event.target.value)}
+                    placeholder="Search by name, @handle, or location"
+                    className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2 text-sm outline-none"
+                    disabled={connectableUsers.length === 0 || isConnecting}
+                  />
+                  <div className="rounded-lg border border-[var(--border-soft)] bg-black/[0.02] p-2 dark:bg-white/[0.04]">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
+                      Suggestions
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {[
+                        "Add your best friend",
+                        "Add your partner",
+                        "Add someone you used to date",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() =>
+                            setConnectionQuery(
+                              suggestion.replace(/^Add\s+/i, ""),
+                            )
+                          }
+                          className="rounded-full border border-[var(--border-soft)] px-2.5 py-1 text-[11px] text-black/75 transition hover:bg-black/5 dark:text-white/75 dark:hover:bg-white/10"
                         >
-                          {(Object.keys(relationColors) as RelationshipType[]).map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                        <textarea
-                          value={editingNote}
-                          onChange={(event) => setEditingNote(event.target.value)}
-                          rows={2}
-                          className="mt-2 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs outline-none"
-                          placeholder="Add a note"
-                        />
-                        <div className="mt-2 flex gap-2">
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {connectableUsers.length === 0 ? (
+                    <p className="text-xs text-black/60 dark:text-white/70">
+                      No available members to connect with.
+                    </p>
+                  ) : (
+                    <div className="max-h-32 overflow-y-auto rounded-lg border border-[var(--border-soft)] p-1">
+                      {filteredConnectableUsers.slice(0, 8).map((user) => {
+                        const isSelected = user.id === connectionTargetId;
+                        return (
                           <button
                             type="button"
-                            onClick={() => saveRelationshipEdit(item.id)}
-                            disabled={isSavingEdit}
-                            className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                            key={user.id}
+                            onClick={() => setConnectionTargetId(user.id)}
+                            className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition ${
+                              isSelected
+                                ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                                : "hover:bg-black/5 dark:hover:bg-white/10"
+                            }`}
                           >
-                            {isSavingEdit ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEditing}
-                            disabled={isSavingEdit}
-                            className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-xs uppercase tracking-wide text-[var(--accent)]">{item.type}</p>
-                        <p className="mt-1 text-xs text-black/65 dark:text-white/75">{parsed.note}</p>
-                        {parsed.status === "pending" ? (
-                          <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                            Pending verification
-                          </p>
-                        ) : null}
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => startEditing(item)}
-                            className="mt-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
-                          >
-                            Edit connection
-                          </button>
-                        ) : null}
-                        {parsed.status === "approved" && activeCurrentUserId ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                              Confirmed in network
+                            <span>{user.name}</span>
+                            <span className="text-xs text-black/60 dark:text-white/70">
+                              @{user.handle}
                             </span>
-                          </div>
-                        ) : null}
-                        {activeCurrentUserId && parsed.status === "pending" ? (
+                          </button>
+                        );
+                      })}
+                      {filteredConnectableUsers.length === 0 ? (
+                        <p className="px-2 py-1 text-xs text-black/60 dark:text-white/70">
+                          No matches found.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                  <p className="text-xs text-black/65 dark:text-white/70">
+                    {selectedConnectionTarget
+                      ? `Selected: ${selectedConnectionTarget.name} (@${selectedConnectionTarget.handle})`
+                      : "Choose a member from the results above."}
+                  </p>
+                  <select
+                    value={connectionType}
+                    onChange={(event) =>
+                      setConnectionType(event.target.value as RelationshipType)
+                    }
+                    className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-2 text-sm outline-none"
+                    disabled={isConnecting}
+                  >
+                    {(Object.keys(relationColors) as RelationshipType[]).map(
+                      (type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={
+                      (!selectedConnectionTarget &&
+                        filteredConnectableUsers.length === 0) ||
+                      isConnecting ||
+                      connectableUsers.length === 0
+                    }
+                    className="w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {isConnecting ? "Creating..." : "Create connection"}
+                  </button>
+                </form>
+              ) : (
+                <p className="mt-2 text-xs text-black/65 dark:text-white/70">
+                  {isResolvingCurrentUserId || !hasAttemptedUserBootstrap
+                    ? "Checking your account status..."
+                    : needsAccountSync
+                      ? "Signed in. Finalizing account sync..."
+                      : "Sign in to create and manage your connections."}
+                </p>
+              )}
+            </div>
+
+            {activeCurrentUserId ? (
+              <div
+                id="pending-verification"
+                className="mt-4 rounded-xl border border-[var(--border-soft)] p-3"
+              >
+                <h4 className="text-sm font-semibold uppercase tracking-wide">
+                  Pending Verification
+                </h4>
+                {pendingRequests.length === 0 ? (
+                  <p className="mt-2 text-xs text-black/65 dark:text-white/70">
+                    No pending verifications.
+                  </p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {pendingRequests.map((item) => {
+                      const parsed = parseRelationshipNote(item.note);
+                      const otherUserId =
+                        item.source === activeCurrentUserId
+                          ? item.target
+                          : item.source;
+                      const otherUser = users.find(
+                        (user) => user.id === otherUserId,
+                      );
+                      const needsApproval =
+                        parsed.responderId === activeCurrentUserId;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="rounded-lg border border-[var(--border-soft)] p-2.5"
+                        >
+                          <p className="text-sm font-semibold">
+                            {otherUser?.name ?? "Member"}
+                          </p>
+                          <p className="text-xs uppercase tracking-wide text-[var(--accent)]">
+                            {item.type}
+                          </p>
+                          <p className="mt-1 text-[11px] text-black/65 dark:text-white/70">
+                            {needsApproval
+                              ? "Waiting for your verification"
+                              : "Waiting for their verification"}
+                          </p>
                           <div className="mt-2 flex gap-2">
-                            {selectedUser.id === activeCurrentUserId && parsed.responderId === activeCurrentUserId ? (
+                            {needsApproval ? (
                               <button
                                 type="button"
-                                onClick={() => respondToConnection(item.id, "approve")}
+                                onClick={() =>
+                                  respondToConnection(item.id, "approve")
+                                }
                                 disabled={isRespondingId === item.id}
                                 className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
                               >
                                 Approve
                               </button>
                             ) : null}
-                            {selectedUser.id === activeCurrentUserId && (parsed.responderId === activeCurrentUserId || parsed.requesterId === activeCurrentUserId) ? (
-                              <button
-                                type="button"
-                                onClick={() => respondToConnection(item.id, "reject")}
-                                disabled={isRespondingId === item.id}
-                                className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                              >
-                                {parsed.responderId === activeCurrentUserId ? "Decline" : "Cancel"}
-                              </button>
-                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                respondToConnection(item.id, "reject")
+                              }
+                              disabled={isRespondingId === item.id}
+                              className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                            >
+                              {needsApproval ? "Decline" : "Cancel"}
+                            </button>
                           </div>
-                        ) : null}
-                      </>
-                    )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                )}
+              </div>
+            ) : null}
+
+            <div className="mt-4">
+              {selectedUser ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={selectedUser.name} className="h-14 w-14" />
+                    <div>
+                      <h3 className="text-xl font-semibold">
+                        {selectedUser.name}
+                      </h3>
+                      <p className="text-sm text-black/65 dark:text-white/75">
+                        @{selectedUser.handle}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-black/80 dark:text-white/85">
+                    {selectedUser.bio}
+                  </p>
+                  <p className="mt-2 text-xs text-black/65 dark:text-white/70">
+                    Status: {selectedUser.relationshipStatus}
+                  </p>
+
+                  <div className="mt-5 space-y-2">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide">
+                      Direct Connections
+                    </h4>
+                    {isConnecting ? (
+                      <p className="text-xs text-black/65 dark:text-white/70">
+                        Saving new connection...
+                      </p>
+                    ) : null}
+                    {selectedConnections.map((item) => {
+                      const targetId =
+                        item.source === selectedUser.id
+                          ? item.target
+                          : item.source;
+                      const target = users.find((user) => user.id === targetId);
+                      const parsed = parseRelationshipNote(item.note);
+                      const canEdit = Boolean(
+                        activeCurrentUserId &&
+                        selectedUser.id === activeCurrentUserId &&
+                        parsed.status === "approved" &&
+                        (item.source === activeCurrentUserId ||
+                          item.target === activeCurrentUserId),
+                      );
+                      const isEditing = editingRelationshipId === item.id;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="rounded-xl border border-[var(--border-soft)] p-3"
+                        >
+                          <p className="font-semibold">{target?.name}</p>
+                          {isEditing ? (
+                            <>
+                              <select
+                                value={editingType}
+                                onChange={(event) =>
+                                  setEditingType(
+                                    event.target.value as RelationshipType,
+                                  )
+                                }
+                                className="mt-1 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs uppercase tracking-wide outline-none"
+                              >
+                                {(
+                                  Object.keys(
+                                    relationColors,
+                                  ) as RelationshipType[]
+                                ).map((type) => (
+                                  <option key={type} value={type}>
+                                    {type}
+                                  </option>
+                                ))}
+                              </select>
+                              <textarea
+                                value={editingNote}
+                                onChange={(event) =>
+                                  setEditingNote(event.target.value)
+                                }
+                                rows={2}
+                                className="mt-2 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs outline-none"
+                                placeholder="Add a note"
+                              />
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => saveRelationshipEdit(item.id)}
+                                  disabled={isSavingEdit}
+                                  className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                >
+                                  {isSavingEdit ? "Saving..." : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelEditing}
+                                  disabled={isSavingEdit}
+                                  className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs uppercase tracking-wide text-[var(--accent)]">
+                                {item.type}
+                              </p>
+                              <p className="mt-1 text-xs text-black/65 dark:text-white/75">
+                                {parsed.note}
+                              </p>
+                              {parsed.status === "pending" ? (
+                                <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                                  Pending verification
+                                </p>
+                              ) : null}
+                              {canEdit ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditing(item)}
+                                  className="mt-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
+                                >
+                                  Edit connection
+                                </button>
+                              ) : null}
+                              {parsed.status === "approved" &&
+                              activeCurrentUserId ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                    Confirmed in network
+                                  </span>
+                                </div>
+                              ) : null}
+                              {activeCurrentUserId &&
+                              parsed.status === "pending" ? (
+                                <div className="mt-2 flex gap-2">
+                                  {selectedUser.id === activeCurrentUserId &&
+                                  parsed.responderId === activeCurrentUserId ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        respondToConnection(item.id, "approve")
+                                      }
+                                      disabled={isRespondingId === item.id}
+                                      className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                    >
+                                      Approve
+                                    </button>
+                                  ) : null}
+                                  {selectedUser.id === activeCurrentUserId &&
+                                  (parsed.responderId === activeCurrentUserId ||
+                                    parsed.requesterId ===
+                                      activeCurrentUserId) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        respondToConnection(item.id, "reject")
+                                      }
+                                      disabled={isRespondingId === item.id}
+                                      className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                                    >
+                                      {parsed.responderId ===
+                                      activeCurrentUserId
+                                        ? "Decline"
+                                        : "Cancel"}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm">
+                  Select a node to preview member details.
+                </p>
+              )}
             </div>
-          </>
-        ) : (
-          <p className="text-sm">Select a node to preview member details.</p>
-        )}
+          </aside>
         </div>
-      </aside>
-    </div>
       ) : null}
     </div>
   );
