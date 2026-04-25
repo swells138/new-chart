@@ -11,7 +11,7 @@ const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-      process.env.CLERK_PUBLISHABLE_KEY
+    process.env.CLERK_PUBLISHABLE_KEY,
   );
 
 const relationshipTypeValues = [
@@ -82,7 +82,10 @@ function makeLegacyPlaceholderId(ownerId: string) {
   return `p${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
 }
 
-async function insertLegacyCompatibleUser(clerkId: string, fallbackName: string) {
+async function insertLegacyCompatibleUser(
+  clerkId: string,
+  fallbackName: string,
+) {
   const id = makeLegacyUserId(clerkId);
   const now = new Date();
 
@@ -172,7 +175,10 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
   let fallbackName = "New member";
   try {
     const clerk = await currentUser();
-    const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+    const fullName = [clerk?.firstName, clerk?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     fallbackName = fullName || clerk?.username || fallbackName;
   } catch {
     // Bearer-token auth can succeed without a request-bound Clerk session.
@@ -220,11 +226,18 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
 
 async function getAuthenticatedDbUserId(request: Request) {
   if (!hasClerkKeys) {
-    return { error: NextResponse.json({ error: "Auth is not configured." }, { status: 503 }) };
+    return {
+      error: NextResponse.json(
+        { error: "Auth is not configured." },
+        { status: 503 },
+      ),
+    };
   }
   const userId = await resolveClerkUserId(request);
   if (!userId) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
   const dbUserId = await getOrCreateCurrentDbUserId(userId);
   return { dbUserId };
@@ -247,10 +260,15 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ placeholders: placeholders.map(normalizePlaceholder) });
+    return NextResponse.json({
+      placeholders: placeholders.map(normalizePlaceholder),
+    });
   } catch (error) {
     console.error("Failed to load private connections", error);
-    return NextResponse.json({ error: "Could not load your direct connections." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Could not load your direct connections." },
+      { status: 500 },
+    );
   }
 }
 
@@ -264,14 +282,20 @@ export async function POST(request: Request) {
     const currentDbUserId = authResult.dbUserId;
 
     const ip = getRequestIp(request);
-    const rateLimit = await checkRateLimit(`private-connections-post:${currentDbUserId}:${ip}`, {
-      windowMs: 5 * 60 * 1000,
-      maxRequests: 30,
-    });
+    const rateLimit = await checkRateLimit(
+      `private-connections-post:${currentDbUserId}:${ip}`,
+      {
+        windowMs: 5 * 60 * 1000,
+        maxRequests: 30,
+      },
+    );
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many entries. Please slow down." },
-        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        },
       );
     }
 
@@ -279,7 +303,10 @@ export async function POST(request: Request) {
     try {
       payload = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid JSON body." },
+        { status: 400 },
+      );
     }
 
     const parsed = createSchema.safeParse(payload);
@@ -292,11 +319,13 @@ export async function POST(request: Request) {
     const normalizedPhoneNumber = phoneNumber?.trim() || null;
 
     // Enforce a reasonable per-user cap (200 private entries)
-    const existing = await prisma.placeholderPerson.count({ where: { ownerId: currentDbUserId } });
+    const existing = await prisma.placeholderPerson.count({
+      where: { ownerId: currentDbUserId },
+    });
     if (existing >= 200) {
       return NextResponse.json(
         { error: "You have reached the placeholder limit (200 entries)." },
-        { status: 422 }
+        { status: 422 },
       );
     }
 
@@ -307,7 +336,9 @@ export async function POST(request: Request) {
           id: { not: currentDbUserId },
           OR: [
             ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
-            ...(normalizedPhoneNumber ? [{ phoneNumber: normalizedPhoneNumber }] : []),
+            ...(normalizedPhoneNumber
+              ? [{ phoneNumber: normalizedPhoneNumber }]
+              : []),
           ],
         },
         select: {
@@ -375,7 +406,7 @@ export async function POST(request: Request) {
         placeholder: normalizePlaceholder(placeholder),
         suggestion: existingUserSuggestion,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     const code = getPrismaErrorCode(error);
@@ -384,13 +415,13 @@ export async function POST(request: Request) {
     if (code === "P2003") {
       return NextResponse.json(
         { error: "Your profile could not be linked. Refresh and try again." },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
     return NextResponse.json(
       { error: "Could not add that connection right now. Please try again." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -404,14 +435,20 @@ export async function PATCH(request: Request) {
   const currentDbUserId = authResult.dbUserId;
 
   const ip = getRequestIp(request);
-  const rateLimit = await checkRateLimit(`private-connections-patch:${currentDbUserId}:${ip}`, {
-    windowMs: 5 * 60 * 1000,
-    maxRequests: 60,
-  });
+  const rateLimit = await checkRateLimit(
+    `private-connections-patch:${currentDbUserId}:${ip}`,
+    {
+      windowMs: 5 * 60 * 1000,
+      maxRequests: 60,
+    },
+  );
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Too many requests. Please slow down." },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
     );
   }
 
@@ -427,7 +464,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
   }
 
-  const { id, action, name, email, phoneNumber, relationshipType, note } = parsed.data;
+  const { id, action, name, email, phoneNumber, relationshipType, note } =
+    parsed.data;
 
   const existing = await prisma.placeholderPerson.findUnique({ where: { id } });
   if (!existing) {
@@ -444,7 +482,10 @@ export async function PATCH(request: Request) {
       where: { id },
       data: {
         inviteToken: token,
-        claimStatus: existing.claimStatus === "unclaimed" ? "invited" : existing.claimStatus,
+        claimStatus:
+          existing.claimStatus === "unclaimed"
+            ? "invited"
+            : existing.claimStatus,
       },
     });
     return NextResponse.json({ placeholder: normalizePlaceholder(updated) });
@@ -453,7 +494,10 @@ export async function PATCH(request: Request) {
   if (action === "revokeInvite") {
     // Only revoke if the invite hasn't been claimed yet
     if (existing.claimStatus === "claimed") {
-      return NextResponse.json({ error: "Cannot revoke a claimed invite." }, { status: 409 });
+      return NextResponse.json(
+        { error: "Cannot revoke a claimed invite." },
+        { status: 409 },
+      );
     }
     const updated = await prisma.placeholderPerson.update({
       where: { id },
@@ -468,7 +512,9 @@ export async function PATCH(request: Request) {
     data: {
       ...(name !== undefined && { name: name.trim() }),
       ...(email !== undefined && { email: email.trim() || null }),
-      ...(phoneNumber !== undefined && { phoneNumber: phoneNumber.trim() || null }),
+      ...(phoneNumber !== undefined && {
+        phoneNumber: phoneNumber.trim() || null,
+      }),
       ...(relationshipType !== undefined && { relationshipType }),
       ...(note !== undefined && { note: note.trim() }),
     },
@@ -490,7 +536,10 @@ export async function DELETE(request: Request) {
     try {
       payload = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid JSON body." },
+        { status: 400 },
+      );
     }
 
     const parsed = deleteSchema.safeParse(payload);
@@ -501,7 +550,10 @@ export async function DELETE(request: Request) {
     const { id } = parsed.data;
 
     // Check existence and ownership so we can preserve 404/403 semantics.
-    const existing = await prisma.placeholderPerson.findUnique({ where: { id }, select: { ownerId: true } });
+    const existing = await prisma.placeholderPerson.findUnique({
+      where: { id },
+      select: { ownerId: true },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
@@ -518,6 +570,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ deleted: true, id });
   } catch (error) {
     console.error("Failed to delete private connection", error);
-    return NextResponse.json({ error: "Could not delete this connection." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Could not delete this connection." },
+      { status: 500 },
+    );
   }
 }
