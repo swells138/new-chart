@@ -500,7 +500,8 @@ export async function DELETE(request: Request) {
 
     const { id } = parsed.data;
 
-    const existing = await prisma.placeholderPerson.findUnique({ where: { id } });
+    // Check existence and ownership so we can preserve 404/403 semantics.
+    const existing = await prisma.placeholderPerson.findUnique({ where: { id }, select: { ownerId: true } });
     if (!existing) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
@@ -508,7 +509,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
-    await prisma.placeholderPerson.delete({ where: { id } });
+    // Use deleteMany to avoid throwing if the row disappears concurrently.
+    const result = await prisma.placeholderPerson.deleteMany({ where: { id } });
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Not found." }, { status: 404 });
+    }
 
     return NextResponse.json({ deleted: true, id });
   } catch (error) {
