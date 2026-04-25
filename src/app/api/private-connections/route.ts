@@ -507,6 +507,19 @@ export async function PATCH(request: Request) {
   }
 
   // Default: "update" — patch name/type/note
+  // Determine whether the update changes any meaningful fields.
+  const willModifyFields =
+    name !== undefined ||
+    email !== undefined ||
+    phoneNumber !== undefined ||
+    relationshipType !== undefined ||
+    note !== undefined;
+
+  // If this placeholder was previously claimed and the owner changes it,
+  // revert it to private (unclaimed) until verified again. Also clear any
+  // linked user and invite token so the claim must be re-established.
+  const revokeClaim = existing.claimStatus === "claimed" && willModifyFields;
+
   const updated = await prisma.placeholderPerson.update({
     where: { id },
     data: {
@@ -517,6 +530,9 @@ export async function PATCH(request: Request) {
       }),
       ...(relationshipType !== undefined && { relationshipType }),
       ...(note !== undefined && { note: note.trim() }),
+      ...(revokeClaim && { claimStatus: "unclaimed" }),
+      ...(revokeClaim && { linkedUserId: null }),
+      ...(revokeClaim && { inviteToken: null }),
     },
   });
 
@@ -552,12 +568,16 @@ export async function DELETE(request: Request) {
     // Check existence and ownership so we can preserve 404/403 semantics.
     const existing = await prisma.placeholderPerson.findUnique({
       where: { id },
-      select: { ownerId: true },
+      select: { ownerId: true, linkedUserId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found." }, { status: 404 });
     }
-    if (existing.ownerId !== currentDbUserId) {
+    // Allow deletion by either the owner or the linked (claimed) user.
+    if (
+      existing.ownerId !== currentDbUserId &&
+      existing.linkedUserId !== currentDbUserId
+    ) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
@@ -569,10 +589,54 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ deleted: true, id });
   } catch (error) {
+    // Log the full error server-side for debugging
     console.error("Failed to delete private connection", error);
-    return NextResponse.json(
-      { error: "Could not delete this connection." },
-      { status: 500 },
-    );
+
+    // Include additional details in the JSON response when not in production
+    const code = getPrismaErrorCode(error);
+    const details = (() => {
+      try {
+        // Prefer error.message if available
+        if (error && typeof error === "object" && "message" in error) {
+          const e = error as Record<string, unknown>;
+          const m = e.message;
+          return typeof m === "string" ? m : String(m);
+        }
+        return String(error);
+      } catch {
+        return undefined;
+      }
+    })();
+
+    const responseBody: Record<string, unknown> = {
+      error: "Could not delete this connection.",
+    };
+
+    if (code) responseBody.prismaCode = code;
+    if (process.env.NODE_ENV !== "production") {
+      responseBody.details = details;
+    }
+
+    return NextResponse.json(responseBody, { status: 500 });
   }
 }
+
+export const PRIVATE_CONNECTIONS_API = "/api/private-connections";
+
+/**
+ * Private Connections API quick reference
+ * - GET  -> list private connections
+ * - POST -> create a placeholder
+ * - PATCH -> update / generateInvite / revokeInvite  <-- Edit handler
+ * - DELETE -> remove placeholder
+ *
+ * Import `PRIVATE_CONNECTIONS_API` from this file when calling the endpoint
+ * from client code so the endpoint string is centralized and the implementation
+ * is easy to locate: src/app/api/private-connections/route.ts
+ */
+
+// ===== PATCH (EDIT) HANDLER — easy to locate =====
+// The PATCH handler below updates a placeholder (or generates/revokes an invite).
+// It supports rate limiting, input validation, and error handling.
+// The logic is organized in a procedural style for clarity.
+// Consider refactoring to a more declarative approach if modifying significantly.
