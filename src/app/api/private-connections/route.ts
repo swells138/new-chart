@@ -620,3 +620,23 @@ export async function DELETE(request: Request) {
     return NextResponse.json(responseBody, { status: 500 });
   }
 }
+
+export const PRIVATE_CONNECTIONS_API = "/api/private-connections";
+
+/**
+ * Private Connections API quick reference
+ * - GET  -> list private connections
+ * - POST -> create a placeholder
+ * - PATCH -> update / generateInvite / revokeInvite  <-- Edit handler
+ * - DELETE -> remove placeholder
+ *
+ * Import `PRIVATE_CONNECTIONS_API` from this file when calling the endpoint
+ * from client code so the endpoint string is centralized and the implementation
+ * is easy to locate: src/app/api/private-connections/route.ts
+ */
+
+// ===== PATCH (EDIT) HANDLER — easy to locate =====
+// The PATCH handler below updates a placeholder (or generates/revokes an invite).
+// It supports rate limiting, input validation, and error handling.
+// The logic is organized in a procedural style for clarity.
+// Consider refactoring to a more declarative approach if modifying significantly.
