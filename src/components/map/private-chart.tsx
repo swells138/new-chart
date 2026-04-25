@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import type { PlaceholderPerson, Relationship, RelationshipType, User } from "@/types/models";
+import type {
+  PlaceholderPerson,
+  Relationship,
+  RelationshipType,
+  User,
+} from "@/types/models";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -64,9 +69,18 @@ interface PublicConnectCandidate {
   relationshipType: RelationshipType;
 }
 
-export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, approvedConnections = [], users = [] }: Props) {
-  const [placeholders, setPlaceholders] = useState<PlaceholderPerson[]>(initialPlaceholders);
-  const [highlightedConnectionId, setHighlightedConnectionId] = useState<string | null>(null);
+export function PrivateChart({
+  initialPlaceholders,
+  baseUrl,
+  currentUserId,
+  approvedConnections = [],
+  users = [],
+}: Props) {
+  const [placeholders, setPlaceholders] =
+    useState<PlaceholderPerson[]>(initialPlaceholders);
+  const [highlightedConnectionId, setHighlightedConnectionId] = useState<
+    string | null
+  >(null);
   const highlightTimeoutRef = useRef<number | null>(null);
   const { getToken } = useAuth();
 
@@ -84,7 +98,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       window.clearTimeout(highlightTimeoutRef.current);
     }
     highlightTimeoutRef.current = window.setTimeout(() => {
-      setHighlightedConnectionId((current) => (current === id ? null : current));
+      setHighlightedConnectionId((current) =>
+        current === id ? null : current,
+      );
       highlightTimeoutRef.current = null;
     }, 1400);
   }
@@ -157,8 +173,11 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
   const [addNote, setAddNote] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [addHint, setAddHint] = useState<string | null>(null);
-  const [publicConnectCandidates, setPublicConnectCandidates] = useState<Record<string, PublicConnectCandidate>>({});
-  const [publicConnectingPlaceholderId, setPublicConnectingPlaceholderId] = useState<string | null>(null);
+  const [publicConnectCandidates, setPublicConnectCandidates] = useState<
+    Record<string, PublicConnectCandidate>
+  >({});
+  const [publicConnectingPlaceholderId, setPublicConnectingPlaceholderId] =
+    useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   function getAddErrorMessage(status: number, apiMessage?: string) {
@@ -242,14 +261,17 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         highlightConnection(`private-${createdPlaceholder.id}`);
       }
       if (suggestion?.kind === "existing-user") {
-        const displayName = suggestion.user.name || suggestion.user.handle || "that person";
-        setAddHint(`${suggestion.message} We found a likely match: ${displayName}.`);
+        const displayName =
+          suggestion.user.name || suggestion.user.handle || "that person";
+        setAddHint(
+          `${suggestion.message} We found a likely match: ${displayName}.`,
+        );
         setPublicConnectCandidates((prev) => ({
           ...prev,
           [createdPlaceholder.id]: {
             placeholderId: createdPlaceholder.id,
             userId: suggestion.user.id,
-          name: displayName,
+            name: displayName,
             relationshipType: createdPlaceholder.relationshipType,
           },
         }));
@@ -275,12 +297,19 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action: "generateInvite" }),
       });
-      const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
+      const body = (await res.json()) as {
+        placeholder?: PlaceholderPerson;
+        error?: string;
+      };
       if (!res.ok || !body.placeholder) {
-        setActionError(body.error ?? "Could not generate invite. Please try again.");
+        setActionError(
+          body.error ?? "Could not generate invite. Please try again.",
+        );
         return;
       }
-      setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      setPlaceholders((prev) =>
+        prev.map((p) => (p.id === id ? body.placeholder! : p)),
+      );
       setActionMessage("Invite generated. Copy and share the link.");
     } finally {
       setWorkingId(null);
@@ -297,12 +326,17 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action: "revokeInvite" }),
       });
-      const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
+      const body = (await res.json()) as {
+        placeholder?: PlaceholderPerson;
+        error?: string;
+      };
       if (!res.ok || !body.placeholder) {
         setActionError(body.error ?? "Could not revoke invite right now.");
         return;
       }
-      setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      setPlaceholders((prev) =>
+        prev.map((p) => (p.id === id ? body.placeholder! : p)),
+      );
       setActionMessage("Invite link revoked.");
     } finally {
       setWorkingId(null);
@@ -320,16 +354,28 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       });
       let body: unknown;
       try {
-        body = (await res.json()) as { deleted?: boolean; id?: string; error?: string };
+        body = (await res.json()) as {
+          deleted?: boolean;
+          id?: string;
+          error?: string;
+        };
       } catch {
         setActionError("Invalid response from server.");
         return;
       }
       const parsed = body as { deleted?: boolean; id?: string; error?: string };
       if (!res.ok || !parsed.deleted) {
-        setActionError(parsed.error ?? "Could not remove this connection. Please try again.");
+        // Log full response for debugging so we can see why deletion failed locally
+        console.error("Delete failed:", { status: res.status, body: parsed });
+        setActionError(
+          parsed.error ?? "Could not remove this connection. Please try again.",
+        );
         return;
       }
+
+      // Log success for debugging (no behavior change)
+      console.info("Delete succeeded:", { id });
+
       setPlaceholders((prev) => prev.filter((p) => p.id !== id));
       setPublicConnectCandidates((prev) => {
         const next = { ...prev };
@@ -373,12 +419,17 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           note: editNote.trim() || undefined,
         }),
       });
-      const body = (await res.json()) as { placeholder?: PlaceholderPerson; error?: string };
+      const body = (await res.json()) as {
+        placeholder?: PlaceholderPerson;
+        error?: string;
+      };
       if (!res.ok || !body.placeholder) {
         setEditError(body.error ?? "Could not save changes.");
         return;
       }
-      setPlaceholders((prev) => prev.map((p) => (p.id === id ? body.placeholder! : p)));
+      setPlaceholders((prev) =>
+        prev.map((p) => (p.id === id ? body.placeholder! : p)),
+      );
       setEditingId(null);
     } catch {
       setEditError("Could not save changes.");
@@ -392,7 +443,10 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
     const link = `${baseUrl}/invite/${p.inviteToken}`;
     await navigator.clipboard.writeText(link).catch(() => null);
     setCopiedId(p.id);
-    setTimeout(() => setCopiedId((prev) => (prev === p.id ? null : prev)), 2000);
+    setTimeout(
+      () => setCopiedId((prev) => (prev === p.id ? null : prev)),
+      2000,
+    );
   }
 
   async function handleConnectPublicly(candidate: PublicConnectCandidate) {
@@ -418,7 +472,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
 
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setActionError(body.error ?? "Could not send a public connection request.");
+        setActionError(
+          body.error ?? "Could not send a public connection request.",
+        );
         return;
       }
 
@@ -444,21 +500,40 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         style={{ background: "#0f0819" }}
       >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-white/55">Direct connections</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-white/55">
+            Direct connections
+          </p>
           <div className="flex items-center gap-2 text-[10px] text-white/50">
-            <span className="rounded-full border border-white/15 px-2 py-0.5">Placeholder dashed</span>
-            <span className="rounded-full border border-white/15 px-2 py-0.5">Confirmed solid</span>
+            <span className="rounded-full border border-white/15 px-2 py-0.5">
+              Placeholder dashed
+            </span>
+            <span className="rounded-full border border-white/15 px-2 py-0.5">
+              Confirmed solid
+            </span>
           </div>
         </div>
         <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3 text-white/70 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium">Add more people to reveal deeper connections</p>
+          <p className="text-sm font-medium">
+            Add more people to reveal deeper connections
+          </p>
           <p className="self-start rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/65 sm:self-auto">
             Connections discovered: {discoveredConnections}
           </p>
         </div>
-        <svg viewBox="0 0 880 460" className="block h-auto w-full" aria-label="Direct connection chart">
+        <svg
+          viewBox="0 0 880 460"
+          className="block h-auto w-full"
+          aria-label="Direct connection chart"
+        >
           <defs>
-            <pattern id="private-grid" x="0" y="0" width="26" height="26" patternUnits="userSpaceOnUse">
+            <pattern
+              id="private-grid"
+              x="0"
+              y="0"
+              width="26"
+              height="26"
+              patternUnits="userSpaceOnUse"
+            >
               <circle cx="13" cy="13" r="1" fill="rgba(255,255,255,0.06)" />
             </pattern>
           </defs>
@@ -470,7 +545,10 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             const cy = 220;
             const ring = index < 8 ? 150 : 210;
             const ringIndex = index < 8 ? index : index - 8;
-            const ringTotal = index < 8 ? Math.min(chartConnections.length, 8) : Math.max(chartConnections.length - 8, 1);
+            const ringTotal =
+              index < 8
+                ? Math.min(chartConnections.length, 8)
+                : Math.max(chartConnections.length - 8, 1);
             const angle = (Math.PI * 2 * ringIndex) / ringTotal - Math.PI / 2;
             const x = cx + Math.cos(angle) * ring;
             const y = cy + Math.sin(angle) * (index < 8 ? 125 : 170);
@@ -486,9 +564,15 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                   y2={y}
                   stroke={item.color}
                   strokeWidth={highlightedConnectionId === item.id ? 3 : 2}
-                  strokeOpacity={highlightedConnectionId === item.id ? 0.95 : 0.75}
+                  strokeOpacity={
+                    highlightedConnectionId === item.id ? 0.95 : 0.75
+                  }
                   strokeDasharray={item.kind === "private" ? "7 4" : undefined}
-                  className={highlightedConnectionId === item.id ? "private-connection-line-reveal" : undefined}
+                  className={
+                    highlightedConnectionId === item.id
+                      ? "private-connection-line-reveal"
+                      : undefined
+                  }
                 />
                 <rect
                   x={mx - 31}
@@ -519,9 +603,23 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                   r="28"
                   fill={item.color}
                   fillOpacity="0.17"
-                  className={highlightedConnectionId === item.id ? "private-connection-node-reveal" : undefined}
+                  className={
+                    highlightedConnectionId === item.id
+                      ? "private-connection-node-reveal"
+                      : undefined
+                  }
                 />
-                <circle cx={x} cy={y} r="22" fill={item.color} className={highlightedConnectionId === item.id ? "private-connection-node-reveal" : undefined} />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="22"
+                  fill={item.color}
+                  className={
+                    highlightedConnectionId === item.id
+                      ? "private-connection-node-reveal"
+                      : undefined
+                  }
+                />
                 <text
                   x={x}
                   y={y + 5}
@@ -534,7 +632,14 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
                   {(item.name?.[0] ?? "?").toUpperCase()}
                 </text>
 
-                <rect x={x - 48} y={y + 30} width="96" height="18" rx="8" fill="rgba(0,0,0,0.6)" />
+                <rect
+                  x={x - 48}
+                  y={y + 30}
+                  width="96"
+                  height="18"
+                  rx="8"
+                  fill="rgba(0,0,0,0.6)"
+                />
                 <text
                   x={x}
                   y={y + 42}
@@ -551,7 +656,13 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           })}
 
           <g>
-            <circle cx="440" cy="220" r="36" fill="#ff8f84" fillOpacity="0.18" />
+            <circle
+              cx="440"
+              cy="220"
+              r="36"
+              fill="#ff8f84"
+              fillOpacity="0.18"
+            />
             <circle cx="440" cy="220" r="28" fill="#ff8f84" />
             <text
               x="440"
@@ -564,7 +675,14 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             >
               YOU
             </text>
-            <rect x="384" y="258" width="112" height="20" rx="9" fill="rgba(0,0,0,0.62)" />
+            <rect
+              x="384"
+              y="258"
+              width="112"
+              height="20"
+              rx="9"
+              fill="rgba(0,0,0,0.62)"
+            />
             <text
               x="440"
               y="272"
@@ -598,87 +716,112 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
       </section>
 
       {/* Confirmed direct connections */}
-      {approvedConnections.length > 0 ? (() => {
-        const usersById = new Map(users.map((u) => [u.id, u]));
-        return (
-          <div
-            className="rounded-2xl p-4"
-            style={{ background: "#0f0819", border: "1px solid rgba(255,255,255,0.08)" }}
-          >
-            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-white/50">
-              Confirmed direct connections
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {approvedConnections.map((rel) => {
-                const otherId = rel.source === currentUserId ? rel.target : rel.source;
-                const other = usersById.get(otherId);
-                if (!other) return null;
-                const color = TYPE_COLORS[rel.type] ?? "#888";
-                const initial = (other.name?.[0] ?? "?").toUpperCase();
-                return (
-                  <div
-                    key={rel.id}
-                    className="flex items-center gap-3 rounded-2xl p-3"
-                    style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.09)",
-                      boxShadow: `0 0 0 1px ${color}22 inset`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 38,
-                        height: 38,
-                        flexShrink: 0,
-                        borderRadius: "50%",
-                        background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
-                        boxShadow: `0 0 12px ${color}44`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        border: "2px solid rgba(255,255,255,0.12)",
-                      }}
-                    >
-                      <span style={{ color: "white", fontWeight: 700, fontSize: 13, fontFamily: "system-ui" }}>
-                        {initial}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-white">{other.name}</p>
-                      <span
-                        className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
-                        style={{ backgroundColor: `${color}33`, color, border: `1px solid ${color}55` }}
+      {approvedConnections.length > 0
+        ? (() => {
+            const usersById = new Map(users.map((u) => [u.id, u]));
+            return (
+              <div
+                className="rounded-2xl p-4"
+                style={{
+                  background: "#0f0819",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-white/50">
+                  Confirmed direct connections
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {approvedConnections.map((rel) => {
+                    const otherId =
+                      rel.source === currentUserId ? rel.target : rel.source;
+                    const other = usersById.get(otherId);
+                    if (!other) return null;
+                    const color = TYPE_COLORS[rel.type] ?? "#888";
+                    const initial = (other.name?.[0] ?? "?").toUpperCase();
+                    return (
+                      <div
+                        key={rel.id}
+                        className="flex items-center gap-3 rounded-2xl p-3"
+                        style={{
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.09)",
+                          boxShadow: `0 0 0 1px ${color}22 inset`,
+                        }}
                       >
-                        {rel.type}
-                      </span>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-semibold text-green-400">
-                      Confirmed
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })() : null}
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            flexShrink: 0,
+                            borderRadius: "50%",
+                            background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
+                            boxShadow: `0 0 12px ${color}44`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            border: "2px solid rgba(255,255,255,0.12)",
+                          }}
+                        >
+                          <span
+                            style={{
+                              color: "white",
+                              fontWeight: 700,
+                              fontSize: 13,
+                              fontFamily: "system-ui",
+                            }}
+                          >
+                            {initial}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-white">
+                            {other.name}
+                          </p>
+                          <span
+                            className="mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                            style={{
+                              backgroundColor: `${color}33`,
+                              color,
+                              border: `1px solid ${color}55`,
+                            }}
+                          >
+                            {rel.type}
+                          </span>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+                          Confirmed
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()
+        : null}
 
       <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-black/[0.03] px-4 py-3 dark:bg-white/5">
         <span className="mt-0.5 text-lg">🔒</span>
         <div>
-          <p className="text-sm font-semibold">Placeholder nodes stay private to you</p>
+          <p className="text-sm font-semibold">
+            Placeholder nodes stay private to you
+          </p>
           <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
-            Add someone before they have an account, then invite them or let them claim the node later.
-            Contact details are optional and only used to suggest safe matches.
+            Add someone before they have an account, then invite them or let
+            them claim the node later. Contact details are optional and only
+            used to suggest safe matches.
           </p>
         </div>
       </div>
 
       {/* Add-connection form */}
       <div className="paper-card rounded-2xl p-5">
-        <h3 className="text-sm font-bold uppercase tracking-wider">Add to your private chart (step 1)</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider">
+          Add to your private chart (step 1)
+        </h3>
         <p className="mt-2 text-xs text-black/65 dark:text-white/65">
-          New entries start as private placeholders (dashed line). They become part of the confirmed network after invite + verification.
+          New entries start as private placeholders (dashed line). They become
+          part of the confirmed network after invite + verification.
         </p>
         <form className="mt-3 space-y-3" onSubmit={handleAdd}>
           <input
@@ -740,7 +883,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
           ) : null}
           {addHint ? (
-            <p className="text-xs text-amber-700 dark:text-amber-300">{addHint}</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {addHint}
+            </p>
           ) : null}
           <button
             type="submit"
@@ -750,7 +895,8 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
             {isAdding ? "Adding..." : "Add private connection"}
           </button>
           <p className="text-[11px] text-black/55 dark:text-white/55">
-            After adding, use <strong>Generate invite</strong> on their card to start confirmation.
+            After adding, use <strong>Generate invite</strong> on their card to
+            start confirmation.
           </p>
         </form>
       </div>
@@ -759,7 +905,9 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
         <p className="text-xs text-red-700 dark:text-red-400">{actionError}</p>
       ) : null}
       {actionMessage ? (
-        <p className="text-xs text-green-700 dark:text-green-400">{actionMessage}</p>
+        <p className="text-xs text-green-700 dark:text-green-400">
+          {actionMessage}
+        </p>
       ) : null}
 
       {/* Placeholder cards grid */}
@@ -769,256 +917,295 @@ export function PrivateChart({ initialPlaceholders, baseUrl, currentUserId, appr
           style={{ background: "#0f0819" }}
         >
           <p className="text-3xl">👀</p>
-          <p className="mt-2 text-sm font-semibold text-white/80">Your direct network is empty</p>
+          <p className="mt-2 text-sm font-semibold text-white/80">
+            Your direct network is empty
+          </p>
           <p className="mt-1 text-xs text-white/40">
-            Start adding people above. They can claim their node later or verify the connection after signup.
+            Start adding people above. They can claim their node later or verify
+            the connection after signup.
           </p>
         </div>
       ) : (
         <div
           className="rounded-2xl p-4"
-          style={{ background: "#0f0819", border: "1px solid rgba(255,255,255,0.08)" }}
+          style={{
+            background: "#0f0819",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {placeholders.map((p) => {
-            const color = TYPE_COLORS[p.relationshipType] ?? "#888";
-            const statusLabel = STATUS_LABELS[p.claimStatus] ?? p.claimStatus;
-            const isWorking = workingId === p.id;
-            const isEditing = editingId === p.id;
-            const isCopied = copiedId === p.id;
-            const inviteLink = p.inviteToken ? `${baseUrl}/invite/${p.inviteToken}` : null;
-            const isOwned = currentUserId !== null && p.ownerId === currentUserId;
-            const initial = (p.name?.[0] ?? "?").toUpperCase();
-            const publicConnectCandidate = publicConnectCandidates[p.id] ?? null;
-            const isPublicConnecting = publicConnectingPlaceholderId === p.id;
+            {placeholders.map((p) => {
+              const color = TYPE_COLORS[p.relationshipType] ?? "#888";
+              const statusLabel = STATUS_LABELS[p.claimStatus] ?? p.claimStatus;
+              const isWorking = workingId === p.id;
+              const isEditing = editingId === p.id;
+              const isCopied = copiedId === p.id;
+              const inviteLink = p.inviteToken
+                ? `${baseUrl}/invite/${p.inviteToken}`
+                : null;
+              const isOwned =
+                currentUserId !== null && p.ownerId === currentUserId;
+              const initial = (p.name?.[0] ?? "?").toUpperCase();
+              const publicConnectCandidate =
+                publicConnectCandidates[p.id] ?? null;
+              const isPublicConnecting = publicConnectingPlaceholderId === p.id;
 
-            return (
-              <div
-                key={p.id}
-                className="rounded-2xl p-4"
-                style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: `1px solid rgba(255,255,255,0.09)`,
-                  boxShadow: `0 0 0 1px ${color}22 inset`,
-                }}
-              >
-                {isEditing ? (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      maxLength={80}
-                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-sm text-white outline-none placeholder:text-white/30"
-                    />
-                    <select
-                      value={editType}
-                      onChange={(e) => setEditType(e.target.value as RelationshipType)}
-                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none"
-                    >
-                      {ALL_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="email"
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                      maxLength={200}
-                      placeholder="Email (optional)"
-                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                    />
-                    <input
-                      type="text"
-                      value={editPhoneNumber}
-                      onChange={(e) => setEditPhoneNumber(e.target.value)}
-                      maxLength={40}
-                      placeholder="Phone (optional)"
-                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                    />
-                    <input
-                      type="text"
-                      value={editNote}
-                      onChange={(e) => setEditNote(e.target.value)}
-                      maxLength={500}
-                      placeholder="Note (optional)"
-                      className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                    />
-                    {editError ? (
-                      <p className="text-xs text-red-400">{editError}</p>
-                    ) : null}
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleSaveEdit(p.id)}
-                        disabled={isSaving}
-                        className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
+              return (
+                <div
+                  key={p.id}
+                  className="rounded-2xl p-4"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: `1px solid rgba(255,255,255,0.09)`,
+                    boxShadow: `0 0 0 1px ${color}22 inset`,
+                  }}
+                >
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        maxLength={80}
+                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-sm text-white outline-none placeholder:text-white/30"
+                      />
+                      <select
+                        value={editType}
+                        onChange={(e) =>
+                          setEditType(e.target.value as RelationshipType)
+                        }
+                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none"
                       >
-                        {isSaving ? "Saving…" : "Save"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                        className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Header — avatar + name + status */}
-                    <div className="flex items-start gap-3">
-                      {/* Circle avatar */}
-                      <div
-                        className="shrink-0"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: "50%",
-                          background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
-                          boxShadow: `0 0 14px ${color}44, 0 3px 8px rgba(0,0,0,0.4)`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: "2px solid rgba(255,255,255,0.12)",
-                        }}
-                      >
-                        <span style={{ color: "white", fontWeight: 700, fontSize: 14, fontFamily: "system-ui" }}>
-                          {initial}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-1">
-                          <p className="truncate font-semibold leading-snug text-white">{p.name}</p>
-                          <span
-                            className={`shrink-0 mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              p.claimStatus === "claimed"
-                                ? "bg-green-500/20 text-green-400"
-                                : p.claimStatus === "denied"
-                                  ? "bg-red-500/20 text-red-400"
-                                  : p.claimStatus === "invited"
-                                    ? "bg-amber-500/20 text-amber-400"
-                                    : "bg-white/10 text-white/55"
-                            }`}
-                          >
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <span
-                          className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
-                          style={{ backgroundColor: `${color}33`, color, border: `1px solid ${color}55` }}
-                        >
-                          {p.relationshipType}
-                        </span>
-                        {publicConnectCandidate ? (
-                          <span className="ml-2 mt-1 inline-block rounded-full border border-amber-300/45 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
-                            Existing user match
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {p.note ? (
-                      <p className="mt-2 text-xs italic text-white/50">
-                        &quot;{p.note}&quot;
-                      </p>
-                    ) : null}
-
-                    {p.email || p.phoneNumber ? (
-                      <div className="mt-2 space-y-1 text-[11px] text-white/45">
-                        {p.email ? <p>{p.email}</p> : null}
-                        {p.phoneNumber ? <p>{p.phoneNumber}</p> : null}
-                      </div>
-                    ) : null}
-
-                    {!isOwned ? (
-                      <p className="mt-2 text-[11px] text-white/40">
-                        Only the person who created this entry can edit it.
-                      </p>
-                    ) : null}
-
-                    {/* Invite link display */}
-                    {inviteLink && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
-                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
-                        <p className="min-w-0 flex-1 truncate text-[10px] text-white/40">
-                          {inviteLink}
-                        </p>
+                        {ALL_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="email"
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        maxLength={200}
+                        placeholder="Email (optional)"
+                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                      />
+                      <input
+                        type="text"
+                        value={editPhoneNumber}
+                        onChange={(e) => setEditPhoneNumber(e.target.value)}
+                        maxLength={40}
+                        placeholder="Phone (optional)"
+                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                      />
+                      <input
+                        type="text"
+                        value={editNote}
+                        onChange={(e) => setEditNote(e.target.value)}
+                        maxLength={500}
+                        placeholder="Note (optional)"
+                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                      />
+                      {editError ? (
+                        <p className="text-xs text-red-400">{editError}</p>
+                      ) : null}
+                      <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => copyInviteLink(p)}
-                          className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
+                          onClick={() => handleSaveEdit(p.id)}
+                          disabled={isSaving}
+                          className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
                         >
-                          {isCopied ? "Copied!" : "Copy"}
+                          {isSaving ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70"
+                        >
+                          Cancel
                         </button>
                       </div>
-                    ) : null}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Header — avatar + name + status */}
+                      <div className="flex items-start gap-3">
+                        {/* Circle avatar */}
+                        <div
+                          className="shrink-0"
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: "50%",
+                            background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
+                            boxShadow: `0 0 14px ${color}44, 0 3px 8px rgba(0,0,0,0.4)`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            border: "2px solid rgba(255,255,255,0.12)",
+                          }}
+                        >
+                          <span
+                            style={{
+                              color: "white",
+                              fontWeight: 700,
+                              fontSize: 14,
+                              fontFamily: "system-ui",
+                            }}
+                          >
+                            {initial}
+                          </span>
+                        </div>
 
-                    {/* Action buttons */}
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {isOwned && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
-                        <>
-                          {!p.inviteToken ? (
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="truncate font-semibold leading-snug text-white">
+                              {p.name}
+                            </p>
+                            <span
+                              className={`shrink-0 mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                p.claimStatus === "claimed"
+                                  ? "bg-green-500/20 text-green-400"
+                                  : p.claimStatus === "denied"
+                                    ? "bg-red-500/20 text-red-400"
+                                    : p.claimStatus === "invited"
+                                      ? "bg-amber-500/20 text-amber-400"
+                                      : "bg-white/10 text-white/55"
+                              }`}
+                            >
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <span
+                            className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+                            style={{
+                              backgroundColor: `${color}33`,
+                              color,
+                              border: `1px solid ${color}55`,
+                            }}
+                          >
+                            {p.relationshipType}
+                          </span>
+                          {publicConnectCandidate ? (
+                            <span className="ml-2 mt-1 inline-block rounded-full border border-amber-300/45 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                              Existing user match
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {p.note ? (
+                        <p className="mt-2 text-xs italic text-white/50">
+                          &quot;{p.note}&quot;
+                        </p>
+                      ) : null}
+
+                      {p.email || p.phoneNumber ? (
+                        <div className="mt-2 space-y-1 text-[11px] text-white/45">
+                          {p.email ? <p>{p.email}</p> : null}
+                          {p.phoneNumber ? <p>{p.phoneNumber}</p> : null}
+                        </div>
+                      ) : null}
+
+                      {!isOwned ? (
+                        <p className="mt-2 text-[11px] text-white/40">
+                          Only the person who created this entry can edit it.
+                        </p>
+                      ) : null}
+
+                      {/* Invite link display */}
+                      {inviteLink &&
+                      p.claimStatus !== "claimed" &&
+                      p.claimStatus !== "denied" ? (
+                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                          <p className="min-w-0 flex-1 truncate text-[10px] text-white/40">
+                            {inviteLink}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => copyInviteLink(p)}
+                            className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
+                          >
+                            {isCopied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {/* Action buttons */}
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {isOwned &&
+                        p.claimStatus !== "claimed" &&
+                        p.claimStatus !== "denied" ? (
+                          <>
+                            {!p.inviteToken ? (
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateInvite(p.id)}
+                                disabled={isWorking}
+                                className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
+                              >
+                                Generate invite
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeInvite(p.id)}
+                                disabled={isWorking}
+                                className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/50 transition hover:border-white/30 hover:text-white/70 disabled:opacity-60"
+                              >
+                                Revoke link
+                              </button>
+                            )}
+                          </>
+                        ) : null}
+
+                        {isOwned ? (
+                          <>
+                            {publicConnectCandidate &&
+                            p.claimStatus !== "claimed" &&
+                            p.claimStatus !== "denied" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleConnectPublicly(publicConnectCandidate)
+                                }
+                                disabled={
+                                  isWorking ||
+                                  isPublicConnecting ||
+                                  !currentUserId
+                                }
+                                className="rounded-full border border-[var(--accent)]/50 bg-[var(--accent)]/15 px-3 py-1 text-[11px] font-semibold text-[var(--accent)] transition hover:brightness-110 disabled:opacity-60"
+                              >
+                                {isPublicConnecting
+                                  ? "Sending..."
+                                  : `Connect publicly with ${publicConnectCandidate.name}`}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
-                              onClick={() => handleGenerateInvite(p.id)}
+                              onClick={() => startEdit(p)}
                               disabled={isWorking}
                               className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
                             >
-                              Generate invite
+                              Edit
                             </button>
-                          ) : (
                             <button
                               type="button"
-                              onClick={() => handleRevokeInvite(p.id)}
+                              onClick={() => handleDelete(p.id)}
                               disabled={isWorking}
-                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/50 transition hover:border-white/30 hover:text-white/70 disabled:opacity-60"
+                              className="rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-60"
                             >
-                              Revoke link
+                              {isWorking ? "…" : "Remove"}
                             </button>
-                          )}
-                        </>
-                      ) : null}
-
-                      {isOwned ? (
-                        <>
-                          {publicConnectCandidate && p.claimStatus !== "claimed" && p.claimStatus !== "denied" ? (
-                            <button
-                              type="button"
-                              onClick={() => handleConnectPublicly(publicConnectCandidate)}
-                              disabled={isWorking || isPublicConnecting || !currentUserId}
-                              className="rounded-full border border-[var(--accent)]/50 bg-[var(--accent)]/15 px-3 py-1 text-[11px] font-semibold text-[var(--accent)] transition hover:brightness-110 disabled:opacity-60"
-                            >
-                              {isPublicConnecting ? "Sending..." : `Connect publicly with ${publicConnectCandidate.name}`}
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => startEdit(p)}
-                            disabled={isWorking}
-                            className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(p.id)}
-                            disabled={isWorking}
-                            className="rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-60"
-                          >
-                            {isWorking ? "…" : "Remove"}
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+                          </>
+                        ) : null}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
