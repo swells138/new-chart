@@ -33,6 +33,16 @@ function makeLegacyUserId(clerkId: string) {
   return `c${seed}${Date.now().toString(36)}${rand}`.slice(0, 50);
 }
 
+function isPlaceholderDisplayName(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized.length === 0 || normalized === "new member";
+}
+
+function toPreferredDisplayName(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim();
+  return isPlaceholderDisplayName(trimmed) ? null : trimmed;
+}
+
 async function insertLegacyCompatibleUser(clerkId: string, name: string = "New member") {
   const id = makeLegacyUserId(clerkId);
   const now = new Date();
@@ -50,7 +60,17 @@ export async function ensureDbUserByClerkId(clerkId: string, name: string = "New
     select: bootstrapUserSelect,
   });
 
+  const preferredName = toPreferredDisplayName(name);
+
   if (existing) {
+    if (preferredName && isPlaceholderDisplayName(existing.name)) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { name: preferredName },
+        select: bootstrapUserSelect,
+      });
+    }
+
     return existing;
   }
 
@@ -65,9 +85,9 @@ export async function ensureDbUserByClerkId(clerkId: string, name: string = "New
     handle?: string;
     email?: string;
   }> = [
-    { clerkId, name },
-    { clerkId, name, handle: handleBase },
-    { clerkId, name, handle: handleBase, email: emailBase },
+    { clerkId, name: preferredName ?? name },
+    { clerkId, name: preferredName ?? name, handle: handleBase },
+    { clerkId, name: preferredName ?? name, handle: handleBase, email: emailBase },
   ];
 
   for (const data of attempts) {

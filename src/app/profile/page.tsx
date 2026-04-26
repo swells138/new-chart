@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import {
@@ -20,7 +20,14 @@ const hasClerkKeys =
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 async function getOrCreateProfile(clerkId: string) {
-  const user = await ensureDbUserByClerkId(clerkId);
+  const clerk = await currentUser();
+  const fullName =
+    clerk?.firstName && clerk?.lastName
+      ? `${clerk.firstName} ${clerk.lastName}`
+      : clerk?.username ||
+        clerk?.firstName ||
+        "New member";
+  const user = await ensureDbUserByClerkId(clerkId, fullName);
 
   const [relationships, reverseRelationships] = await Promise.all([
     prisma.relationship.findMany({

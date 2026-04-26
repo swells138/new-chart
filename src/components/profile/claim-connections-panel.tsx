@@ -95,6 +95,9 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
                   <p className="mt-1 text-xs uppercase tracking-wide text-[var(--accent)]">
                     Added as {candidate.relationshipType}
                   </p>
+                  <p className="mt-2 text-sm text-black/70 dark:text-white/75">
+                    {candidate.ownerName} has you on their chart. Is this you?
+                  </p>
                 </div>
                 <div className="text-right text-xs text-black/55 dark:text-white/60">
                   <p>Added by {candidate.ownerName}</p>
