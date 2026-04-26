@@ -54,14 +54,20 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
         error?: string;
         claimed?: boolean;
         dismissed?: boolean;
+        candidates?: ClaimCandidate[];
       };
 
       if (!response.ok) {
         setError(body.error ?? "Could not update this claim.");
+        if (body.candidates) {
+          setCandidates(body.candidates);
+        }
         return;
       }
 
-      setCandidates((current) => current.filter((candidate) => candidate.placeholderId !== placeholderId));
+      setCandidates((current) =>
+        body.candidates ?? current.filter((candidate) => candidate.placeholderId !== placeholderId)
+      );
 
       if (action === "claim") {
         setClaimed((prev) => new Set(prev).add(placeholderId));
