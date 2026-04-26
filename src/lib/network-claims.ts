@@ -533,15 +533,31 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
     let relationshipId: string | null = null;
     let alreadyConnected = false;
 
+    const claimConfirmedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const pendingMeta = buildClaimMetaNote({
+      status: "pending_creator_confirmation",
+      creatorId: placeholder.ownerId,
+      claimedByUserId: userId,
+      claimConfirmedAt,
+      expiresAt,
+      disputeReason: null,
+    });
+    const pendingType = encodePendingType(
+      placeholder.relationshipType as RelationshipType,
+      placeholder.ownerId,
+      userId,
+    );
+
     if (!existingRelationship) {
-      // Create a confirmed, live connection immediately.
+      // Create relationship in pending_creator_confirmation state — not public until creator confirms.
       const relationship = await tx.relationship.create({
         data: {
           user1Id: placeholder.ownerId,
           user2Id: userId,
-          type: placeholder.relationshipType,
-          note: "",
-          isPublic: true,
+          type: pendingType,
+          note: pendingMeta,
+          isPublic: false,
         },
         select: { id: true },
       });
@@ -551,19 +567,13 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       relationshipId = existingRelationship.id;
 
       if (!alreadyConnected) {
-        const parsedType = parseStoredRelationshipType(
-          existingRelationship.type,
-          existingRelationship.user1Id,
-          existingRelationship.user2Id,
-        );
-
-        // Upgrade any stale pending relationship directly to confirmed.
+        // Upgrade any stale pending relationship to pending_creator_confirmation.
         await tx.relationship.update({
           where: { id: existingRelationship.id },
           data: {
-            type: parsedType.baseType,
-            note: "",
-            isPublic: true,
+            type: pendingType,
+            note: pendingMeta,
+            isPublic: false,
           },
         });
       }
@@ -616,7 +626,7 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       data: {
         senderId: userId,
         recipientId: result.ownerId,
-        content: `Someone confirmed they are the "${result.ownerName ? result.relationshipType : "connection"}" placeholder you created. Check your network — if this isn't right, you can remove the connection.`,
+        content: `Someone accepted the placeholder you created as themselves. Head to your profile to confirm — is this who you intended?`,
       },
     });
   } catch {
@@ -639,71 +649,76 @@ export interface PendingCreatorConfirmation {
 export async function getPendingCreatorConfirmations(
   creatorId: string,
 ): Promise<PendingCreatorConfirmation[]> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  let claimedPlaceholders: { id: string; name: string; relationshipType: string; linkedUserId: string | null }[] = [];
+  // Find relationships where the creator is waiting to confirm a claim.
+  // These are stored as pending:: type + pending_creator_confirmation note.
+  let relationships: {
+    id: string;
+    user1Id: string;
+    user2Id: string;
+    type: string;
+    note: string | null;
+  }[] = [];
 
   try {
-    claimedPlaceholders = await prisma.placeholderPerson.findMany({
+    relationships = await prisma.relationship.findMany({
       where: {
-        ownerId: creatorId,
-        claimStatus: "claimed",
-        linkedUserId: { not: null },
-        updatedAt: { gte: thirtyDaysAgo },
+        OR: [{ user1Id: creatorId }, { user2Id: creatorId }],
+        type: { startsWith: pendingTypePrefix },
       },
       select: {
         id: true,
-        name: true,
-        relationshipType: true,
-        linkedUserId: true,
+        user1Id: true,
+        user2Id: true,
+        type: true,
+        note: true,
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { createdAt: "desc" },
     });
   } catch {
     return [];
   }
 
-  if (claimedPlaceholders.length === 0) {
-    return [];
-  }
-
-  const linkedUserIds = claimedPlaceholders
-    .map((p) => p.linkedUserId)
-    .filter((id): id is string => id !== null);
-
-  const linkedUsers = await prisma.user.findMany({
-    where: { id: { in: linkedUserIds } },
-    select: { id: true, name: true, handle: true },
-  });
-
-  const userMap = new Map(linkedUsers.map((u) => [u.id, u]));
-
   const results: PendingCreatorConfirmation[] = [];
 
-  for (const placeholder of claimedPlaceholders) {
-    if (!placeholder.linkedUserId) continue;
-    const claimer = userMap.get(placeholder.linkedUserId);
-
-    const relationship = await prisma.relationship.findFirst({
-      where: {
-        OR: [
-          { user1Id: creatorId, user2Id: placeholder.linkedUserId },
-          { user1Id: placeholder.linkedUserId, user2Id: creatorId },
-        ],
-      },
-      select: { id: true },
+  for (const rel of relationships) {
+    const claimMeta = composeClaimMeta({
+      storedType: rel.type,
+      user1Id: rel.user1Id,
+      user2Id: rel.user2Id,
+      note: rel.note,
     });
 
-    if (!relationship) continue;
+    if (claimMeta.status !== "pending_creator_confirmation") continue;
+    if (claimMeta.creatorId !== creatorId) continue;
+
+    const claimedByUserId = claimMeta.claimedByUserId;
+    if (!claimedByUserId) continue;
+
+    // Find the placeholder that corresponds to this relationship.
+    const placeholder = await prisma.placeholderPerson.findFirst({
+      where: {
+        ownerId: creatorId,
+        linkedUserId: claimedByUserId,
+        claimStatus: "claimed",
+      },
+      select: { name: true, relationshipType: true },
+    });
+
+    const claimer = await prisma.user.findUnique({
+      where: { id: claimedByUserId },
+      select: { name: true, handle: true },
+    });
+
+    const parsedType = parseStoredRelationshipType(rel.type, rel.user1Id, rel.user2Id);
 
     results.push({
-      relationshipId: relationship.id,
-      claimedByUserId: placeholder.linkedUserId,
+      relationshipId: rel.id,
+      claimedByUserId,
       claimedByName: claimer?.name ?? "Someone",
       claimedByHandle: claimer?.handle ?? "",
-      placeholderName: placeholder.name,
-      relationshipType: placeholder.relationshipType,
-      expiresAt: null,
+      placeholderName: placeholder?.name ?? claimer?.name ?? "Someone",
+      relationshipType: placeholder?.relationshipType ?? parsedType.baseType,
+      expiresAt: claimMeta.expiresAt ?? null,
     });
   }
 

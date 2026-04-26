@@ -15,21 +15,21 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function removeConnection(relationshipId: string) {
+  async function confirmClaim(relationshipId: string) {
     setWorkingId(relationshipId);
     setError(null);
 
     try {
       const response = await fetch(`/api/relationships`, {
-        method: "DELETE",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: relationshipId, actorNodeId: currentUserId }),
+        body: JSON.stringify({ id: relationshipId, action: "confirmCreator" }),
       });
 
       const body = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(body.error ?? "Could not remove this connection.");
+        setError(body.error ?? "Could not confirm this connection.");
         return;
       }
 
@@ -39,7 +39,37 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
 
       router.refresh();
     } catch {
-      setError("Could not remove this connection.");
+      setError("Could not confirm this connection.");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function rejectClaim(relationshipId: string) {
+    setWorkingId(relationshipId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/relationships`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: relationshipId, action: "reject" }),
+      });
+
+      const body = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        setError(body.error ?? "Could not reject this connection.");
+        return;
+      }
+
+      setConfirmations((current) =>
+        current.filter((c) => c.relationshipId !== relationshipId)
+      );
+
+      router.refresh();
+    } catch {
+      setError("Could not reject this connection.");
     } finally {
       setWorkingId(null);
     }
@@ -51,9 +81,9 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
 
   return (
     <section className="paper-card rounded-2xl p-5">
-      <h3 className="text-xl font-semibold">Recent Claimed Connections</h3>
+      <h3 className="text-xl font-semibold">Confirm Claimed Connections</h3>
       <p className="mt-1 text-sm text-black/65 dark:text-white/70">
-        Someone matched a placeholder you created. These connections are now live — remove if it&apos;s the wrong person.
+        Someone accepted a placeholder you made as themselves. Confirm it's them to make the connection public, or reject it if it's the wrong person.
       </p>
 
       {error ? (
@@ -77,21 +107,31 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
                   @{item.claimedByHandle}
                 </span>
               ) : null}{" "}
-              claimed this is them. The connection is now live on your chart.
+              says this placeholder is them. Is this who you intended?
             </p>
-            <div className="mt-3 flex gap-2">
+            {item.expiresAt ? (
+              <p className="mt-1 text-[11px] text-black/50 dark:text-white/50">
+                Expires {new Date(item.expiresAt).toLocaleDateString()}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={workingId === item.relationshipId}
-                onClick={() => removeConnection(item.relationshipId)}
+                onClick={() => confirmClaim(item.relationshipId)}
+                className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
+              >
+                {workingId === item.relationshipId ? "Saving..." : "Yes, that's them — make public"}
+              </button>
+              <button
+                type="button"
+                disabled={workingId === item.relationshipId}
+                onClick={() => rejectClaim(item.relationshipId)}
                 className="rounded-full border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-60 dark:text-red-300"
               >
-                {workingId === item.relationshipId ? "Removing..." : "Not the right person — remove"}
+                Not the right person
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-black/50 dark:text-white/50">
-              Removing this disconnects them and hides the connection from your chart.
-            </p>
           </article>
         ))}
       </div>

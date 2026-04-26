@@ -12,6 +12,7 @@ interface Props {
 
 export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
   const router = useRouter();
+  const [claimed, setClaimed] = useState<Set<string>>(new Set());
   const [candidates, setCandidates] = useState(initialCandidates);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,8 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
       setCandidates((current) => current.filter((candidate) => candidate.placeholderId !== placeholderId));
 
       if (action === "claim") {
-        router.push("/map?chart=public");
+        setClaimed((prev) => new Set(prev).add(placeholderId));
+        router.refresh();
         return;
       }
     } catch {
@@ -136,22 +138,30 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
               ) : null}
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAction("claim", candidate.placeholderId)}
-                  disabled={workingId === candidate.placeholderId}
-                  className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
-                >
-                  {workingId === candidate.placeholderId ? "Saving..." : "This is me"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAction("dismiss", candidate.placeholderId)}
-                  disabled={workingId === candidate.placeholderId}
-                  className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold disabled:opacity-70"
-                >
-                  Not me
-                </button>
+                {claimed.has(candidate.placeholderId) ? (
+                  <p className="text-sm text-black/65 dark:text-white/60">
+                    Claimed! Waiting for {candidate.ownerName} to confirm before it becomes public.
+                  </p>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleAction("claim", candidate.placeholderId)}
+                      disabled={workingId === candidate.placeholderId}
+                      className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
+                    >
+                      {workingId === candidate.placeholderId ? "Saving..." : "This is me"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAction("dismiss", candidate.placeholderId)}
+                      disabled={workingId === candidate.placeholderId}
+                      className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold disabled:opacity-70"
+                    >
+                      Not me
+                    </button>
+                  </>
+                )}
               </div>
             </article>
           ))}
