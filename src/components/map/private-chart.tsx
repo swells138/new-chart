@@ -1421,9 +1421,7 @@ export function PrivateChart({
             start confirmation.
           </p>
         </form>
-      </div>
-
-      <div className="paper-card rounded-2xl p-5">
+        <div className="my-5 border-t border-[var(--border-soft)]" />
         <h3 className="text-sm font-bold uppercase tracking-wider">
           Build your private web (step 2)
         </h3>
