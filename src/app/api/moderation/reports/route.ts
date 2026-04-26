@@ -35,7 +35,14 @@ function getLockHours(action: ModerationAction) {
   return 0;
 }
 
-async function resolveTargetUserId(report: { kind: "public-node" | "private-node"; targetId: string }) {
+async function resolveTargetUserId(report: {
+  kind: "public-node" | "private-node" | "report-remove-request";
+  targetId: string;
+}) {
+  if (report.kind === "report-remove-request") {
+    return null;
+  }
+
   if (report.kind === "public-node") {
     return report.targetId;
   }
@@ -54,12 +61,19 @@ async function resolveTargetUserId(report: { kind: "public-node" | "private-node
 
 async function runModerationAction(input: {
   action: ModerationAction;
-  report: { kind: "public-node" | "private-node"; targetId: string };
+  report: {
+    kind: "public-node" | "private-node" | "report-remove-request";
+    targetId: string;
+  };
   decisionNote?: string;
   moderatorIdentity?: string | null;
 }) {
   if (input.action === "none") {
     return;
+  }
+
+  if (input.report.kind === "report-remove-request") {
+    throw new Error("No automated action is available for report/remove requests.");
   }
 
   if (input.action === "remove-public-connections") {

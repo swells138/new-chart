@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Caveat, Nunito, Playfair_Display } from "next/font/google";
+import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { SiteNav } from "@/components/layout/site-nav";
@@ -52,6 +53,19 @@ export default function RootLayout({
               </div>
               <SiteNav clerkEnabled={false} />
               <main className="pt-8">{children}</main>
+              <footer className="mt-12 border-t border-[var(--border-soft)] pt-5 pb-2">
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-black/70 dark:text-white/75">
+                  <Link href="/terms" className="transition hover:text-[var(--accent)] hover:underline">
+                    Terms of Service
+                  </Link>
+                  <Link href="/privacy" className="transition hover:text-[var(--accent)] hover:underline">
+                    Privacy Policy
+                  </Link>
+                  <Link href="/report" className="transition hover:text-[var(--accent)] hover:underline">
+                    Report / Remove Me
+                  </Link>
+                </div>
+              </footer>
             </div>
             <Analytics />
           </ThemeProvider>
@@ -76,6 +90,19 @@ export default function RootLayout({
               </div>
               <SiteNav clerkEnabled={hasClerkKeys} />
               <main className="pt-8">{children}</main>
+              <footer className="mt-12 border-t border-[var(--border-soft)] pt-5 pb-2">
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-black/70 dark:text-white/75">
+                  <Link href="/terms" className="transition hover:text-[var(--accent)] hover:underline">
+                    Terms of Service
+                  </Link>
+                  <Link href="/privacy" className="transition hover:text-[var(--accent)] hover:underline">
+                    Privacy Policy
+                  </Link>
+                  <Link href="/report" className="transition hover:text-[var(--accent)] hover:underline">
+                    Report / Remove Me
+                  </Link>
+                </div>
+              </footer>
             </div>
             <Analytics />
           </ThemeProvider>

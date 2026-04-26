@@ -15,7 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   PlaceholderPerson,
   Relationship,
@@ -1614,6 +1614,9 @@ export function RelationshipMap({
                   >
                     {isConnecting ? "Creating..." : "Create connection"}
                   </button>
+                  <p className="text-[11px] text-black/65 dark:text-white/70">
+                    By creating this connection, you confirm this information is accurate to the best of your knowledge.
+                  </p>
                   <button
                     type="button"
                     onClick={() => {
@@ -1700,7 +1703,7 @@ export function RelationshipMap({
                                 disabled={isRespondingId === item.id}
                                 className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
                               >
-                                Approve
+                                Accept
                               </button>
                             ) : null}
                             <button
@@ -1714,6 +1717,11 @@ export function RelationshipMap({
                               {needsApproval ? "Decline" : "Cancel"}
                             </button>
                           </div>
+                          {needsApproval ? (
+                            <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
+                              By confirming, you agree this connection is accurate and consent to it being displayed on MeshyLinks.
+                            </p>
+                          ) : null}
                           {needsApproval ? (
                             <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
                               Warning: approving makes this connection public for everyone to see.
@@ -1868,6 +1876,27 @@ export function RelationshipMap({
                                   Edit connection
                                 </button>
                               ) : null}
+                              {activeCurrentUserId ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {item.source === activeCurrentUserId ||
+                                  item.target === activeCurrentUserId ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteRelationshipEdit(item.id)}
+                                      disabled={isDeletingEdit || isSavingEdit}
+                                      className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-60 dark:text-red-300"
+                                    >
+                                      {isDeletingEdit ? "Removing..." : "Remove connection"}
+                                    </button>
+                                  ) : null}
+                                  <Link
+                                    href={`/report?link=${encodeURIComponent(`/map?connectionId=${item.id}`)}&reason=${encodeURIComponent("Please review this connection.")}`}
+                                    className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
+                                  >
+                                    Report connection
+                                  </Link>
+                                </div>
+                              ) : null}
                               {parsed.status === "approved" &&
                               activeCurrentUserId ? (
                                 <div className="mt-2 flex flex-wrap gap-2">
@@ -1889,7 +1918,7 @@ export function RelationshipMap({
                                       disabled={isRespondingId === item.id}
                                       className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
                                     >
-                                      Approve
+                                      Accept
                                     </button>
                                   ) : null}
                                   {selectedUser.id === activeCurrentUserId &&
@@ -1911,6 +1940,13 @@ export function RelationshipMap({
                                     </button>
                                   ) : null}
                                 </div>
+                              ) : null}
+                              {selectedUser.id === activeCurrentUserId &&
+                              parsed.status === "pending" &&
+                              parsed.responderId === activeCurrentUserId ? (
+                                <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
+                                  By confirming, you agree this connection is accurate and consent to it being displayed on MeshyLinks.
+                                </p>
                               ) : null}
                               {selectedUser.id === activeCurrentUserId &&
                               parsed.status === "pending" &&

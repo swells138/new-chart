@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 export type ModerationReportStatus = "open" | "resolved" | "dismissed";
-export type ModerationReportKind = "public-node" | "private-node";
+export type ModerationReportKind =
+  | "public-node"
+  | "private-node"
+  | "report-remove-request";
 export type ModerationAction =
   | "none"
   | "remove-public-connections"
@@ -117,7 +120,12 @@ async function ensureModerationUserLockTable() {
 }
 
 function toReport(row: ModerationReportRow): ModerationReport {
-  const kind = row.kind === "private-node" ? "private-node" : "public-node";
+  const kind: ModerationReportKind =
+    row.kind === "private-node"
+      ? "private-node"
+      : row.kind === "report-remove-request"
+        ? "report-remove-request"
+        : "public-node";
   const status =
     row.status === "resolved"
       ? "resolved"

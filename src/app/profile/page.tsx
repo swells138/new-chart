@@ -1,6 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
+import {
+  ProfileConnectionsList,
+  type ProfileConnectionItem,
+} from "@/components/profile/profile-connections-list";
 import { ProfileForm, type ProfileFormData } from "@/components/profile/profile-form";
 import { SectionHeader } from "@/components/ui/section-header";
 import { getClaimCandidatesForUser } from "@/lib/network-claims";
@@ -11,30 +15,9 @@ export const dynamic = "force-dynamic";
 
 const pendingTypePrefix = "pending::";
 
-const connectionLabels: Record<string, string> = {
-  Exes: "Exes",
-  Married: "Married",
-  "Sneaky Link": "Sneaky Link",
-  Friends: "Friends",
-  Lovers: "Lovers",
-  "One Night Stand": "One Night Stand",
-  complicated: "complicated",
-  FWB: "FWB",
-};
-
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
-interface ProfileConnection {
-  id: string;
-  type: string;
-  person: {
-    name: string | null;
-    handle: string | null;
-    location: string | null;
-  };
-}
 
 async function getOrCreateProfile(clerkId: string) {
   const user = await ensureDbUserByClerkId(clerkId);
@@ -121,13 +104,13 @@ export default async function ProfilePage() {
     limit: 5,
   });
 
-  const connections: ProfileConnection[] = [
-    ...user.relationships.map((relationship: { id: string; type: string; user2: ProfileConnection["person"] }) => ({
+  const connections: ProfileConnectionItem[] = [
+    ...user.relationships.map((relationship: { id: string; type: string; user2: ProfileConnectionItem["person"] }) => ({
       id: relationship.id,
       type: relationship.type,
       person: relationship.user2,
     })),
-    ...user.reverseRelationships.map((relationship: { id: string; type: string; user1: ProfileConnection["person"] }) => ({
+    ...user.reverseRelationships.map((relationship: { id: string; type: string; user1: ProfileConnectionItem["person"] }) => ({
       id: relationship.id,
       type: relationship.type,
       person: relationship.user1,
@@ -146,28 +129,10 @@ export default async function ProfilePage() {
 
         <aside className="paper-card rounded-2xl p-5">
           <h3 className="text-xl font-semibold">Your Connections</h3>
-          {connections.length === 0 ? (
-            <p className="mt-3 text-sm text-black/70 dark:text-white/75">
-              You do not have any approved connections yet.
-            </p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {connections.map((connection) => (
-                <article
-                  key={connection.id}
-                  className="rounded-xl border border-[var(--border-soft)] p-3 text-sm"
-                >
-                  <p className="font-semibold">
-                    {connection.person.name ?? connection.person.handle ?? "Unnamed member"}
-                  </p>
-                  <p className="mt-1 text-xs text-black/60 dark:text-white/70">
-                    {connectionLabels[connection.type] ?? "Connection"}
-                    {connection.person.location ? ` · ${connection.person.location}` : ""}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
+          <ProfileConnectionsList
+            initialConnections={connections}
+            currentUserId={user.id}
+          />
         </aside>
       </div>
 

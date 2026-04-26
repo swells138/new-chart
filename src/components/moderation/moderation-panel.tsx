@@ -12,14 +12,36 @@ interface Props {
   initialLocks: ModerationUserLock[];
 }
 
+type ReportQueueFilter =
+  | 'all'
+  | 'report-remove-requests'
+  | 'node-reports';
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
+}
+
+function isReportRemoveRequest(report: ModerationReport) {
+  return report.kind === 'report-remove-request';
+}
+
+function reportKindLabel(report: ModerationReport) {
+  if (report.kind === 'report-remove-request') {
+    return 'Report / Remove Request';
+  }
+
+  if (report.kind === 'private-node') {
+    return 'Private Node';
+  }
+
+  return 'Public Node';
 }
 
 export function ModerationPanel({ initialReports, initialLocks }: Props) {
   const [reports, setReports] = useState(initialReports);
   const [locks, setLocks] = useState(initialLocks);
   const [query, setQuery] = useState('');
+  const [queueFilter, setQueueFilter] = useState<ReportQueueFilter>('all');
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [unlockingUserId, setUnlockingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +68,17 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
 
   const filteredReports = useMemo(() => {
     return reports.filter((report) => {
+      const passesFilter =
+        queueFilter === 'all'
+          ? true
+          : queueFilter === 'report-remove-requests'
+            ? isReportRemoveRequest(report)
+            : !isReportRemoveRequest(report);
+
+      if (!passesFilter) {
+        return false;
+      }
+
       const haystack = [
         report.targetLabel ?? '',
         report.targetId,
@@ -53,6 +86,7 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
         report.reporterLabel ?? '',
         report.reporterUserId ?? '',
         report.kind,
+        reportKindLabel(report),
         report.status,
         report.decisionNote ?? '',
       ]
@@ -60,7 +94,12 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
         .toLowerCase();
       return haystack.includes(normalizedQuery);
     });
-  }, [reports, normalizedQuery]);
+  }, [reports, normalizedQuery, queueFilter]);
+
+  const reportRemoveRequestCount = useMemo(
+    () => reports.filter((report) => isReportRemoveRequest(report)).length,
+    [reports],
+  );
 
   async function updateStatus(reportId: string, status: ModerationReportStatus) {
     const decisionNote = window
@@ -229,7 +268,24 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
             <p className='mt-1 text-sm text-black/65 dark:text-white/70'>
               Open reports: {openCount}
             </p>
+            <p className='text-xs text-black/55 dark:text-white/60'>
+              Report / Remove requests: {reportRemoveRequestCount}
+            </p>
           </div>
+          <label className='text-xs font-semibold text-black/65 dark:text-white/70'>
+            Queue filter
+            <select
+              value={queueFilter}
+              onChange={(event) =>
+                setQueueFilter(event.target.value as ReportQueueFilter)
+              }
+              className='ml-2 rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs outline-none'
+            >
+              <option value='all'>All reports</option>
+              <option value='report-remove-requests'>Report / Remove requests</option>
+              <option value='node-reports'>Node reports</option>
+            </select>
+          </label>
         </div>
 
         {filteredReports.length === 0 ? (
@@ -242,18 +298,29 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
           <div className='mt-4 space-y-3'>
             {filteredReports.map((report) => {
               const isWorking = workingId === report.id;
+              const isReportRemove = isReportRemoveRequest(report);
               return (
                 <article
                   key={report.id}
-                  className='rounded-xl border border-[var(--border-soft)] p-4'
+                  className={`rounded-xl border p-4 ${
+                    isReportRemove
+                      ? 'border-amber-300/70 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-950/20'
+                      : 'border-[var(--border-soft)]'
+                  }`}
                 >
                   <div className='flex flex-wrap items-start justify-between gap-2'>
                     <div>
                       <p className='text-sm font-semibold'>
                         {report.targetLabel || report.targetId}
                       </p>
-                      <p className='text-xs uppercase tracking-wide text-[var(--accent)]'>
-                        {report.kind}
+                      <p
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          isReportRemove
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                            : 'bg-[var(--accent)]/10 text-[var(--accent)]'
+                        }`}
+                      >
+                        {reportKindLabel(report)}
                       </p>
                     </div>
                     <span className='rounded-full border border-[var(--border-soft)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide'>
@@ -301,14 +368,14 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
                           <option value='lock-target-72h'>Lock target 72h</option>
                           <option value='lock-target-7d'>Lock target 7d</option>
                         </>
-                      ) : (
+                      ) : report.kind === 'private-node' ? (
                         <>
                           <option value='hide-private-node'>Hide private node</option>
                           <option value='lock-target-24h'>Lock owner 24h</option>
                           <option value='lock-target-72h'>Lock owner 72h</option>
                           <option value='lock-target-7d'>Lock owner 7d</option>
                         </>
-                      )}
+                      ) : null}
                     </select>
                   </div>
 

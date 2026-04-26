@@ -140,6 +140,9 @@ export default async function Home() {
             </div>
           ))}
         </div>
+        <p className="mx-auto mt-6 max-w-2xl rounded-2xl border border-[var(--border-soft)] bg-white/60 px-5 py-3 text-sm text-black/75 dark:bg-black/20 dark:text-white/80">
+          Connections are private until confirmed by both users. Either user can remove a connection at any time.
+        </p>
       </section>
 
       {/* ─── DEMO GRAPH ───────────────────────────────────────── */}

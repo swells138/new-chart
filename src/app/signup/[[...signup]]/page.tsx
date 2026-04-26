@@ -1,4 +1,4 @@
-import { SignUp } from "@clerk/nextjs";
+import { SignupConsentGate } from "@/components/auth/signup-consent-gate";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -15,8 +15,8 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex justify-center py-8">
-      <SignUp path="/signup" routing="path" fallbackRedirectUrl="/profile" />
+    <div className="py-8">
+      <SignupConsentGate />
     </div>
   );
 }
