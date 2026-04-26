@@ -722,7 +722,10 @@ export function RelationshipMap({
       connectedInGraph.add(item.target);
     });
 
-    return baseUsers.filter((user) => connectedInGraph.has(user.id));
+    return baseUsers.filter(
+      (user) =>
+        connectedInGraph.has(user.id) || user.id === activeCurrentUserId,
+    );
   }, [
     users,
     chartLayer,
@@ -1961,6 +1964,13 @@ export function RelationshipMap({
                     {isConnecting ? (
                       <p className="text-xs text-black/65 dark:text-white/70">
                         Saving new connection...
+                      </p>
+                    ) : null}
+                    {selectedConnections.length === 0 ? (
+                      <p className="text-xs text-black/65 dark:text-white/70">
+                        {selectedUser.id === activeCurrentUserId
+                          ? "You do not have any public direct connections yet."
+                          : `${selectedUser.name} does not have any visible public direct connections.`}
                       </p>
                     ) : null}
                     {selectedConnections.map((item) => {
