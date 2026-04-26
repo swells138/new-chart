@@ -66,22 +66,46 @@ async function getClaimUserRecord(userId: string): Promise<ClaimUserRecord | nul
       throw error;
     }
 
-    const legacyUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phoneNumber: true,
-      },
-    });
+    try {
+      const legacyUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+        },
+      });
 
-    return legacyUser
-      ? {
-          ...legacyUser,
-          ignoredClaimPlaceholderIds: [],
-        }
-      : null;
+      return legacyUser
+        ? {
+            ...legacyUser,
+            ignoredClaimPlaceholderIds: [],
+          }
+        : null;
+    } catch (legacyError) {
+      if (!isColumnMissingError(legacyError)) {
+        throw legacyError;
+      }
+
+      const minimalUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      return minimalUser
+        ? {
+            id: minimalUser.id,
+            name: minimalUser.name,
+            email: null,
+            phoneNumber: null,
+            ignoredClaimPlaceholderIds: [],
+          }
+        : null;
+    }
   }
 }
 
@@ -112,42 +136,96 @@ async function getClaimablePlaceholders(userId: string): Promise<PlaceholderWith
       throw error;
     }
 
-    const legacyPlaceholders = await prisma.placeholderPerson.findMany({
-      where: {
-        ownerId: { not: userId },
-        linkedUserId: null,
-        claimStatus: { in: ["unclaimed", "invited"] },
-      },
-      select: {
-        id: true,
-        ownerId: true,
-        name: true,
-        email: true,
-        phoneNumber: true,
-        relationshipType: true,
-        note: true,
-        inviteToken: true,
-        claimStatus: true,
-        linkedUserId: true,
-        createdAt: true,
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            handle: true,
+    try {
+      const legacyPlaceholders = await prisma.placeholderPerson.findMany({
+        where: {
+          ownerId: { not: userId },
+          linkedUserId: null,
+          claimStatus: { in: ["unclaimed", "invited"] },
+        },
+        select: {
+          id: true,
+          ownerId: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          relationshipType: true,
+          note: true,
+          inviteToken: true,
+          claimStatus: true,
+          linkedUserId: true,
+          createdAt: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 200,
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 200,
+      });
 
-    return legacyPlaceholders.map((placeholder) => ({
-      ...placeholder,
-      offerToNameMatch: true,
-    }));
+      return legacyPlaceholders.map((placeholder) => ({
+        ...placeholder,
+        offerToNameMatch: true,
+      }));
+    } catch (legacyError) {
+      if (!isColumnMissingError(legacyError)) {
+        throw legacyError;
+      }
+
+      const minimalPlaceholders = await prisma.placeholderPerson.findMany({
+        where: {
+          ownerId: { not: userId },
+        },
+        select: {
+          id: true,
+          ownerId: true,
+          name: true,
+          relationshipType: true,
+          linkedUserId: true,
+          claimStatus: true,
+          createdAt: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 200,
+      });
+
+      return minimalPlaceholders
+        .filter((placeholder) => placeholder.linkedUserId === null)
+        .filter((placeholder) => {
+          const status = placeholder.claimStatus?.toLowerCase();
+          return !status || status === "unclaimed" || status === "invited";
+        })
+        .map((placeholder) => ({
+          id: placeholder.id,
+          ownerId: placeholder.ownerId,
+          name: placeholder.name,
+          offerToNameMatch: true,
+          email: null,
+          phoneNumber: null,
+          relationshipType: placeholder.relationshipType,
+          note: null,
+          inviteToken: null,
+          claimStatus: placeholder.claimStatus,
+          linkedUserId: placeholder.linkedUserId,
+          createdAt: placeholder.createdAt,
+          owner: placeholder.owner,
+        }));
+    }
   }
 }
 
