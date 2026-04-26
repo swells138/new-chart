@@ -55,9 +55,15 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
         claimed?: boolean;
         dismissed?: boolean;
         candidates?: ClaimCandidate[];
+        persistedPlaceholder?: {
+          id: string;
+          linkedUserId: string | null;
+          claimStatus: string;
+        } | null;
       };
 
       if (!response.ok) {
+        console.error("Claim connection request failed", body);
         setError(body.error ?? "Could not update this claim.");
         if (body.candidates) {
           setCandidates(body.candidates);
