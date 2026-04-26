@@ -4,6 +4,7 @@ import { clerkClient, currentUser } from "@clerk/nextjs/server";
 import { claimPlaceholderForUser, dismissClaimCandidate, getClaimCandidatesForUser } from "@/lib/network-claims";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
+import { prisma } from "@/lib/prisma";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -139,13 +140,53 @@ export async function POST(request: Request) {
     }
 
     const result = await claimPlaceholderForUser(authResult.dbUserId, parsed.data.placeholderId);
+    const [persistedPlaceholder, candidates] = await Promise.all([
+      prisma.placeholderPerson.findUnique({
+        where: { id: parsed.data.placeholderId },
+        select: {
+          id: true,
+          linkedUserId: true,
+          claimStatus: true,
+        },
+      }),
+      getClaimCandidatesForUser(authResult.dbUserId, {
+        includeDismissed: false,
+        limit: 5,
+      }),
+    ]);
+    const stillSuggested = candidates.some(
+      (candidate) => candidate.placeholderId === parsed.data.placeholderId
+    );
+
     logClaimDebug("claim-connections.post.claimed", {
       dbUserId: authResult.dbUserId,
       placeholderId: parsed.data.placeholderId,
       relationshipId: result.relationshipId ?? null,
       alreadyConnected: result.alreadyConnected,
+      persistedPlaceholder,
+      stillSuggested,
     });
-    return NextResponse.json({ claimed: true, result });
+
+    if (
+      !persistedPlaceholder ||
+      persistedPlaceholder.linkedUserId !== authResult.dbUserId ||
+      persistedPlaceholder.claimStatus !== "claimed" ||
+      stillSuggested
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "The claim request completed, but this match is still being returned by the server. Please try again after the latest deploy finishes.",
+          claimed: true,
+          result,
+          persistedPlaceholder,
+          candidates,
+        },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ claimed: true, result, persistedPlaceholder, candidates });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not update this claim.";
     logClaimDebug("claim-connections.post.failed", {
