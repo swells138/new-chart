@@ -9,7 +9,6 @@ import {
   ReactFlow,
   type Edge,
   type Node,
-  type ReactFlowInstance,
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
@@ -383,11 +382,7 @@ export function RelationshipMap({
   const [recentEdgeId, setRecentEdgeId] = useState<string | null>(null);
   const [pulsingNodeIds, setPulsingNodeIds] = useState<string[]>([]);
   const [bouncingNodeId, setBouncingNodeId] = useState<string | null>(null);
-  const [flowInstance, setFlowInstance] = useState<
-    ReactFlowInstance<Node, Edge> | null
-  >(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
-  const hasCenteredOnCurrentUserRef = useRef(false);
 
   function triggerConnectionFeedback(
     edgeId: string,
@@ -706,10 +701,14 @@ export function RelationshipMap({
       );
     }
 
-    // Public view: show all users who have at least one public connection
+    // Public view: show users that currently have at least one visible connection.
+    const visiblePublicRelationships = approvedRelationships.filter((item) =>
+      activeTypes.includes(item.type),
+    );
+
     const baseUsers = users;
     const connectedInGraph = new Set<string>();
-    approvedRelationships.forEach((item) => {
+    visiblePublicRelationships.forEach((item) => {
       connectedInGraph.add(item.source);
       connectedInGraph.add(item.target);
     });
@@ -721,6 +720,7 @@ export function RelationshipMap({
     activeCurrentUserId,
     limitedExtendedNodeIds,
     approvedRelationships,
+    activeTypes,
   ]);
 
   useEffect(() => {
@@ -1060,28 +1060,6 @@ export function RelationshipMap({
   useEffect(() => {
     setEdges(mappedEdges);
   }, [mappedEdges, setEdges]);
-
-  useEffect(() => {
-    if (chartLayer !== "public") {
-      hasCenteredOnCurrentUserRef.current = false;
-      return;
-    }
-
-    if (!activeCurrentUserId || !flowInstance || hasCenteredOnCurrentUserRef.current) {
-      return;
-    }
-
-    const currentNode = nodes.find((node) => node.id === activeCurrentUserId);
-    if (!currentNode) {
-      return;
-    }
-
-    flowInstance.setCenter(currentNode.position.x, currentNode.position.y, {
-      zoom: 0.95,
-      duration: 450,
-    });
-    hasCenteredOnCurrentUserRef.current = true;
-  }, [chartLayer, activeCurrentUserId, flowInstance, nodes]);
 
   async function createConnection(targetId: string) {
     if (!targetId) {
@@ -1632,12 +1610,11 @@ export function RelationshipMap({
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
-                fitView={!activeCurrentUserId}
+                fitView={chartLayer === "public"}
                 onNodeClick={(_, node) => setSelectedId(node.id)}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                onInit={setFlowInstance}
                 minZoom={0.2}
                 maxZoom={1.8}
                 connectOnClick={false}
