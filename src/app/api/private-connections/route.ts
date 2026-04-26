@@ -32,6 +32,7 @@ const relationshipTypeValues = [
 const createSchema = z
   .object({
     name: z.string().trim().min(1).max(80),
+    offerToNameMatch: z.boolean().optional(),
     email: z.string().trim().email().max(200).optional().or(z.literal("")),
     phoneNumber: z.string().trim().max(40).optional().or(z.literal("")),
     relationshipType: z.enum(relationshipTypeValues),
@@ -47,6 +48,7 @@ const updateSchema = z
       .optional()
       .default("update"),
     name: z.string().trim().min(1).max(80).optional(),
+    offerToNameMatch: z.boolean().optional(),
     email: z.string().trim().email().max(200).optional().or(z.literal("")),
     phoneNumber: z.string().trim().max(40).optional().or(z.literal("")),
     relationshipType: z.enum(relationshipTypeValues).optional(),
@@ -114,6 +116,7 @@ async function insertLegacyPlaceholder(data: {
     id,
     ownerId: data.ownerId,
     name: data.name,
+    offerToNameMatch: true,
     email: null,
     phoneNumber: null,
     relationshipType: data.relationshipType,
@@ -129,6 +132,7 @@ function normalizePlaceholder(p: {
   id: string;
   ownerId: string;
   name: string;
+  offerToNameMatch?: boolean;
   email: string | null;
   phoneNumber: string | null;
   relationshipType: string;
@@ -142,6 +146,7 @@ function normalizePlaceholder(p: {
     id: p.id,
     ownerId: p.ownerId,
     name: p.name,
+    offerToNameMatch: p.offerToNameMatch ?? true,
     email: p.email ?? "",
     phoneNumber: p.phoneNumber ?? "",
     relationshipType: p.relationshipType as RelationshipType,
@@ -319,7 +324,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
     }
 
-    const { name, email, phoneNumber, relationshipType, note } = parsed.data;
+    const { name, offerToNameMatch, email, phoneNumber, relationshipType, note } = parsed.data;
     const normalizedEmail = email?.trim() || null;
     const normalizedPhoneNumber = phoneNumber?.trim() || null;
 
@@ -386,6 +391,7 @@ export async function POST(request: Request) {
         data: {
           ownerId: currentDbUserId,
           name: name.trim(),
+          offerToNameMatch: offerToNameMatch ?? false,
           email: normalizedEmail,
           phoneNumber: normalizedPhoneNumber,
           relationshipType,
@@ -473,7 +479,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
   }
 
-  const { id, action, name, email, phoneNumber, relationshipType, note } =
+  const { id, action, name, offerToNameMatch, email, phoneNumber, relationshipType, note } =
     parsed.data;
 
   const existing = await prisma.placeholderPerson.findUnique({
@@ -481,7 +487,7 @@ export async function PATCH(request: Request) {
     select: {
       id: true, ownerId: true, name: true, email: true, phoneNumber: true,
       relationshipType: true, note: true, inviteToken: true, linkedUserId: true,
-      claimStatus: true, createdAt: true,
+      claimStatus: true, createdAt: true, offerToNameMatch: true,
     },
   });
   if (!existing) {
@@ -526,6 +532,7 @@ export async function PATCH(request: Request) {
   // Determine whether the update changes any meaningful fields.
   const willModifyFields =
     name !== undefined ||
+    offerToNameMatch !== undefined ||
     email !== undefined ||
     phoneNumber !== undefined ||
     relationshipType !== undefined ||
@@ -540,6 +547,7 @@ export async function PATCH(request: Request) {
     where: { id },
     data: {
       ...(name !== undefined && { name: name.trim() }),
+      ...(offerToNameMatch !== undefined && { offerToNameMatch }),
       ...(email !== undefined && { email: email.trim() || null }),
       ...(phoneNumber !== undefined && {
         phoneNumber: phoneNumber.trim() || null,

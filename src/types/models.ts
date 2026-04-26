@@ -52,6 +52,7 @@ export interface PlaceholderPerson {
   id: string;
   ownerId: string;
   name: string;
+  offerToNameMatch: boolean;
   email: string;
   phoneNumber: string;
   relationshipType: RelationshipType;

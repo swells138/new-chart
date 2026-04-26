@@ -25,6 +25,7 @@ type PlaceholderWithOwner = {
   id: string;
   ownerId: string;
   name: string;
+  offerToNameMatch: boolean;
   email: string | null;
   phoneNumber: string | null;
   relationshipType: string;
@@ -188,11 +189,12 @@ export async function getClaimCandidatesForUser(
       take: 200,
     });
 
-    const visiblePlaceholders = includeDismissed
+    const visiblePlaceholders = (includeDismissed
       ? placeholders
       : placeholders.filter(
           (placeholder) => !currentUser.ignoredClaimPlaceholderIds.includes(placeholder.id)
-        );
+        ))
+      .filter((placeholder) => placeholder.offerToNameMatch !== false);
 
     const ownerIds = Array.from(new Set(visiblePlaceholders.map((placeholder) => placeholder.ownerId)));
     const neighborMap = await buildApprovedNeighborMap([currentUser.id, ...ownerIds]);

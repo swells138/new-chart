@@ -1,0 +1,2 @@
+ALTER TABLE "PlaceholderPerson"
+ADD COLUMN IF NOT EXISTS "offerToNameMatch" BOOLEAN NOT NULL DEFAULT true;

@@ -32,6 +32,7 @@ const basePlaceholderSelect = {
   id: true,
   ownerId: true,
   name: true,
+  offerToNameMatch: true,
   relationshipType: true,
   note: true,
   inviteToken: true,
@@ -140,6 +141,7 @@ type PlaceholderRecord = {
   id: string;
   ownerId: string;
   name: string;
+  offerToNameMatch?: boolean;
   email?: string | null;
   phoneNumber?: string | null;
   relationshipType: string;
@@ -394,6 +396,7 @@ export async function getPrivateConnectionsByUser(userId: string): Promise<Place
     id: p.id,
     ownerId: p.ownerId,
     name: p.name,
+    offerToNameMatch: p.offerToNameMatch ?? true,
     email: p.email ?? "",
     phoneNumber: p.phoneNumber ?? "",
     relationshipType: p.relationshipType as RelationshipType,

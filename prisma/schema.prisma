@@ -128,6 +128,7 @@ model PlaceholderPerson {
   ownerId         String
   owner           User      @relation("PlaceholderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   name            String    // Friendly name chosen by the owner; no account required
+  offerToNameMatch Boolean   @default(true) // Owner opt-in for name-based claim suggestions
   email           String?
   phoneNumber     String?
   relationshipType String   // One of the RelationshipType values

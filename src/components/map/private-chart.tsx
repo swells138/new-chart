@@ -389,6 +389,7 @@ export function PrivateChart({
 
   // Add-form state
   const [addName, setAddName] = useState("");
+  const [addOfferToNameMatch, setAddOfferToNameMatch] = useState(false);
   const [addEmail, setAddEmail] = useState("");
   const [addPhoneNumber, setAddPhoneNumber] = useState("");
   const [addType, setAddType] = useState<RelationshipType>("Friends");
@@ -429,6 +430,7 @@ export function PrivateChart({
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editOfferToNameMatch, setEditOfferToNameMatch] = useState(false);
   const [editEmail, setEditEmail] = useState("");
   const [editPhoneNumber, setEditPhoneNumber] = useState("");
   const [editType, setEditType] = useState<RelationshipType>("Friends");
@@ -754,6 +756,7 @@ export function PrivateChart({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
+          offerToNameMatch: addOfferToNameMatch,
           email: addEmail.trim() || undefined,
           phoneNumber: addPhoneNumber.trim() || undefined,
           relationshipType: addType,
@@ -794,6 +797,7 @@ export function PrivateChart({
         }));
       }
       setAddName("");
+      setAddOfferToNameMatch(false);
       setAddEmail("");
       setAddPhoneNumber("");
       setAddNote("");
@@ -931,6 +935,7 @@ export function PrivateChart({
   function startEdit(p: PlaceholderPerson) {
     setEditingId(p.id);
     setEditName(p.name);
+    setEditOfferToNameMatch(p.offerToNameMatch);
     setEditEmail(p.email);
     setEditPhoneNumber(p.phoneNumber);
     setEditType(p.relationshipType);
@@ -949,6 +954,7 @@ export function PrivateChart({
           id,
           action: "update",
           name: editName.trim(),
+          offerToNameMatch: editOfferToNameMatch,
           email: editEmail.trim() || undefined,
           phoneNumber: editPhoneNumber.trim() || undefined,
           relationshipType: editType,
@@ -1607,6 +1613,18 @@ export function PrivateChart({
               disabled={isAdding}
             />
           </div>
+          <label className="flex items-start gap-2 rounded-xl border border-[var(--border-soft)] px-3 py-2.5 text-xs text-black/70 dark:text-white/75">
+            <input
+              type="checkbox"
+              checked={addOfferToNameMatch}
+              onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
+              className="mt-0.5 h-4 w-4"
+              disabled={isAdding}
+            />
+            <span>
+              Offer this node as a claim suggestion to matching signups (name-based).
+            </span>
+          </label>
           <div className="flex gap-2">
             <select
               value={addType}
@@ -1880,6 +1898,17 @@ export function PrivateChart({
                         placeholder="Note (optional)"
                         className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
                       />
+                      <label className="flex items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[11px] text-white/80">
+                        <input
+                          type="checkbox"
+                          checked={editOfferToNameMatch}
+                          onChange={(e) =>
+                            setEditOfferToNameMatch(e.target.checked)
+                          }
+                          className="mt-0.5 h-3.5 w-3.5"
+                        />
+                        <span>Offer this node as a claim suggestion.</span>
+                      </label>
                       {editError ? (
                         <p className="text-xs text-red-400">{editError}</p>
                       ) : null}
@@ -1960,6 +1989,15 @@ export function PrivateChart({
                             }}
                           >
                             {p.relationshipType}
+                          </span>
+                          <span
+                            className={`ml-2 mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              p.offerToNameMatch
+                                ? "border border-emerald-300/45 bg-emerald-400/15 text-emerald-200"
+                                : "border border-white/20 bg-white/10 text-white/60"
+                            }`}
+                          >
+                            Claim suggestions {p.offerToNameMatch ? "on" : "off"}
                           </span>
                           {publicConnectCandidate ? (
                             <span className="ml-2 mt-1 inline-block rounded-full border border-amber-300/45 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
