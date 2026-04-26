@@ -140,20 +140,55 @@ export async function POST(request: Request) {
     }
 
     const result = await claimPlaceholderForUser(authResult.dbUserId, parsed.data.placeholderId);
-    const [persistedPlaceholder, candidates] = await Promise.all([
-      prisma.placeholderPerson.findUnique({
+    let persistedPlaceholder = await prisma.placeholderPerson.findUnique({
+      where: { id: parsed.data.placeholderId },
+      select: {
+        id: true,
+        linkedUserId: true,
+        claimStatus: true,
+      },
+    });
+
+    if (
+      !persistedPlaceholder ||
+      persistedPlaceholder.linkedUserId !== authResult.dbUserId ||
+      persistedPlaceholder.claimStatus !== "claimed"
+    ) {
+      logClaimDebug("claim-connections.post.repair-placeholder", {
+        dbUserId: authResult.dbUserId,
+        placeholderId: parsed.data.placeholderId,
+        beforeRepair: persistedPlaceholder,
+      });
+
+      await prisma.placeholderPerson.updateMany({
+        where: {
+          id: parsed.data.placeholderId,
+          OR: [
+            { linkedUserId: null },
+            { linkedUserId: authResult.dbUserId },
+          ],
+        },
+        data: {
+          linkedUserId: authResult.dbUserId,
+          claimStatus: "claimed",
+          inviteToken: null,
+        },
+      });
+
+      persistedPlaceholder = await prisma.placeholderPerson.findUnique({
         where: { id: parsed.data.placeholderId },
         select: {
           id: true,
           linkedUserId: true,
           claimStatus: true,
         },
-      }),
-      getClaimCandidatesForUser(authResult.dbUserId, {
-        includeDismissed: false,
-        limit: 5,
-      }),
-    ]);
+      });
+    }
+
+    const candidates = await getClaimCandidatesForUser(authResult.dbUserId, {
+      includeDismissed: false,
+      limit: 5,
+    });
     const stillSuggested = candidates.some(
       (candidate) => candidate.placeholderId === parsed.data.placeholderId
     );
