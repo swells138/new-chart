@@ -93,6 +93,7 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
         report?: ModerationReport;
       };
 
+      if (!response.ok || !body.report) {
         setError(body.error ?? 'Could not update report.');
         return;
       }
@@ -125,6 +126,7 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
         unlockedUserId?: string;
       };
 
+      if (!response.ok || !body.unlockedUserId) {
         setError(body.error ?? 'Could not clear lock.');
         return;
       }
