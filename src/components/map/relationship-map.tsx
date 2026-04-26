@@ -763,20 +763,7 @@ export function RelationshipMap({
   }, [activeTypes, displayedRelationships, displayedUserIds]);
 
   const mappedNodes: Node[] = useMemo(() => {
-    const orderedUsers = [...displayedUsers].sort((left, right) => {
-      if (activeCurrentUserId && left.id === activeCurrentUserId) return -1;
-      if (activeCurrentUserId && right.id === activeCurrentUserId) return 1;
-      return left.name.localeCompare(right.name);
-    });
-
-    // build a quick degree map so isolated nodes can be pushed out for visibility
-    const degreeMap = new Map<string, number>();
-    filteredRelationships.forEach((rel) => {
-      degreeMap.set(rel.source, (degreeMap.get(rel.source) ?? 0) + 1);
-      degreeMap.set(rel.target, (degreeMap.get(rel.target) ?? 0) + 1);
-    });
-
-    // Build a map of connected neighbors for each node to help with grouping
+    // Build a map of connected neighbors for better layout
     const neighborMap = new Map<string, Set<string>>();
     filteredRelationships.forEach((rel) => {
       if (!neighborMap.has(rel.source)) neighborMap.set(rel.source, new Set());
@@ -785,7 +772,61 @@ export function RelationshipMap({
       neighborMap.get(rel.target)!.add(rel.source);
     });
 
-    // initial placement
+    // Smart ordering: place connected nodes near each other to minimize edge crossings
+    // Start with current user, then arrange others by connectivity
+    let orderedUsers: User[] = [];
+    const positioned = new Set<string>();
+
+    if (activeCurrentUserId) {
+      const currentUser = displayedUsers.find((u) => u.id === activeCurrentUserId);
+      if (currentUser) {
+        orderedUsers.push(currentUser);
+        positioned.add(currentUser.id);
+      }
+    }
+
+    // Greedily add users: next user is one that's connected to someone already positioned
+    while (positioned.size < displayedUsers.length) {
+      let nextUser: User | null = null;
+      let bestConnections = -1;
+
+      for (const user of displayedUsers) {
+        if (positioned.has(user.id)) continue;
+        
+        // Count how many of this user's neighbors are already positioned
+        const neighbors = neighborMap.get(user.id) ?? new Set();
+        const connectedCount = Array.from(neighbors).filter((n) =>
+          positioned.has(n),
+        ).length;
+
+        // Prefer users with more connections to positioned nodes
+        if (connectedCount > bestConnections) {
+          bestConnections = connectedCount;
+          nextUser = user;
+        }
+      }
+
+      // Fallback to any unpositioned user if none are connected
+      if (!nextUser) {
+        nextUser = displayedUsers.find((u) => !positioned.has(u.id)) ?? null;
+      }
+
+      if (nextUser) {
+        orderedUsers.push(nextUser);
+        positioned.add(nextUser.id);
+      } else {
+        break;
+      }
+    }
+
+    // build a quick degree map
+    const degreeMap = new Map<string, number>();
+    filteredRelationships.forEach((rel) => {
+      degreeMap.set(rel.source, (degreeMap.get(rel.source) ?? 0) + 1);
+      degreeMap.set(rel.target, (degreeMap.get(rel.target) ?? 0) + 1);
+    });
+
+    // initial placement with smart ordering
     const items = orderedUsers.map((user, index) => {
       const degree = degreeMap.get(user.id) ?? 0;
       const pos = getOrganicPosition(
