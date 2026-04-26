@@ -369,6 +369,8 @@ export function RelationshipMap({
     useState<RelationshipType>("Friends");
   const [allRelationships, setAllRelationships] =
     useState<Relationship[]>(relationships);
+  // Track IDs that have been mutated client-side so SSR rehydration doesn't overwrite them.
+  const locallyMutatedIds = useRef(new Set<string>());
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [editingRelationshipId, setEditingRelationshipId] = useState<
@@ -596,7 +598,22 @@ export function RelationshipMap({
   }, [relationships, userConnections, activeCurrentUserId]);
 
   useEffect(() => {
-    setAllRelationships(scopedRelationships);
+    setAllRelationships((prev) => {
+      // Merge: keep locally-mutated relationships as-is; fill in new ones from SSR.
+      const mutated = locallyMutatedIds.current;
+      const prevById = new Map(prev.map((r) => [r.id, r]));
+      const merged = scopedRelationships.map((r) =>
+        mutated.has(r.id) ? (prevById.get(r.id) ?? r) : r,
+      );
+      // Keep locally-added (not yet in SSR) entries too.
+      const ssrIds = new Set(scopedRelationships.map((r) => r.id));
+      prev.forEach((r) => {
+        if (!ssrIds.has(r.id)) {
+          merged.push(r);
+        }
+      });
+      return merged;
+    });
   }, [scopedRelationships]);
 
   const approvedUserConnections = useMemo(
@@ -1134,6 +1151,7 @@ export function RelationshipMap({
 
       const relationship = body.relationship;
 
+      locallyMutatedIds.current.add(relationship.id);
       setAllRelationships((prev) => [...prev, relationship]);
       setSelectedId(relationship.target);
       triggerConnectionFeedback(relationship.id, sourceId, relationship.target);
@@ -1218,6 +1236,7 @@ export function RelationshipMap({
 
       const updated = body.relationship;
 
+      locallyMutatedIds.current.add(updated.id);
       setAllRelationships((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -1270,6 +1289,7 @@ export function RelationshipMap({
         return;
       }
 
+      locallyMutatedIds.current.add(id);
       setAllRelationships((prev) => prev.filter((item) => item.id !== id));
       setEditingRelationshipId(null);
       setEditingNote("");
@@ -1298,19 +1318,6 @@ export function RelationshipMap({
     if (!parsed) {
       setConnectionError("This connection could not be found.");
       return;
-    }
-
-    const willPublish =
-      (action === "confirmCreator" || action === "approve") &&
-      parsed.status === "pending_creator_confirmation" &&
-      parsed.creatorId === actorNodeId;
-    if (willPublish) {
-      const confirmed = window.confirm(
-        "Confirming this claim makes the connection public on the network chart. Continue?",
-      );
-      if (!confirmed) {
-        return;
-      }
     }
 
     setIsRespondingId(id);
@@ -1343,6 +1350,7 @@ export function RelationshipMap({
       }
 
       if (body.relationship) {
+        locallyMutatedIds.current.add(body.relationship.id);
         setAllRelationships((prev) =>
           prev.map((item) =>
             item.id === body.relationship?.id ? body.relationship : item,
@@ -1807,7 +1815,11 @@ export function RelationshipMap({
                     No pending verifications.
                   </p>
                 ) : (
-                  <div className="mt-3 space-y-2">
+                  <>
+                    {connectionError ? (
+                      <p className="mt-2 text-xs text-red-700 dark:text-red-400">{connectionError}</p>
+                    ) : null}
+                    <div className="mt-3 space-y-2">
                     {pendingRequests.map((item) => {
                       const parsed = parseRelationshipNote(item.note);
                       const otherUserId =
@@ -1932,6 +1944,7 @@ export function RelationshipMap({
                       );
                     })}
                   </div>
+                  </>
                 )}
               </div>
             ) : null}
