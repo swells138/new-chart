@@ -242,6 +242,10 @@ function normalizePhoneNumber(value: string | null | undefined) {
   return digits.length >= 7 ? digits : "";
 }
 
+function makePairKey(a: string, b: string) {
+  return a < b ? `${a}::${b}` : `${b}::${a}`;
+}
+
 function getNameMatchScore(userName: string, placeholderName: string) {
   const normalizedUser = normalizeMatchString(userName);
   const normalizedPlaceholder = normalizeMatchString(placeholderName);
@@ -357,6 +361,57 @@ export async function getClaimCandidatesForUser(
       .filter((placeholder) => placeholder.offerToNameMatch !== false);
 
     const ownerIds = Array.from(new Set(visiblePlaceholders.map((placeholder) => placeholder.ownerId)));
+
+    // If there is already an active or pending relationship between these two users,
+    // suppress additional claim prompts to avoid repeated loops.
+    const pairRelationshipRows = ownerIds.length
+      ? await prisma.relationship.findMany({
+          where: {
+            OR: [
+              { user1Id: userId, user2Id: { in: ownerIds } },
+              { user2Id: userId, user1Id: { in: ownerIds } },
+            ],
+          },
+          select: {
+            user1Id: true,
+            user2Id: true,
+            type: true,
+            note: true,
+          },
+        })
+      : [];
+
+    const blockedOwnerIds = new Set<string>();
+    pairRelationshipRows.forEach((relationship) => {
+      const meta = composeClaimMeta({
+        storedType: relationship.type,
+        user1Id: relationship.user1Id,
+        user2Id: relationship.user2Id,
+        note: relationship.note,
+      });
+
+      if (
+        meta.status === "active" ||
+        meta.status === "pending_claim" ||
+        meta.status === "pending_creator_confirmation"
+      ) {
+        const otherUserId = relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id;
+        blockedOwnerIds.add(otherUserId);
+      }
+    });
+
+    const dedupedPlaceholders = new Map<string, PlaceholderWithOwner>();
+    visiblePlaceholders
+      .filter((placeholder) => !blockedOwnerIds.has(placeholder.ownerId))
+      .forEach((placeholder) => {
+        const key = `${placeholder.ownerId}::${normalizeMatchString(placeholder.name)}`;
+        const existing = dedupedPlaceholders.get(key);
+        if (!existing || placeholder.createdAt > existing.createdAt) {
+          dedupedPlaceholders.set(key, placeholder);
+        }
+      });
+
+    const filteredPlaceholders = Array.from(dedupedPlaceholders.values());
     const neighborMap = await buildApprovedNeighborMap([currentUser.id, ...ownerIds]);
     const currentNeighbors = neighborMap.get(currentUser.id) ?? new Set<string>();
 
@@ -374,7 +429,7 @@ export async function getClaimCandidatesForUser(
     const currentUserEmail = (currentUser.email ?? "").trim().toLowerCase();
     const currentUserPhone = normalizePhoneNumber(currentUser.phoneNumber);
 
-    const rankedCandidates = visiblePlaceholders
+    const rankedCandidates = filteredPlaceholders
       .map((placeholder) => {
         const ownerNeighbors = neighborMap.get(placeholder.ownerId) ?? new Set<string>();
         const sharedConnectionIds = Array.from(ownerNeighbors).filter((connectionId) =>
