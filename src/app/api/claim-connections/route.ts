@@ -157,6 +157,12 @@ export async function POST(request: Request) {
     const stillSuggested = candidates.some(
       (candidate) => candidate.placeholderId === parsed.data.placeholderId
     );
+    const persistedClaim =
+      persistedPlaceholder?.linkedUserId === authResult.dbUserId &&
+      persistedPlaceholder.claimStatus === "claimed";
+    const visibleCandidates = candidates.filter(
+      (candidate) => candidate.placeholderId !== parsed.data.placeholderId
+    );
 
     logClaimDebug("claim-connections.post.claimed", {
       dbUserId: authResult.dbUserId,
@@ -167,16 +173,11 @@ export async function POST(request: Request) {
       stillSuggested,
     });
 
-    if (
-      !persistedPlaceholder ||
-      persistedPlaceholder.linkedUserId !== authResult.dbUserId ||
-      persistedPlaceholder.claimStatus !== "claimed" ||
-      stillSuggested
-    ) {
+    if (!persistedClaim) {
       return NextResponse.json(
         {
           error:
-            "The claim request completed, but this match is still being returned by the server. Please try again after the latest deploy finishes.",
+            `The claim did not persist. Saved status: ${persistedPlaceholder?.claimStatus ?? "missing"}, linked user: ${persistedPlaceholder?.linkedUserId ?? "missing"}.`,
           claimed: true,
           result,
           persistedPlaceholder,
@@ -186,7 +187,13 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ claimed: true, result, persistedPlaceholder, candidates });
+    return NextResponse.json({
+      claimed: true,
+      result,
+      persistedPlaceholder,
+      candidates: visibleCandidates,
+      warning: stillSuggested ? "Claim persisted, but candidate refresh echoed the claimed id." : null,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not update this claim.";
     logClaimDebug("claim-connections.post.failed", {
