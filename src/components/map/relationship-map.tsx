@@ -1926,20 +1926,21 @@ export function RelationshipMap({
               </div>
             ) : null}
 
-            <div id="node-management" className="mt-4">
-              {selectedUser ? (
-                <>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={selectedUser.name} className="h-14 w-14" />
-                    <div>
-                      <h3 className="text-xl font-semibold">
-                        {selectedUser.name}
-                      </h3>
-                      <p className="text-sm text-black/65 dark:text-white/75">
-                        @{selectedUser.handle}
-                      </p>
+            {activeCurrentUserId ? (
+              <div id="node-management" className="mt-4">
+                {selectedUser ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={selectedUser.name} className="h-14 w-14" />
+                      <div>
+                        <h3 className="text-xl font-semibold">
+                          {selectedUser.name}
+                        </h3>
+                        <p className="text-sm text-black/65 dark:text-white/75">
+                          @{selectedUser.handle}
+                        </p>
+                      </div>
                     </div>
-                  </div>
                   <p className="mt-3 text-sm text-black/80 dark:text-white/85">
                     {selectedUser.bio}
                   </p>
@@ -2211,7 +2212,8 @@ export function RelationshipMap({
                   Select a node to preview member details.
                 </p>
               )}
-            </div>
+              </div>
+            ) : null}
           </aside>
         </div>
       ) : null}
