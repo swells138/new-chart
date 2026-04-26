@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   PlaceholderPerson,
@@ -353,6 +353,7 @@ export function RelationshipMap({
   privatePlaceholders = [],
   baseUrl = "",
 }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [chartLayer, setChartLayer] = useState<"private" | "public">("public");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
@@ -1353,7 +1354,17 @@ export function RelationshipMap({
       };
 
       if (!response.ok) {
-        setConnectionError(body.error ?? "Could not update the request.");
+        const message = body.error ?? "Could not update the request.";
+        console.error("respondToConnection failed", {
+          id,
+          action,
+          status: response.status,
+          message,
+        });
+        setConnectionError(message);
+        if (typeof window !== "undefined") {
+          window.alert(`Could not update this request: ${message}`);
+        }
         return;
       }
 
@@ -1364,10 +1375,19 @@ export function RelationshipMap({
             item.id === body.relationship?.id ? body.relationship : item,
           ),
         );
+
+        if (action === "confirmCreator" || action === "approve") {
+          // Keep claim/profile/map views in sync after state transitions.
+          router.refresh();
+        }
       }
     } catch (error) {
       console.error(error);
-      setConnectionError("Could not update the request.");
+      const message = "Could not update the request.";
+      setConnectionError(message);
+      if (typeof window !== "undefined") {
+        window.alert(message);
+      }
     } finally {
       setIsRespondingId(null);
     }

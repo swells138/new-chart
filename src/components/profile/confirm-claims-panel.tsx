@@ -57,7 +57,16 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
       const body = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(body.error ?? "Could not confirm this connection.");
+        const message = body.error ?? "Could not confirm this connection.";
+        console.error("confirmClaim failed", {
+          relationshipId,
+          status: response.status,
+          message,
+        });
+        setError(message);
+        if (typeof window !== "undefined") {
+          window.alert(`Could not confirm this connection: ${message}`);
+        }
         return;
       }
 
@@ -67,7 +76,12 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
 
       router.refresh();
     } catch {
-      setError("Could not confirm this connection.");
+      const message = "Could not confirm this connection.";
+      console.error("confirmClaim request error", { relationshipId });
+      setError(message);
+      if (typeof window !== "undefined") {
+        window.alert(message);
+      }
     } finally {
       setWorkingId(null);
     }
@@ -87,7 +101,16 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
       const body = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(body.error ?? "Could not reject this connection.");
+        const message = body.error ?? "Could not reject this connection.";
+        console.error("rejectClaim failed", {
+          relationshipId,
+          status: response.status,
+          message,
+        });
+        setError(message);
+        if (typeof window !== "undefined") {
+          window.alert(`Could not reject this connection: ${message}`);
+        }
         return;
       }
 
@@ -97,7 +120,12 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
 
       router.refresh();
     } catch {
-      setError("Could not reject this connection.");
+      const message = "Could not reject this connection.";
+      console.error("rejectClaim request error", { relationshipId });
+      setError(message);
+      if (typeof window !== "undefined") {
+        window.alert(message);
+      }
     } finally {
       setWorkingId(null);
     }
@@ -143,14 +171,20 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
               </p>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={workingId === item.relationshipId}
-                onClick={() => confirmClaim(item.relationshipId)}
-                className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
-              >
-                {workingId === item.relationshipId ? "Saving..." : "Yes, that's them — make public"}
-              </button>
+              {item.creatorId === currentUserId ? (
+                <button
+                  type="button"
+                  disabled={workingId === item.relationshipId}
+                  onClick={() => confirmClaim(item.relationshipId)}
+                  className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
+                >
+                  {workingId === item.relationshipId ? "Saving..." : "Yes, that's them — make public"}
+                </button>
+              ) : (
+                <span className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-xs text-black/60 dark:text-white/60">
+                  Waiting for creator confirmation
+                </span>
+              )}
               <button
                 type="button"
                 disabled={workingId === item.relationshipId}

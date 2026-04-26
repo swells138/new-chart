@@ -22,6 +22,17 @@ const hasClerkKeys =
       process.env.CLERK_PUBLISHABLE_KEY
   );
 
+const claimDebugEnabled =
+  process.env.DEBUG_CLAIMS === "1" || process.env.NODE_ENV !== "production";
+
+function logClaimDebug(event: string, details?: Record<string, unknown>) {
+  if (!claimDebugEnabled) {
+    return;
+  }
+
+  console.info("[claim-debug]", event, details ?? {});
+}
+
 const relationshipTypeValues = [
   "Talking",
   "Dating",
@@ -311,6 +322,14 @@ export async function PATCH(request: Request) {
 
   const { id, type, action, actorNodeId } = parsedPayload.data;
 
+  if (action === "approve" || action === "confirmCreator" || action === "reject" || action === "dispute") {
+    logClaimDebug("relationships.patch.claim-action.start", {
+      relationshipId: id,
+      action,
+      actorNodeId,
+    });
+  }
+
   if (!actorNodeId || actorNodeId !== currentDbUserId) {
     return NextResponse.json(
       { error: "You can only update connections from your own node." },
@@ -327,6 +346,13 @@ export async function PATCH(request: Request) {
   }
 
   if (existing.user1Id !== currentDbUserId && existing.user2Id !== currentDbUserId) {
+    if (action === "approve" || action === "confirmCreator" || action === "reject" || action === "dispute") {
+      logClaimDebug("relationships.patch.claim-action.forbidden-not-participant", {
+        relationshipId: id,
+        action,
+        currentDbUserId,
+      });
+    }
     return NextResponse.json(
       { error: "You can only edit connections that include your own profile." },
       { status: 403 }
@@ -471,6 +497,12 @@ export async function PATCH(request: Request) {
 
     const shouldConfirm = action === "confirmCreator" || action === "approve";
     if (!shouldConfirm) {
+      logClaimDebug("relationships.patch.pending-creator.invalid-action", {
+        relationshipId: id,
+        action,
+        currentDbUserId,
+        creatorId: claimMeta.creatorId,
+      });
       return NextResponse.json(
         { error: "Waiting for the original creator to confirm, reject, or dispute this claim." },
         { status: 400 },
@@ -478,6 +510,12 @@ export async function PATCH(request: Request) {
     }
 
     if (currentDbUserId !== claimMeta.creatorId) {
+      logClaimDebug("relationships.patch.pending-creator.forbidden", {
+        relationshipId: id,
+        action,
+        currentDbUserId,
+        creatorId: claimMeta.creatorId,
+      });
       return NextResponse.json(
         { error: "Only the original creator can finalize this claim." },
         { status: 403 },
@@ -492,6 +530,14 @@ export async function PATCH(request: Request) {
         note: "",
         isPublic: true,
       },
+    });
+
+    logClaimDebug("relationships.patch.pending-creator.confirmed", {
+      relationshipId: id,
+      action,
+      actorNodeId: currentDbUserId,
+      nextType,
+      isPublic: true,
     });
 
     await sendNotification(

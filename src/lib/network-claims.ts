@@ -734,6 +734,7 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
 
 export interface PendingCreatorConfirmation {
   relationshipId: string;
+  creatorId: string;
   claimedByUserId: string;
   claimedByName: string;
   claimedByHandle: string;
@@ -809,6 +810,7 @@ export async function getPendingCreatorConfirmations(
 
     results.push({
       relationshipId: rel.id,
+      creatorId,
       claimedByUserId,
       claimedByName: claimer?.name ?? "Someone",
       claimedByHandle: claimer?.handle ?? "",
