@@ -691,13 +691,11 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
         select: { ignoredClaimPlaceholderIds: true },
       });
 
-      if (user && user.ignoredClaimPlaceholderIds.includes(placeholder.id)) {
+      if (user && !user.ignoredClaimPlaceholderIds.includes(placeholder.id)) {
         await tx.user.update({
           where: { id: userId },
           data: {
-            ignoredClaimPlaceholderIds: user.ignoredClaimPlaceholderIds.filter(
-              (item) => item !== placeholder.id
-            ),
+            ignoredClaimPlaceholderIds: [...user.ignoredClaimPlaceholderIds, placeholder.id],
           },
         });
       }
@@ -705,7 +703,7 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       if (!isColumnMissingError(error)) {
         throw error;
       }
-      // Older DB schema without ignored placeholders: skip cleanup.
+      // Older DB schema without ignored placeholders: skip claim suppression.
     }
 
     return {
