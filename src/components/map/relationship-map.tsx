@@ -1959,8 +1959,15 @@ export function RelationshipMap({
 
                   <div className="mt-5 space-y-2">
                     <h4 className="text-sm font-semibold uppercase tracking-wide">
-                      Direct Connections
+                      {selectedUser.id === activeCurrentUserId
+                        ? "Your Direct Connections"
+                        : `${selectedUser.name}'s Public Connections`}
                     </h4>
+                    {selectedUser.id !== activeCurrentUserId ? (
+                      <p className="text-xs text-black/65 dark:text-white/70">
+                        You are viewing this member's visible public connections.
+                      </p>
+                    ) : null}
                     {isConnecting ? (
                       <p className="text-xs text-black/65 dark:text-white/70">
                         Saving new connection...
