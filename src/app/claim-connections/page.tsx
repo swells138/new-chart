@@ -6,6 +6,8 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { getClaimCandidatesForUser, getPendingCreatorConfirmations } from "@/lib/network-claims";
 
+export const dynamic = "force-dynamic";
+
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(

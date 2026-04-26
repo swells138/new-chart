@@ -111,7 +111,7 @@ export default async function ProfilePage() {
   };
 
   const [claimCandidates, pendingConfirmations] = await Promise.all([
-    getClaimCandidatesForUser(user.id, { includeDismissed: true, limit: 5 }),
+    getClaimCandidatesForUser(user.id, { includeDismissed: false, limit: 5 }),
     getPendingCreatorConfirmations(user.id),
   ]);
 
