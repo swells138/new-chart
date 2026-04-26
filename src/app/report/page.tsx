@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { FormEvent, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -18,6 +19,28 @@ const initialForm: ReportFormData = {
 };
 
 export default function ReportPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-2xl space-y-6">
+          <header className="paper-card rounded-2xl p-6 sm:p-8">
+            <h1 className="text-3xl font-semibold sm:text-4xl">Report / Remove Me</h1>
+            <p className="mt-2 text-sm text-black/65 dark:text-white/70">
+              Use this form to report inaccurate content or request removal.
+            </p>
+          </header>
+          <section className="paper-card rounded-2xl p-6 sm:p-8">
+            <p className="text-sm text-black/65 dark:text-white/70">Loading form...</p>
+          </section>
+        </div>
+      }
+    >
+      <ReportPageContent />
+    </Suspense>
+  );
+}
+
+function ReportPageContent() {
   const searchParams = useSearchParams();
   const prefilledLink = searchParams.get("link") ?? "";
   const prefilledReason = searchParams.get("reason") ?? "";
