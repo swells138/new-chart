@@ -521,6 +521,13 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
           { user1Id: userId, user2Id: placeholder.ownerId },
         ],
       },
+      select: {
+        id: true,
+        user1Id: true,
+        user2Id: true,
+        type: true,
+        note: true,
+      },
     });
 
     let pendingRelationshipId: string | null = null;
@@ -594,6 +601,7 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
         claimStatus: "claimed",
         inviteToken: null,
       },
+      select: { id: true },
     });
 
     try {
