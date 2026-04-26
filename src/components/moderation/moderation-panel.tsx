@@ -18,7 +18,11 @@ type ReportQueueFilter =
   | 'node-reports';
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
 
 function isReportRemoveRequest(report: ModerationReport) {

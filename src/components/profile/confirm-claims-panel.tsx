@@ -9,6 +9,14 @@ interface Props {
   currentUserId: string;
 }
 
+function formatUtcDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Props) {
   const router = useRouter();
   const [confirmations, setConfirmations] = useState(initialConfirmations);
@@ -111,7 +119,7 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
             </p>
             {item.expiresAt ? (
               <p className="mt-1 text-[11px] text-black/50 dark:text-white/50">
-                Expires {new Date(item.expiresAt).toLocaleDateString()}
+                Expires {formatUtcDate(item.expiresAt)} UTC
               </p>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">

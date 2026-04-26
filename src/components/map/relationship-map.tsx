@@ -336,6 +336,14 @@ function parseRelationshipNote(input: string): {
   }
 }
 
+function formatUtcDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 export function RelationshipMap({
   users,
   relationships,
@@ -1873,7 +1881,7 @@ export function RelationshipMap({
                           </p>
                           {parsed.status === "pending_creator_confirmation" && parsed.expiresAt ? (
                             <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                              Expires: {new Date(parsed.expiresAt).toLocaleString()}
+                              Expires: {formatUtcDateTime(parsed.expiresAt)}
                             </p>
                           ) : null}
                           <div className="mt-2 flex flex-wrap gap-2">
