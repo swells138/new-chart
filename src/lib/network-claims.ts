@@ -41,6 +41,116 @@ type PlaceholderWithOwner = {
   };
 };
 
+type ClaimUserRecord = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  ignoredClaimPlaceholderIds: string[];
+};
+
+async function getClaimUserRecord(userId: string): Promise<ClaimUserRecord | null> {
+  try {
+    return await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+        ignoredClaimPlaceholderIds: true,
+      },
+    });
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+
+    const legacyUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+      },
+    });
+
+    return legacyUser
+      ? {
+          ...legacyUser,
+          ignoredClaimPlaceholderIds: [],
+        }
+      : null;
+  }
+}
+
+async function getClaimablePlaceholders(userId: string): Promise<PlaceholderWithOwner[]> {
+  try {
+    return await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: { not: userId },
+        linkedUserId: null,
+        claimStatus: { in: ["unclaimed", "invited"] },
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 200,
+    });
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+
+    const legacyPlaceholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: { not: userId },
+        linkedUserId: null,
+        claimStatus: { in: ["unclaimed", "invited"] },
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+        relationshipType: true,
+        note: true,
+        inviteToken: true,
+        claimStatus: true,
+        linkedUserId: true,
+        createdAt: true,
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 200,
+    });
+
+    return legacyPlaceholders.map((placeholder) => ({
+      ...placeholder,
+      offerToNameMatch: true,
+    }));
+  }
+}
+
 function normalizeMatchString(value: string | null | undefined) {
   return (value ?? "")
     .toLowerCase()
@@ -153,41 +263,13 @@ export async function getClaimCandidatesForUser(
   const limit = options?.limit ?? 5;
 
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phoneNumber: true,
-        ignoredClaimPlaceholderIds: true,
-      },
-    });
+    const currentUser = await getClaimUserRecord(userId);
 
     if (!currentUser) {
       return [] as ClaimCandidate[];
     }
 
-    const placeholders = await prisma.placeholderPerson.findMany({
-      where: {
-        ownerId: { not: userId },
-        linkedUserId: null,
-        claimStatus: { in: ["unclaimed", "invited"] },
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            handle: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 200,
-    });
+    const placeholders = await getClaimablePlaceholders(userId);
 
     const visiblePlaceholders = (includeDismissed
       ? placeholders
