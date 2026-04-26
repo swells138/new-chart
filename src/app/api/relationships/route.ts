@@ -490,6 +490,7 @@ export async function PATCH(request: Request) {
       data: {
         type: nextType,
         note: "",
+        isPublic: true,
       },
     });
 
