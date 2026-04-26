@@ -47,6 +47,46 @@ const STATUS_LABELS: Record<PlaceholderPerson["claimStatus"], string> = {
   denied: "Declined",
 };
 
+const CHART_CENTER_X = 440;
+const CHART_CENTER_Y = 220;
+
+function hashNumber(input: string): number {
+  let h = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    h = (h * 33 + input.charCodeAt(i)) & 0xffffffff;
+  }
+  return Math.abs(h);
+}
+
+function getOrganicChartPosition(
+  id: string,
+  kind: "private" | "public",
+  index: number,
+  total: number,
+) {
+  const seed = hashNumber(id);
+  const safeTotal = Math.max(total, 1);
+  const baseAngle = (index / safeTotal) * Math.PI * 2;
+  const angleJitter = (((seed % 1000) / 1000) * 0.72) - 0.36;
+  const angle = baseAngle - Math.PI / 2 + angleJitter;
+
+  const radiusBase = kind === "public" ? 190 : 145;
+  const radiusJitter = (seed % 46) - 23;
+  const radius = radiusBase + radiusJitter;
+  const yScale = kind === "public" ? 0.84 : 0.7;
+
+  const x = Math.max(
+    72,
+    Math.min(808, CHART_CENTER_X + Math.cos(angle) * radius),
+  );
+  const y = Math.max(
+    56,
+    Math.min(392, CHART_CENTER_Y + Math.sin(angle) * radius * yScale),
+  );
+
+  return { x, y };
+}
+
 interface Props {
   initialPlaceholders: PlaceholderPerson[];
   baseUrl: string;
@@ -169,17 +209,12 @@ export function PrivateChart({
   const chartLayout = useMemo(
     () =>
       chartConnections.map((item, index) => {
-        const cx = 440;
-        const cy = 220;
-        const ring = index < 8 ? 150 : 210;
-        const ringIndex = index < 8 ? index : index - 8;
-        const ringTotal =
-          index < 8
-            ? Math.min(chartConnections.length, 8)
-            : Math.max(chartConnections.length - 8, 1);
-        const angle = (Math.PI * 2 * ringIndex) / ringTotal - Math.PI / 2;
-        const x = cx + Math.cos(angle) * ring;
-        const y = cy + Math.sin(angle) * (index < 8 ? 125 : 170);
+        const { x, y } = getOrganicChartPosition(
+          item.id,
+          item.kind,
+          index,
+          chartConnections.length,
+        );
         return { ...item, x, y };
       }),
     [chartConnections],
