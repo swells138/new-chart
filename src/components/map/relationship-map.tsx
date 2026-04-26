@@ -776,6 +776,15 @@ export function RelationshipMap({
       degreeMap.set(rel.target, (degreeMap.get(rel.target) ?? 0) + 1);
     });
 
+    // Build a map of connected neighbors for each node to help with grouping
+    const neighborMap = new Map<string, Set<string>>();
+    filteredRelationships.forEach((rel) => {
+      if (!neighborMap.has(rel.source)) neighborMap.set(rel.source, new Set());
+      if (!neighborMap.has(rel.target)) neighborMap.set(rel.target, new Set());
+      neighborMap.get(rel.source)!.add(rel.target);
+      neighborMap.get(rel.target)!.add(rel.source);
+    });
+
     // initial placement
     const items = orderedUsers.map((user, index) => {
       const degree = degreeMap.get(user.id) ?? 0;
@@ -804,11 +813,6 @@ export function RelationshipMap({
       } as Node & { position: { x: number; y: number } };
     });
 
-    // simple collision separation pass to keep nodes visually distinct
-    // but only for unconnected nodes (connected nodes can float near each other)
-    const minDist = 110; // minimum center-to-center distance for unconnected nodes
-    const iterations = 6;
-
     // Build a set of connected node pairs so we can skip separation for them
     const connectedPairs = new Set<string>();
     filteredRelationships.forEach((rel) => {
@@ -818,18 +822,17 @@ export function RelationshipMap({
       connectedPairs.add(key2);
     });
 
+    // Enhanced collision/repulsion pass to reduce tangling
+    const minDistUnconnected = 140; // larger minimum distance for unconnected nodes
+    const minDistConnected = 50; // allow connected nodes closer
+    const iterations = 8;
+
     for (let it = 0; it < iterations; it++) {
       let moved = false;
       for (let i = 0; i < items.length; i++) {
         for (let j = i + 1; j < items.length; j++) {
           const a = items[i];
           const b = items[j];
-          
-          // Skip separation for connected nodes
-          const pairKey = `${a.id}|${b.id}`;
-          if (connectedPairs.has(pairKey)) {
-            continue;
-          }
           
           // keep active current user anchored
           const aFixed = a.id === activeCurrentUserId;
@@ -838,6 +841,11 @@ export function RelationshipMap({
           const dx = b.position.x - a.position.x;
           const dy = b.position.y - a.position.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+          
+          const pairKey = `${a.id}|${b.id}`;
+          const isConnected = connectedPairs.has(pairKey);
+          const minDist = isConnected ? minDistConnected : minDistUnconnected;
+
           if (dist < minDist) {
             const overlap = (minDist - dist) / 2;
             const nx = dx / dist;
