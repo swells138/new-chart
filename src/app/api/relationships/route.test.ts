@@ -35,6 +35,7 @@ vi.mock("@/lib/prisma", () => ({
     message: {
       create: messageCreateMock,
     },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
