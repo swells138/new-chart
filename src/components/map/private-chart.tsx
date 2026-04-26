@@ -1281,7 +1281,7 @@ export function PrivateChart({
                   className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.04]"
                 >
                   <span className="font-semibold">
-                    {sourceName} <-> {targetName}
+                    {sourceName} {" <-> "} {targetName}
                   </span>
                   <span
                     className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
