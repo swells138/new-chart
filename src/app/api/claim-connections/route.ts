@@ -31,6 +31,18 @@ async function getAuthenticatedDbUserId(request: Request) {
 
   // Get the user's actual name from Clerk
   const clerkUser = await currentUser();
+  const hasVerifiedEmail = clerkUser?.emailAddresses.some(
+    (emailAddress) => emailAddress.verification?.status === "verified"
+  );
+  if (!hasVerifiedEmail) {
+    return {
+      error: NextResponse.json(
+        { error: "Verify your email before claiming a connection." },
+        { status: 403 }
+      ),
+    };
+  }
+
   const fullName =
     clerkUser?.firstName && clerkUser?.lastName
       ? `${clerkUser.firstName} ${clerkUser.lastName}`

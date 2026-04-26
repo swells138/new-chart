@@ -165,6 +165,6 @@ describe("/api/relationships PATCH", () => {
     });
     expect(body.relationship?.id).toBe("rel_1");
     expect(body.relationship?.type).toBe("Married");
-    expect(body.relationship?.note).toContain("\"status\":\"pending\"");
+    expect(body.relationship?.note).toContain("\"status\":\"pending_claim\"");
   });
 });

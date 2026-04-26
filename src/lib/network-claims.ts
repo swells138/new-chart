@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { ClaimCandidate, RelationshipType } from "@/types/models";
+import {
+  buildClaimMetaNote,
+  composeClaimMeta,
+  encodePendingType,
+  parseStoredRelationshipType,
+} from "@/lib/relationship-claim-status";
 
 const pendingTypePrefix = "pending::";
 const wordCharacters = /[^a-z0-9\s]/g;
@@ -354,11 +360,25 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
     let alreadyConnected = false;
 
     if (!existingRelationship) {
+      const claimConfirmedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const relationship = await tx.relationship.create({
         data: {
           user1Id: placeholder.ownerId,
           user2Id: userId,
-          type: `${pendingTypePrefix}${placeholder.relationshipType}::${placeholder.ownerId}::${userId}`,
+          type: encodePendingType(
+            placeholder.relationshipType as RelationshipType,
+            placeholder.ownerId,
+            userId,
+          ),
+          note: buildClaimMetaNote({
+            status: "pending_creator_confirmation",
+            creatorId: placeholder.ownerId,
+            claimedByUserId: userId,
+            claimConfirmedAt,
+            expiresAt,
+            disputeReason: null,
+          }),
         },
         select: { id: true },
       });
@@ -366,6 +386,38 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
     } else {
       alreadyConnected = !existingRelationship.type.startsWith(pendingTypePrefix);
       pendingRelationshipId = existingRelationship.id;
+
+      if (!alreadyConnected) {
+        const parsedType = parseStoredRelationshipType(
+          existingRelationship.type,
+          existingRelationship.user1Id,
+          existingRelationship.user2Id,
+        );
+        const claimConfirmedAt = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const meta = composeClaimMeta({
+          storedType: existingRelationship.type,
+          user1Id: existingRelationship.user1Id,
+          user2Id: existingRelationship.user2Id,
+          note: existingRelationship.note,
+        });
+
+        await tx.relationship.update({
+          where: { id: existingRelationship.id },
+          data: {
+            type: encodePendingType(parsedType.baseType, placeholder.ownerId, userId),
+            note: buildClaimMetaNote({
+              ...meta,
+              status: "pending_creator_confirmation",
+              creatorId: placeholder.ownerId,
+              claimedByUserId: userId,
+              claimConfirmedAt,
+              expiresAt,
+              disputeReason: null,
+            }),
+          },
+        });
+      }
     }
 
     await tx.placeholderPerson.update({

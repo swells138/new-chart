@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { claimPlaceholderForUser } from "@/lib/network-claims";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -97,6 +98,17 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "You must be signed in to accept an invite." }, { status: 401 });
   }
 
+  const clerk = await currentUser();
+  const hasVerifiedEmail = clerk?.emailAddresses.some(
+    (emailAddress) => emailAddress.verification?.status === "verified"
+  );
+  if (!hasVerifiedEmail) {
+    return NextResponse.json(
+      { error: "Verify your email before claiming this connection invite." },
+      { status: 403 }
+    );
+  }
+
   let action: string;
   try {
     const body = (await request.json()) as { action?: string };
@@ -155,54 +167,15 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   // action === "approve"
-  // Prevent duplicate real connections
-  const [u1, u2] = [placeholder.ownerId, claimerDbId].sort();
-  const existingRelationship = await prisma.relationship.findFirst({
-    where: {
-      OR: [
-        { user1Id: u1, user2Id: u2 },
-        { user1Id: u2, user2Id: u1 },
-      ],
+  const result = await claimPlaceholderForUser(claimerDbId, placeholder.id);
+  return NextResponse.json(
+    {
+      result: "claimed",
+      relationship: result.pendingRelationshipId
+        ? { id: result.pendingRelationshipId }
+        : undefined,
+      alreadyConnected: result.alreadyConnected,
     },
-  });
-
-  if (existingRelationship) {
-    // Already connected — just mark the placeholder as claimed
-    await prisma.placeholderPerson.update({
-      where: { id: placeholder.id },
-      data: { claimStatus: "claimed", linkedUserId: claimerDbId },
-    });
-    return NextResponse.json({ result: "claimed", alreadyConnected: true });
-  }
-
-  // Create the approved relationship
-  const relationship = await prisma.relationship.create({
-    data: {
-      user1Id: u1,
-      user2Id: u2,
-      type: placeholder.relationshipType,
-      isPublic: false,
-    },
-  });
-
-  // Mark placeholder as claimed
-  await prisma.placeholderPerson.update({
-    where: { id: placeholder.id },
-    data: { claimStatus: "claimed", linkedUserId: claimerDbId },
-  });
-
-  // Notify the owner
-  try {
-    await prisma.message.create({
-      data: {
-        senderId: claimerDbId,
-        recipientId: placeholder.ownerId,
-        content: `Someone accepted your connection invite (${placeholder.relationshipType}). Check your chart 👀`,
-      },
-    });
-  } catch {
-    // Non-fatal
-  }
-
-  return NextResponse.json({ result: "claimed", relationship: { id: relationship.id } }, { status: 201 });
+    { status: result.pendingRelationshipId ? 201 : 200 }
+  );
 }

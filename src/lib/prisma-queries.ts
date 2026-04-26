@@ -7,6 +7,13 @@
 
 import { prisma } from "./prisma";
 import type { User, Post, Relationship, PlaceholderPerson, RelationshipType } from "@/types/models";
+import {
+  buildClaimMetaNote,
+  composeClaimMeta,
+  hasExpiredPendingConfirmation,
+  parseStoredRelationshipType,
+  pendingTypePrefix,
+} from "@/lib/relationship-claim-status";
 
 const baseUserSelect = {
   id: true,
@@ -33,57 +40,6 @@ const basePlaceholderSelect = {
   createdAt: true,
 } as const;
 
-const relationshipTypes: Relationship["type"][] = [
-  "Talking",
-  "Dating",
-  "Situationship",
-  "Exes",
-  "Married",
-  "Sneaky Link",
-  "Friends",
-  "Lovers",
-  "One Night Stand",
-  "complicated",
-  "FWB",
-];
-
-const pendingTypePrefix = "pending::";
-const metaPrefix = "[[meta:";
-const metaSuffix = "]]";
-
-function parseStoredRelationshipType(
-  storedType: string,
-  fallbackRequesterId: string,
-  fallbackResponderId: string
-): {
-  status: "approved" | "pending";
-  baseType: Relationship["type"];
-  requesterId: string;
-  responderId: string;
-} {
-  if (!storedType.startsWith(pendingTypePrefix)) {
-    return {
-      status: "approved",
-      baseType: relationshipTypes.includes(storedType as Relationship["type"])
-        ? (storedType as Relationship["type"])
-        : "Friends",
-      requesterId: fallbackRequesterId,
-      responderId: fallbackResponderId,
-    };
-  }
-
-  const [, rawBaseType = "Friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
-    storedType.split("::");
-
-  return {
-    status: "pending",
-    baseType: relationshipTypes.includes(rawBaseType as Relationship["type"])
-      ? (rawBaseType as Relationship["type"])
-      : "Friends",
-    requesterId,
-    responderId,
-  };
-}
 
 function formatRelativeTime(timestamp: Date) {
   const differenceInMs = Date.now() - timestamp.getTime();
@@ -153,30 +109,30 @@ function normalizeRelationship(relationship: {
   user1Id: string;
   user2Id: string;
   type: string;
+  note?: string | null;
   isPublic?: boolean;
   publicRequestedBy?: string | null;
 }): Relationship {
-  const parsed = parseStoredRelationshipType(
+  const parsedType = parseStoredRelationshipType(
     relationship.type,
     relationship.user1Id,
-    relationship.user2Id
+    relationship.user2Id,
   );
+  const claimMeta = composeClaimMeta({
+    storedType: relationship.type,
+    user1Id: relationship.user1Id,
+    user2Id: relationship.user2Id,
+    note: relationship.note,
+  });
 
   return {
     id: relationship.id,
     source: relationship.user1Id,
     target: relationship.user2Id,
-    type: parsed.baseType,
+    type: parsedType.baseType,
     isPublic: relationship.isPublic ?? false,
     publicRequestedBy: relationship.publicRequestedBy ?? null,
-    note:
-      parsed.status === "pending"
-        ? `${metaPrefix}${JSON.stringify({
-            status: "pending",
-            requesterId: parsed.requesterId,
-            responderId: parsed.responderId,
-          })}${metaSuffix}`
-        : "",
+    note: claimMeta.status === "active" ? "" : buildClaimMetaNote(claimMeta),
   };
 }
 
@@ -379,7 +335,48 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
       ],
     },
   });
-  return relationships.map(normalizeRelationship);
+
+  const stalePendingRelationships = relationships.filter((relationship) =>
+    hasExpiredPendingConfirmation(
+      composeClaimMeta({
+        storedType: relationship.type,
+        user1Id: relationship.user1Id,
+        user2Id: relationship.user2Id,
+        note: relationship.note,
+      }),
+    ),
+  );
+
+  if (stalePendingRelationships.length > 0) {
+    await Promise.all(
+      stalePendingRelationships.map((relationship) =>
+        prisma.relationship.update({
+          where: { id: relationship.id },
+          data: {
+            note: buildClaimMetaNote({
+              ...composeClaimMeta({
+                storedType: relationship.type,
+                user1Id: relationship.user1Id,
+                user2Id: relationship.user2Id,
+                note: relationship.note,
+              }),
+              status: "expired",
+            }),
+          },
+        }),
+      ),
+    );
+  }
+
+  const refreshed = stalePendingRelationships.length
+    ? await prisma.relationship.findMany({
+        where: {
+          OR: [{ user1Id: userId }, { user2Id: userId }],
+        },
+      })
+    : relationships;
+
+  return refreshed.map(normalizeRelationship);
 }
 
 /** Returns a user's placeholder nodes that are still awaiting signup or claim. */

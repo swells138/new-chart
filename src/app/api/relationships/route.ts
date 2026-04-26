@@ -6,6 +6,14 @@ import type { RelationshipType } from "@/types/models";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
+import { createModerationReport } from "@/lib/moderation/reports";
+import {
+  buildClaimMetaNote,
+  composeClaimMeta,
+  encodePendingType,
+  hasExpiredPendingConfirmation,
+  parseStoredRelationshipType,
+} from "@/lib/relationship-claim-status";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -43,7 +51,15 @@ const updateRelationshipSchema = z
     id: z.string().trim().min(1).max(100),
     type: z.enum(relationshipTypeValues).optional(),
     action: z
-      .enum(["approve", "reject", "requestPublic", "approvePublic", "denyPublic"])
+      .enum([
+        "approve",
+        "confirmCreator",
+        "reject",
+        "dispute",
+        "requestPublic",
+        "approvePublic",
+        "denyPublic",
+      ])
       .optional(),
     actorNodeId: z.string().trim().min(1).max(100),
     note: z.string().max(500).optional(),
@@ -57,90 +73,39 @@ const deleteRelationshipSchema = z
   })
   .strict();
 
-type ApprovalStatus = "approved" | "pending";
-
-const metaPrefix = "[[meta:";
-const metaSuffix = "]]";
-const pendingTypePrefix = "pending::";
 const approvalInboxLink = "/map?chart=public&focus=approvals#pending-verification";
-
-interface RelationshipMeta {
-  status: ApprovalStatus;
-  requesterId: string;
-  responderId: string;
-}
-
-function encodePendingType(baseType: RelationshipType, requesterId: string, responderId: string) {
-  return `${pendingTypePrefix}${baseType}::${requesterId}::${responderId}`;
-}
-
-function parseStoredRelationshipType(
-  storedType: string,
-  fallbackRequesterId: string,
-  fallbackResponderId: string
-): {
-  status: ApprovalStatus;
-  baseType: RelationshipType;
-  requesterId: string;
-  responderId: string;
-} {
-  if (!storedType.startsWith(pendingTypePrefix)) {
-    return {
-      status: "approved",
-      baseType: relationshipTypes.includes(storedType as RelationshipType)
-        ? (storedType as RelationshipType)
-        : "Friends",
-      requesterId: fallbackRequesterId,
-      responderId: fallbackResponderId,
-    };
-  }
-
-  const [, rawBaseType = "Friends", requesterId = fallbackRequesterId, responderId = fallbackResponderId] =
-    storedType.split("::");
-
-  return {
-    status: "pending",
-    baseType: relationshipTypes.includes(rawBaseType as RelationshipType)
-      ? (rawBaseType as RelationshipType)
-      : "Friends",
-    requesterId,
-    responderId,
-  };
-}
-
-function buildRelationshipMetaNote(meta: RelationshipMeta) {
-  return `${metaPrefix}${JSON.stringify(meta)}${metaSuffix}`;
-}
 
 function normalizeRelationship(relationship: {
   id: string;
   user1Id: string;
   user2Id: string;
   type: string;
+  note?: string | null;
   isPublic?: boolean;
   publicRequestedBy?: string | null;
 }) {
-  const parsed = parseStoredRelationshipType(
+  const parsedType = parseStoredRelationshipType(
     relationship.type,
     relationship.user1Id,
-    relationship.user2Id
+    relationship.user2Id,
   );
+  const claimMeta = composeClaimMeta({
+    storedType: relationship.type,
+    user1Id: relationship.user1Id,
+    user2Id: relationship.user2Id,
+    note: relationship.note,
+  });
 
   return {
     id: relationship.id,
     source: relationship.user1Id,
     target: relationship.user2Id,
-    type: parsed.baseType,
+    type: relationshipTypes.includes(parsedType.baseType)
+      ? parsedType.baseType
+      : "Friends",
     isPublic: relationship.isPublic ?? false,
     publicRequestedBy: relationship.publicRequestedBy ?? null,
-    note:
-      parsed.status === "pending"
-        ? buildRelationshipMetaNote({
-            status: "pending",
-            requesterId: parsed.requesterId,
-            responderId: parsed.responderId,
-          })
-        : "",
+    note: claimMeta.status === "active" ? "" : buildClaimMetaNote(claimMeta),
   };
 }
 
@@ -272,6 +237,14 @@ export async function POST(request: Request) {
         user1Id,
         user2Id,
         type: encodePendingType(type, requesterId, responderId),
+        note: buildClaimMetaNote({
+          status: "pending_claim",
+          creatorId: requesterId,
+          claimedByUserId: responderId,
+          claimConfirmedAt: null,
+          expiresAt: null,
+          disputeReason: null,
+        }),
       },
     });
 
@@ -361,68 +334,178 @@ export async function PATCH(request: Request) {
   }
 
   const parsed = parseStoredRelationshipType(existing.type, existing.user1Id, existing.user2Id);
-  const meta: RelationshipMeta = {
-    status: parsed.status,
-    requesterId: parsed.requesterId,
-    responderId: parsed.responderId,
-  };
+  const claimMeta = composeClaimMeta({
+    storedType: existing.type,
+    user1Id: existing.user1Id,
+    user2Id: existing.user2Id,
+    note: existing.note,
+  });
 
-  if (meta.status === "pending") {
-    if (action === "approve") {
-      if (currentDbUserId !== meta.responderId) {
-        return NextResponse.json(
-          { error: "Only the invited user can approve this connection." },
-          { status: 403 }
-        );
-      }
+  if (hasExpiredPendingConfirmation(claimMeta)) {
+    const expiredMeta = {
+      ...claimMeta,
+      status: "expired" as const,
+    };
+    const expiredRelationship = await prisma.relationship.update({
+      where: { id },
+      data: {
+        note: buildClaimMetaNote(expiredMeta),
+      },
+    });
+    return NextResponse.json({
+      error: "This claim expired because the original creator did not confirm it within 7 days.",
+      relationship: normalizeRelationship(expiredRelationship),
+    }, { status: 409 });
+  }
 
-      const nextType = type || parsed.baseType;
+  if (claimMeta.status === "pending_claim" || claimMeta.status === "pending_creator_confirmation") {
+    if (action === "dispute") {
+      const otherUserId =
+        existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
+      const updated = await prisma.relationship.update({
+        where: { id },
+        data: {
+          note: buildClaimMetaNote({
+            ...claimMeta,
+            status: "disputed",
+            disputeReason: parsedPayload.data.note?.trim() || null,
+          }),
+        },
+      });
 
-      try {
-        const updated = await prisma.relationship.update({
-          where: { id },
-          data: {
-            type: nextType,
-          },
-        });
+      const reporter = await prisma.user.findUnique({
+        where: { id: currentDbUserId },
+        select: { name: true, handle: true },
+      });
 
-        await sendNotification(
-          currentDbUserId,
-          meta.requesterId,
-          `Your connection request was approved as "${nextType}".`
-        );
+      await createModerationReport({
+        kind: "private-node",
+        targetId: existing.id,
+        targetLabel: `Connection claim ${existing.id}`,
+        reason: parsedPayload.data.note?.trim() || "Claim disputed",
+        reporterUserId: currentDbUserId,
+        reporterLabel: reporter?.name || reporter?.handle || null,
+      });
 
-        return NextResponse.json({ relationship: normalizeRelationship(updated) });
-      } catch (error) {
-        console.error("Failed to approve relationship", error);
-        return NextResponse.json({ error: "Failed to approve relationship." }, { status: 500 });
-      }
+      await sendNotification(
+        currentDbUserId,
+        otherUserId,
+        "A connection claim was disputed and hidden pending moderator review.",
+      );
+
+      return NextResponse.json({ relationship: normalizeRelationship(updated) });
     }
 
     if (action === "reject") {
-      if (currentDbUserId !== meta.responderId && currentDbUserId !== meta.requesterId) {
+      const canReject =
+        claimMeta.status === "pending_claim"
+          ? currentDbUserId === claimMeta.creatorId || currentDbUserId === claimMeta.claimedByUserId
+          : currentDbUserId === claimMeta.creatorId;
+
+      if (!canReject) {
         return NextResponse.json(
-          { error: "You cannot decline this connection request." },
-          { status: 403 }
+          { error: "You cannot reject this claim in its current stage." },
+          { status: 403 },
         );
       }
 
-      await prisma.relationship.delete({ where: { id } });
+      const otherUserId =
+        existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
+      const updated = await prisma.relationship.update({
+        where: { id },
+        data: {
+          note: buildClaimMetaNote({
+            ...claimMeta,
+            status: "rejected",
+          }),
+        },
+      });
 
-      const notifyUserId =
-        currentDbUserId === meta.requesterId ? meta.responderId : meta.requesterId;
-      const notifyContent =
-        currentDbUserId === meta.requesterId
-          ? "A connection request you sent was cancelled."
-          : "A connection request was declined.";
-      await sendNotification(currentDbUserId, notifyUserId, notifyContent);
+      await sendNotification(
+        currentDbUserId,
+        otherUserId,
+        "A connection claim was rejected and hidden.",
+      );
 
-      return NextResponse.json({ deleted: true, id });
+      return NextResponse.json({ relationship: normalizeRelationship(updated) });
     }
 
+    if (claimMeta.status === "pending_claim") {
+      if (action !== "approve") {
+        return NextResponse.json(
+          { error: "Pending claims can only be approved, rejected, or disputed." },
+          { status: 400 },
+        );
+      }
+
+      if (currentDbUserId !== claimMeta.claimedByUserId) {
+        return NextResponse.json(
+          { error: "Only the claimed user can verify this claim." },
+          { status: 403 },
+        );
+      }
+
+      const claimConfirmedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const updated = await prisma.relationship.update({
+        where: { id },
+        data: {
+          note: buildClaimMetaNote({
+            ...claimMeta,
+            status: "pending_creator_confirmation",
+            claimConfirmedAt,
+            expiresAt,
+          }),
+        },
+      });
+
+      await sendNotification(
+        currentDbUserId,
+        claimMeta.creatorId,
+        "A claimed connection is ready for your final confirmation.",
+      );
+
+      return NextResponse.json({ relationship: normalizeRelationship(updated) });
+    }
+
+    const shouldConfirm = action === "confirmCreator" || action === "approve";
+    if (!shouldConfirm) {
+      return NextResponse.json(
+        { error: "Waiting for the original creator to confirm, reject, or dispute this claim." },
+        { status: 400 },
+      );
+    }
+
+    if (currentDbUserId !== claimMeta.creatorId) {
+      return NextResponse.json(
+        { error: "Only the original creator can finalize this claim." },
+        { status: 403 },
+      );
+    }
+
+    const nextType = type || parsed.baseType;
+    const updated = await prisma.relationship.update({
+      where: { id },
+      data: {
+        type: nextType,
+        note: "",
+      },
+    });
+
+    await sendNotification(
+      currentDbUserId,
+      claimMeta.claimedByUserId,
+      `Your connection was confirmed and is now public as "${nextType}".`,
+    );
+
+    return NextResponse.json({ relationship: normalizeRelationship(updated) });
+  }
+
+  if (claimMeta.status === "rejected" || claimMeta.status === "expired" || claimMeta.status === "disputed") {
     return NextResponse.json(
-      { error: "Pending connections must be approved or declined." },
-      { status: 400 }
+      { error: "This connection is not active. Remove it to start over." },
+      { status: 409 },
     );
   }
 
