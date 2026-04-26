@@ -171,11 +171,11 @@ export async function POST(request: Request, context: RouteContext) {
   return NextResponse.json(
     {
       result: "claimed",
-      relationship: result.pendingRelationshipId
-        ? { id: result.pendingRelationshipId }
+      relationship: result.relationshipId
+        ? { id: result.relationshipId }
         : undefined,
       alreadyConnected: result.alreadyConnected,
     },
-    { status: result.pendingRelationshipId ? 201 : 200 }
+    { status: result.relationshipId ? 201 : 200 }
   );
 }

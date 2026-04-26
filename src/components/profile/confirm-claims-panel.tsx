@@ -15,21 +15,21 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleAction(action: "confirmCreator" | "reject", relationshipId: string) {
+  async function removeConnection(relationshipId: string) {
     setWorkingId(relationshipId);
     setError(null);
 
     try {
       const response = await fetch(`/api/relationships`, {
-        method: "PATCH",
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: relationshipId, action, actorNodeId: currentUserId }),
+        body: JSON.stringify({ id: relationshipId, actorNodeId: currentUserId }),
       });
 
       const body = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        setError(body.error ?? "Could not process this confirmation.");
+        setError(body.error ?? "Could not remove this connection.");
         return;
       }
 
@@ -39,7 +39,7 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
 
       router.refresh();
     } catch {
-      setError("Could not process this confirmation.");
+      setError("Could not remove this connection.");
     } finally {
       setWorkingId(null);
     }
@@ -51,9 +51,9 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
 
   return (
     <section className="paper-card rounded-2xl p-5">
-      <h3 className="text-xl font-semibold">Someone Claimed Your Connection</h3>
+      <h3 className="text-xl font-semibold">Recent Claimed Connections</h3>
       <p className="mt-1 text-sm text-black/65 dark:text-white/70">
-        A real account matched a placeholder you created. Confirm it&apos;s the right person before the connection goes live.
+        Someone matched a placeholder you created. These connections are now live — remove if it&apos;s the wrong person.
       </p>
 
       {error ? (
@@ -77,33 +77,20 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
                   @{item.claimedByHandle}
                 </span>
               ) : null}{" "}
-              says this is them. Is this who you had in mind?
+              claimed this is them. The connection is now live on your chart.
             </p>
-            {item.expiresAt ? (
-              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                Expires: {new Date(item.expiresAt).toLocaleDateString()}
-              </p>
-            ) : null}
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 disabled={workingId === item.relationshipId}
-                onClick={() => handleAction("confirmCreator", item.relationshipId)}
-                className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                onClick={() => removeConnection(item.relationshipId)}
+                className="rounded-full border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-60 dark:text-red-300"
               >
-                {workingId === item.relationshipId ? "Saving..." : "Yes, that's them"}
-              </button>
-              <button
-                type="button"
-                disabled={workingId === item.relationshipId}
-                onClick={() => handleAction("reject", item.relationshipId)}
-                className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
-              >
-                Not this person
+                {workingId === item.relationshipId ? "Removing..." : "Not the right person — remove"}
               </button>
             </div>
             <p className="mt-2 text-[11px] text-black/50 dark:text-white/50">
-              Confirming makes this connection visible on your network. Rejecting hides it.
+              Removing this disconnects them and hides the connection from your chart.
             </p>
           </article>
         ))}

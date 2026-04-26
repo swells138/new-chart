@@ -43,7 +43,7 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
       setCandidates((current) => current.filter((candidate) => candidate.placeholderId !== placeholderId));
 
       if (action === "claim") {
-        router.push("/map?chart=public&focus=approvals#pending-verification");
+        router.push("/map?chart=public");
         return;
       }
     } catch {
