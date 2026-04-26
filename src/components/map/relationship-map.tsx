@@ -504,6 +504,15 @@ export function RelationshipMap({
       if (activeCurrentUserId) {
         setSelectedId(activeCurrentUserId);
       }
+    } else if (focus === "manage") {
+      setChartLayer("private");
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          document
+            .getElementById("manage-connections")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 0);
+      }
     }
   }, [searchParams, activeCurrentUserId]);
 
