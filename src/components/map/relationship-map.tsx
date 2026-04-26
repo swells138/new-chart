@@ -9,6 +9,7 @@ import {
   ReactFlow,
   type Edge,
   type Node,
+  type ReactFlowInstance,
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
@@ -217,7 +218,6 @@ interface Props {
   currentUserId: string | null;
   isSignedIn?: boolean;
   userConnections?: Relationship[];
-  areaUsers?: User[];
   privatePlaceholders?: PlaceholderPerson[];
   baseUrl?: string;
 }
@@ -285,7 +285,6 @@ export function RelationshipMap({
   currentUserId,
   isSignedIn = false,
   userConnections,
-  areaUsers,
   privatePlaceholders = [],
   baseUrl = "",
 }: Props) {
@@ -335,7 +334,11 @@ export function RelationshipMap({
   const [recentEdgeId, setRecentEdgeId] = useState<string | null>(null);
   const [pulsingNodeIds, setPulsingNodeIds] = useState<string[]>([]);
   const [bouncingNodeId, setBouncingNodeId] = useState<string | null>(null);
+  const [flowInstance, setFlowInstance] = useState<
+    ReactFlowInstance<Node, Edge> | null
+  >(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
+  const hasCenteredOnCurrentUserRef = useRef(false);
 
   function triggerConnectionFeedback(
     edgeId: string,
@@ -665,7 +668,6 @@ export function RelationshipMap({
     return baseUsers.filter((user) => connectedInGraph.has(user.id));
   }, [
     users,
-    areaUsers,
     chartLayer,
     activeCurrentUserId,
     limitedExtendedNodeIds,
@@ -1009,6 +1011,28 @@ export function RelationshipMap({
   useEffect(() => {
     setEdges(mappedEdges);
   }, [mappedEdges, setEdges]);
+
+  useEffect(() => {
+    if (chartLayer !== "public") {
+      hasCenteredOnCurrentUserRef.current = false;
+      return;
+    }
+
+    if (!activeCurrentUserId || !flowInstance || hasCenteredOnCurrentUserRef.current) {
+      return;
+    }
+
+    const currentNode = nodes.find((node) => node.id === activeCurrentUserId);
+    if (!currentNode) {
+      return;
+    }
+
+    flowInstance.setCenter(currentNode.position.x, currentNode.position.y, {
+      zoom: 0.95,
+      duration: 450,
+    });
+    hasCenteredOnCurrentUserRef.current = true;
+  }, [chartLayer, activeCurrentUserId, flowInstance, nodes]);
 
   async function createConnection(targetId: string) {
     if (!targetId) {
@@ -1531,12 +1555,13 @@ export function RelationshipMap({
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
-                fitView
+                fitView={!activeCurrentUserId}
                 onNodeClick={(_, node) => setSelectedId(node.id)}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                minZoom={0.4}
+                onInit={setFlowInstance}
+                minZoom={0.2}
                 maxZoom={1.8}
                 connectOnClick={false}
                 className="relative z-10"

@@ -32,57 +32,8 @@ async function resolveClerkUserId() {
   }
 }
 
-function getStateCode(location: string | null) {
-  if (!location) {
-    return null;
-  }
-
-  const parts = location.split(",");
-  const state = parts[parts.length - 1]?.trim();
-  if (!state) {
-    return null;
-  }
-
-  return state.toUpperCase();
-}
-
-function buildAreaUsers(
-  allUsers: Awaited<ReturnType<typeof getAllUsers>>,
-  currentUserId: string,
-  currentUserLocation: string
-) {
-  let areaUsers = allUsers.filter(
-    (user) =>
-      user.location.trim().toLowerCase() === currentUserLocation.trim().toLowerCase()
-  );
-
-  if (areaUsers.length <= 1) {
-    const currentState = getStateCode(currentUserLocation);
-    if (currentState) {
-      const stateMatches = allUsers.filter(
-        (user) => user.id !== currentUserId && getStateCode(user.location) === currentState
-      );
-
-      areaUsers = areaUsers.concat(
-        stateMatches.filter((candidate) => !areaUsers.some((existing) => existing.id === candidate.id))
-      );
-    }
-  }
-
-  if (areaUsers.length <= 1) {
-    areaUsers = allUsers.filter((user) => user.id !== currentUserId).slice(0, 12);
-    const currentUser = allUsers.find((user) => user.id === currentUserId);
-    if (currentUser) {
-      areaUsers = [currentUser, ...areaUsers];
-    }
-  }
-
-  return areaUsers;
-}
-
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
-  let currentUserLocation: string | null = null;
   const cookieStore = await cookies();
   const hasSessionCookie = cookieStore.has("__session");
   let sessionSignedIn = hasSessionCookie;
@@ -95,12 +46,11 @@ export default async function MapPage() {
       if (userId) {
         const existing = await prisma.user.findUnique({
           where: { clerkId: userId },
-          select: { id: true, location: true },
+          select: { id: true },
         });
 
         if (existing) {
           currentUserDbId = existing.id;
-          currentUserLocation = existing.location;
         } else {
           const clerk = await currentUser();
           const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
@@ -111,23 +61,21 @@ export default async function MapPage() {
                 clerkId: userId,
                 name: fullName || clerk?.username || "New member",
               },
-              select: { id: true, location: true },
+              select: { id: true },
             });
 
             currentUserDbId = created.id;
-            currentUserLocation = created.location;
           } catch (error) {
             const prismaError = error as { code?: string };
 
             if (prismaError.code === "P2002") {
               const retry = await prisma.user.findUnique({
                 where: { clerkId: userId },
-                select: { id: true, location: true },
+                select: { id: true },
               });
 
               if (retry) {
                 currentUserDbId = retry.id;
-                currentUserLocation = retry.location;
               }
             } else {
               throw error;
@@ -138,7 +86,6 @@ export default async function MapPage() {
     } catch (error) {
       console.error("Map page failed to initialize authenticated user", error);
       currentUserDbId = null;
-      currentUserLocation = null;
       sessionSignedIn = hasSessionCookie;
     }
   }
@@ -152,27 +99,21 @@ export default async function MapPage() {
     console.error("Map page failed to load base network data", error);
   }
 
-  let users = allUsers;
-  let areaUsers: typeof users = [];
+  const users = allUsers;
   let userConnections: typeof relationships = [];
   let privatePlaceholders = [] as Awaited<ReturnType<typeof getPrivateConnectionsByUser>>;
 
-  // If user has a location, always build area users with fallbacks
-  if (currentUserDbId && currentUserLocation) {
+  if (currentUserDbId) {
     try {
       [userConnections, privatePlaceholders] = await Promise.all([
         getRelationshipsByUser(currentUserDbId),
         getPrivateConnectionsByUser(currentUserDbId),
       ]);
-      areaUsers = buildAreaUsers(allUsers, currentUserDbId, currentUserLocation);
     } catch (error) {
       console.error("Map page failed to load user-scoped network data", error);
       userConnections = [];
       privatePlaceholders = [];
-      areaUsers = [];
     }
-
-    // Keep `users` as the full dataset; private chart can still use `areaUsers` as a guided fallback.
   }
 
   const baseUrl =
@@ -198,7 +139,6 @@ export default async function MapPage() {
         currentUserId={currentUserDbId}
         isSignedIn={sessionSignedIn}
         userConnections={userConnections}
-        areaUsers={areaUsers}
         privatePlaceholders={privatePlaceholders}
         baseUrl={baseUrl}
       />
