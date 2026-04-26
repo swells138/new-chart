@@ -69,9 +69,9 @@ function getOrganicPosition(
   // nodes with no connections are intentionally pushed further out for visibility
   const isIsolated = degree === 0;
   const ring = isIsolated ? 4 + (index % 2) : 1 + (index % 3);
-  const baseRadius = 150 + ring * 100 + (isIsolated ? 200 : 0); // increased from 120 + ring * 70
-  const jitterRadius = (seed % 50) - 25; // increased jitter
-  const jitterY = (seed % 40) - 20; // increased jitter
+  const baseRadius = 130 + ring * 80 + (isIsolated ? 180 : 0);
+  const jitterRadius = (seed % 40) - 20;
+  const jitterY = (seed % 35) - 17;
   const baseAngle = (index / safeTotal) * Math.PI * 2;
   const seededAngle = ((seed % 360) * Math.PI) / 180;
   const angle = baseAngle + seededAngle * 0.18;
@@ -823,9 +823,9 @@ export function RelationshipMap({
     });
 
     // Enhanced collision/repulsion pass to reduce tangling
-    const minDistUnconnected = 200; // much larger minimum distance for unconnected nodes
+    const minDistUnconnected = 160; // clear separation for unconnected nodes
     const minDistConnected = 60; // allow connected nodes closer
-    const iterations = 12; // more iterations for better settling
+    const iterations = 10; // good balance for settling
 
     for (let it = 0; it < iterations; it++) {
       let moved = false;
