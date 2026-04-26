@@ -648,7 +648,7 @@ export function RelationshipMap({
 
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
-    if (activeCurrentUserId) {
+    if (chartLayer === "private" && activeCurrentUserId) {
       return users.filter((user) =>
         limitedExtendedNodeIds.nodeIds.has(user.id),
       );
@@ -666,6 +666,7 @@ export function RelationshipMap({
   }, [
     users,
     areaUsers,
+    chartLayer,
     activeCurrentUserId,
     limitedExtendedNodeIds,
     approvedRelationships,
@@ -1511,7 +1512,9 @@ export function RelationshipMap({
                     : "Sign in to create and edit your own connections."}
               </p>
             )}
-            {activeCurrentUserId && limitedExtendedNodeIds.hiddenCount > 0 ? (
+            {chartLayer === "private" &&
+            activeCurrentUserId &&
+            limitedExtendedNodeIds.hiddenCount > 0 ? (
               <div className="mb-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 text-sm dark:bg-white/5">
                 <p className="font-semibold">
                   You&apos;ve explored your first 25 connections
