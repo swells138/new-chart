@@ -157,6 +157,15 @@ type RelationshipPairRecord = {
   user2Id: string;
 };
 
+function isColumnMissingError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2022"
+  );
+}
+
 export async function getMemberDirectoryData(): Promise<{
   users: User[];
   posts: Post[];
@@ -383,14 +392,42 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
 
 /** Returns a user's placeholder nodes that are still awaiting signup or claim. */
 export async function getPrivateConnectionsByUser(userId: string): Promise<PlaceholderPerson[]> {
-  const placeholders = await prisma.placeholderPerson.findMany({
-    where: {
-      ownerId: userId,
-      claimStatus: { in: ["unclaimed", "invited"] },
-    },
-    orderBy: { createdAt: "desc" },
-    select: basePlaceholderSelect,
-  });
+  let placeholders: PlaceholderRecord[] = [];
+
+  try {
+    placeholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: userId,
+        claimStatus: { in: ["unclaimed", "invited"] },
+      },
+      orderBy: { createdAt: "desc" },
+      select: basePlaceholderSelect,
+    });
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+
+    // Schema drift fallback while rollout is ahead of DB migrations.
+    placeholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: userId,
+        claimStatus: { in: ["unclaimed", "invited"] },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        ownerId: true,
+        name: true,
+        relationshipType: true,
+        note: true,
+        inviteToken: true,
+        linkedUserId: true,
+        claimStatus: true,
+        createdAt: true,
+      },
+    });
+  }
 
   return placeholders.map((p: PlaceholderRecord) => ({
     id: p.id,
