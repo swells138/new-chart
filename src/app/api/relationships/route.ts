@@ -49,6 +49,13 @@ const updateRelationshipSchema = z
   })
   .strict();
 
+const deleteRelationshipSchema = z
+  .object({
+    id: z.string().trim().min(1).max(100),
+    actorNodeId: z.string().trim().min(1).max(100),
+  })
+  .strict();
+
 type ApprovalStatus = "approved" | "pending";
 
 const metaPrefix = "[[meta:";
@@ -520,5 +527,85 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error("Failed to update relationship", error);
     return NextResponse.json({ error: "Failed to update relationship." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const authResult = await getAuthenticatedDbUserId(request);
+  if (authResult.error) {
+    return authResult.error;
+  }
+
+  const currentDbUserId = authResult.dbUserId;
+  const ip = getRequestIp(request);
+  const rateLimit = await checkRateLimit(`relationships-delete:${currentDbUserId}:${ip}`, {
+    windowMs: 5 * 60 * 1000,
+    maxRequests: 40,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many delete requests. Please try again shortly." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const parsedPayload = deleteRelationshipSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+    return NextResponse.json({ error: "Invalid relationship payload." }, { status: 400 });
+  }
+
+  const { id, actorNodeId } = parsedPayload.data;
+
+  if (!actorNodeId || actorNodeId !== currentDbUserId) {
+    return NextResponse.json(
+      { error: "You can only delete connections from your own node." },
+      { status: 403 }
+    );
+  }
+
+  const existing = await prisma.relationship.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Relationship not found." }, { status: 404 });
+  }
+
+  if (existing.user1Id !== currentDbUserId && existing.user2Id !== currentDbUserId) {
+    return NextResponse.json(
+      { error: "You can only delete connections that include your own profile." },
+      { status: 403 }
+    );
+  }
+
+  const otherUserId =
+    existing.user1Id === currentDbUserId ? existing.user2Id : existing.user1Id;
+
+  try {
+    await prisma.relationship.delete({ where: { id } });
+
+    await sendNotification(
+      currentDbUserId,
+      otherUserId,
+      "A connection was removed."
+    );
+
+    return NextResponse.json({ deleted: true, id });
+  } catch (error) {
+    console.error("Failed to delete relationship", error);
+    return NextResponse.json({ error: "Failed to delete relationship." }, { status: 500 });
   }
 }

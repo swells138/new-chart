@@ -321,6 +321,7 @@ export function RelationshipMap({
   const [editingType, setEditingType] = useState<RelationshipType>("Friends");
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeletingEdit, setIsDeletingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
   const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<
     string | null
@@ -1097,6 +1098,57 @@ export function RelationshipMap({
     }
   }
 
+  async function deleteRelationshipEdit(id: string) {
+    const actorNodeId = activeCurrentUserId ?? (await ensureCurrentUserId());
+    if (!actorNodeId) {
+      setConnectionError("Sign in to delete connections.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Delete this connection? This action cannot be undone.",
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingEdit(true);
+    setConnectionError(null);
+
+    try {
+      const response = await authFetch("/api/relationships", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          actorNodeId,
+        }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        deleted?: boolean;
+        id?: string;
+      };
+
+      if (!response.ok || !body.deleted) {
+        setConnectionError(body.error ?? "Could not delete that connection.");
+        return;
+      }
+
+      setAllRelationships((prev) => prev.filter((item) => item.id !== id));
+      setEditingRelationshipId(null);
+      setEditingNote("");
+    } catch (error) {
+      console.error(error);
+      setConnectionError("Could not delete that connection.");
+    } finally {
+      setIsDeletingEdit(false);
+    }
+  }
+
   async function respondToConnection(id: string, action: "approve" | "reject") {
     const actorNodeId = activeCurrentUserId ?? (await ensureCurrentUserId());
     if (!actorNodeId) {
@@ -1184,7 +1236,7 @@ export function RelationshipMap({
                 : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
             }`}
           >
-            Direct Connections
+            Private Chart
           </button>
           <button
             type="button"
@@ -1195,7 +1247,7 @@ export function RelationshipMap({
                 : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
             }`}
           >
-            Extended Network
+            Public Chart
           </button>
         </div>
         <p className="mt-2 text-xs text-black/60 dark:text-white/60">
@@ -1691,15 +1743,23 @@ export function RelationshipMap({
                                 <button
                                   type="button"
                                   onClick={() => saveRelationshipEdit(item.id)}
-                                  disabled={isSavingEdit}
+                                  disabled={isSavingEdit || isDeletingEdit}
                                   className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
                                 >
                                   {isSavingEdit ? "Saving..." : "Save"}
                                 </button>
                                 <button
                                   type="button"
+                                  onClick={() => deleteRelationshipEdit(item.id)}
+                                  disabled={isSavingEdit || isDeletingEdit}
+                                  className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-600 disabled:opacity-70 dark:text-red-300"
+                                >
+                                  {isDeletingEdit ? "Deleting..." : "Delete"}
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={cancelEditing}
-                                  disabled={isSavingEdit}
+                                  disabled={isSavingEdit || isDeletingEdit}
                                   className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
                                 >
                                   Cancel
