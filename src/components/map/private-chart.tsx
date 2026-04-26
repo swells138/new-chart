@@ -87,6 +87,31 @@ function getOrganicChartPosition(
   return { x, y };
 }
 
+function getCurvedPath(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  curvature: number,
+  seed: number,
+) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.max(Math.hypot(dx, dy), 1);
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+
+  const normalX = -dy / distance;
+  const normalY = dx / distance;
+  const direction = seed % 2 === 0 ? 1 : -1;
+  const bend = distance * curvature * direction;
+
+  const controlX = midX + normalX * bend;
+  const controlY = midY + normalY * bend;
+
+  return `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`;
+}
+
 interface Props {
   initialPlaceholders: PlaceholderPerson[];
   baseUrl: string;
@@ -1101,18 +1126,24 @@ export function PrivateChart({
             const mx = (source.x + target.x) / 2;
             const my = (source.y + target.y) / 2;
             const edgeColor = TYPE_COLORS[edge.relationshipType] ?? "#9ca3af";
+            const curvePath = getCurvedPath(
+              source.x,
+              source.y,
+              target.x,
+              target.y,
+              0.16,
+              hashNumber(edge.id),
+            );
 
             return (
               <g key={`web-edge-${edge.id}`}>
-                <line
-                  x1={source.x}
-                  y1={source.y}
-                  x2={target.x}
-                  y2={target.y}
+                <path
+                  d={curvePath}
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
                   className="private-chart-link-flow"
+                  fill="none"
                 />
                 <g className="private-chart-label-float">
                   <rect
@@ -1153,19 +1184,25 @@ export function PrivateChart({
             const mx = (source.x + target.x) / 2;
             const my = (source.y + target.y) / 2;
             const edgeColor = TYPE_COLORS[edge.relationshipType] ?? "#9ca3af";
+            const curvePath = getCurvedPath(
+              source.x,
+              source.y,
+              target.x,
+              target.y,
+              0.2,
+              hashNumber(edge.id),
+            );
 
             return (
               <g key={`confirmed-web-edge-${edge.id}`}>
-                <line
-                  x1={source.x}
-                  y1={source.y}
-                  x2={target.x}
-                  y2={target.y}
+                <path
+                  d={curvePath}
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
                   strokeDasharray="4 3"
                   className="private-chart-link-flow"
+                  fill="none"
                 />
                 <g className="private-chart-label-float">
                   <rect
@@ -1206,19 +1243,25 @@ export function PrivateChart({
             const mx = (source.x + target.x) / 2;
             const my = (source.y + target.y) / 2;
             const edgeColor = TYPE_COLORS[edge.relationshipType] ?? "#9ca3af";
+            const curvePath = getCurvedPath(
+              source.x,
+              source.y,
+              target.x,
+              target.y,
+              0.18,
+              hashNumber(edge.id),
+            );
 
             return (
               <g key={`mixed-web-edge-${edge.id}`}>
-                <line
-                  x1={source.x}
-                  y1={source.y}
-                  x2={target.x}
-                  y2={target.y}
+                <path
+                  d={curvePath}
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
                   strokeDasharray="2 4"
                   className="private-chart-link-flow"
+                  fill="none"
                 />
                 <g className="private-chart-label-float">
                   <rect
@@ -1253,14 +1296,19 @@ export function PrivateChart({
             const cy = 220;
             const mx = (cx + item.x) / 2;
             const my = (cy + item.y) / 2;
+            const curvePath = getCurvedPath(
+              cx,
+              cy,
+              item.x,
+              item.y,
+              item.kind === "public" ? 0.11 : 0.08,
+              hashNumber(item.id),
+            );
 
             return (
               <g key={item.id}>
-                <line
-                  x1={cx}
-                  y1={cy}
-                  x2={item.x}
-                  y2={item.y}
+                <path
+                  d={curvePath}
                   stroke={item.color}
                   strokeWidth={highlightedConnectionId === item.id ? 3 : 2}
                   strokeOpacity={
@@ -1268,6 +1316,7 @@ export function PrivateChart({
                   }
                   strokeDasharray={item.kind === "private" ? "7 4" : undefined}
                   className={`${highlightedConnectionId === item.id ? "private-connection-line-reveal " : ""}private-chart-link-flow`}
+                  fill="none"
                 />
                 <g className="private-chart-label-float">
                   <rect
