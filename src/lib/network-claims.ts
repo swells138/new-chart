@@ -383,6 +383,33 @@ export async function getClaimCandidatesForUser(
       blockedOwnerIds.add(otherUserId);
     });
 
+    // Also suppress by already-claimed placeholders between the same pair,
+    // even if relationship state is in transition.
+    const claimedPairPlaceholders = ownerIds.length
+      ? await prisma.placeholderPerson.findMany({
+          where: {
+            claimStatus: "claimed",
+            OR: [
+              { ownerId: { in: ownerIds }, linkedUserId: userId },
+              { ownerId: userId, linkedUserId: { in: ownerIds } },
+            ],
+          },
+          select: {
+            ownerId: true,
+            linkedUserId: true,
+          },
+        })
+      : [];
+
+    claimedPairPlaceholders.forEach((placeholder) => {
+      if (placeholder.ownerId !== userId) {
+        blockedOwnerIds.add(placeholder.ownerId);
+      }
+      if (placeholder.linkedUserId && placeholder.linkedUserId !== userId) {
+        blockedOwnerIds.add(placeholder.linkedUserId);
+      }
+    });
+
     const dedupedPlaceholders = new Map<string, PlaceholderWithOwner>();
     visiblePlaceholders
       .filter((placeholder) => !blockedOwnerIds.has(placeholder.ownerId))
