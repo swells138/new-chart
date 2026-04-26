@@ -145,6 +145,20 @@ h4 {
   animation: private-connection-node-reveal 700ms ease-out;
 }
 
+.private-chart-link-flow {
+  animation: private-chart-link-flow 5.2s ease-in-out infinite;
+}
+
+.private-chart-node-wiggle {
+  animation: private-chart-node-wiggle 7.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.private-chart-label-float {
+  animation: private-chart-label-float 6.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @keyframes private-connection-line-reveal {
   0% {
     stroke-opacity: 0;
@@ -175,9 +189,52 @@ h4 {
   }
 }
 
+@keyframes private-chart-link-flow {
+  0%,
+  100% {
+    stroke-opacity: 0.62;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+  50% {
+    stroke-opacity: 0.88;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.22));
+  }
+}
+
+@keyframes private-chart-node-wiggle {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(1px, -1px);
+  }
+  50% {
+    transform: translate(-1px, 1px);
+  }
+  75% {
+    transform: translate(1px, 1px);
+  }
+}
+
+@keyframes private-chart-label-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.96;
+  }
+  50% {
+    transform: translate(0, -1px);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .private-connection-line-reveal,
-  .private-connection-node-reveal {
+  .private-connection-node-reveal,
+  .private-chart-link-flow,
+  .private-chart-node-wiggle,
+  .private-chart-label-float {
     animation: none;
   }
 }

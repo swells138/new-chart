@@ -1112,29 +1112,32 @@ export function PrivateChart({
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
+                  className="private-chart-link-flow"
                 />
-                <rect
-                  x={mx - 34}
-                  y={my - 10}
-                  width="68"
-                  height="18"
-                  rx="5"
-                  fill="rgba(10,6,20,0.85)"
-                  stroke={edgeColor}
-                  strokeWidth="0.75"
-                  strokeOpacity="0.5"
-                />
-                <text
-                  x={mx}
-                  y={my + 3}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="600"
-                  fill={edgeColor}
-                  fontFamily="system-ui"
-                >
-                  {edge.relationshipType}
-                </text>
+                <g className="private-chart-label-float">
+                  <rect
+                    x={mx - 34}
+                    y={my - 10}
+                    width="68"
+                    height="18"
+                    rx="5"
+                    fill="rgba(10,6,20,0.85)"
+                    stroke={edgeColor}
+                    strokeWidth="0.75"
+                    strokeOpacity="0.5"
+                  />
+                  <text
+                    x={mx}
+                    y={my + 3}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill={edgeColor}
+                    fontFamily="system-ui"
+                  >
+                    {edge.relationshipType}
+                  </text>
+                </g>
               </g>
             );
           })}
@@ -1162,29 +1165,32 @@ export function PrivateChart({
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
                   strokeDasharray="4 3"
+                  className="private-chart-link-flow"
                 />
-                <rect
-                  x={mx - 34}
-                  y={my - 10}
-                  width="68"
-                  height="18"
-                  rx="5"
-                  fill="rgba(10,6,20,0.85)"
-                  stroke={edgeColor}
-                  strokeWidth="0.75"
-                  strokeOpacity="0.5"
-                />
-                <text
-                  x={mx}
-                  y={my + 3}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="600"
-                  fill={edgeColor}
-                  fontFamily="system-ui"
-                >
-                  {edge.relationshipType}
-                </text>
+                <g className="private-chart-label-float">
+                  <rect
+                    x={mx - 34}
+                    y={my - 10}
+                    width="68"
+                    height="18"
+                    rx="5"
+                    fill="rgba(10,6,20,0.85)"
+                    stroke={edgeColor}
+                    strokeWidth="0.75"
+                    strokeOpacity="0.5"
+                  />
+                  <text
+                    x={mx}
+                    y={my + 3}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill={edgeColor}
+                    fontFamily="system-ui"
+                  >
+                    {edge.relationshipType}
+                  </text>
+                </g>
               </g>
             );
           })}
@@ -1212,29 +1218,32 @@ export function PrivateChart({
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
                   strokeDasharray="2 4"
+                  className="private-chart-link-flow"
                 />
-                <rect
-                  x={mx - 34}
-                  y={my - 10}
-                  width="68"
-                  height="18"
-                  rx="5"
-                  fill="rgba(10,6,20,0.85)"
-                  stroke={edgeColor}
-                  strokeWidth="0.75"
-                  strokeOpacity="0.5"
-                />
-                <text
-                  x={mx}
-                  y={my + 3}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="600"
-                  fill={edgeColor}
-                  fontFamily="system-ui"
-                >
-                  {edge.relationshipType}
-                </text>
+                <g className="private-chart-label-float">
+                  <rect
+                    x={mx - 34}
+                    y={my - 10}
+                    width="68"
+                    height="18"
+                    rx="5"
+                    fill="rgba(10,6,20,0.85)"
+                    stroke={edgeColor}
+                    strokeWidth="0.75"
+                    strokeOpacity="0.5"
+                  />
+                  <text
+                    x={mx}
+                    y={my + 3}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill={edgeColor}
+                    fontFamily="system-ui"
+                  >
+                    {edge.relationshipType}
+                  </text>
+                </g>
               </g>
             );
           })}
@@ -1258,89 +1267,95 @@ export function PrivateChart({
                     highlightedConnectionId === item.id ? 0.95 : 0.75
                   }
                   strokeDasharray={item.kind === "private" ? "7 4" : undefined}
-                  className={
-                    highlightedConnectionId === item.id
-                      ? "private-connection-line-reveal"
-                      : undefined
-                  }
+                  className={`${highlightedConnectionId === item.id ? "private-connection-line-reveal " : ""}private-chart-link-flow`}
                 />
-                <rect
-                  x={mx - 31}
-                  y={my - 10}
-                  width="62"
-                  height="18"
-                  rx="5"
-                  fill="rgba(10,6,20,0.85)"
-                  stroke={item.color}
-                  strokeWidth="0.75"
-                  strokeOpacity="0.55"
-                />
-                <text
-                  x={mx}
-                  y={my + 3}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="600"
-                  fill={item.color}
-                  fontFamily="system-ui"
-                >
-                  {item.type}
-                </text>
+                <g className="private-chart-label-float">
+                  <rect
+                    x={mx - 31}
+                    y={my - 10}
+                    width="62"
+                    height="18"
+                    rx="5"
+                    fill="rgba(10,6,20,0.85)"
+                    stroke={item.color}
+                    strokeWidth="0.75"
+                    strokeOpacity="0.55"
+                  />
+                  <text
+                    x={mx}
+                    y={my + 3}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill={item.color}
+                    fontFamily="system-ui"
+                  >
+                    {item.type}
+                  </text>
+                </g>
 
-                <circle
-                  cx={item.x}
-                  cy={item.y}
-                  r="28"
-                  fill={item.color}
-                  fillOpacity="0.17"
-                  className={
-                    highlightedConnectionId === item.id
-                      ? "private-connection-node-reveal"
-                      : undefined
-                  }
-                />
-                <circle
-                  cx={item.x}
-                  cy={item.y}
-                  r="22"
-                  fill={item.color}
-                  className={
-                    highlightedConnectionId === item.id
-                      ? "private-connection-node-reveal"
-                      : undefined
-                  }
-                />
-                <text
-                  x={item.x}
-                  y={item.y + 5}
-                  textAnchor="middle"
-                  fontSize="13"
-                  fontWeight="700"
-                  fill="white"
-                  fontFamily="system-ui"
+                <g
+                  className="private-chart-node-wiggle"
+                  style={{
+                    animationDuration: `${6 + (hashNumber(item.id) % 5)}s`,
+                    animationDelay: `${-((hashNumber(item.id) % 7) * 0.6)}s`,
+                  }}
                 >
-                  {(item.name?.[0] ?? "?").toUpperCase()}
-                </text>
+                  <circle
+                    cx={item.x}
+                    cy={item.y}
+                    r="28"
+                    fill={item.color}
+                    fillOpacity="0.17"
+                    className={
+                      highlightedConnectionId === item.id
+                        ? "private-connection-node-reveal"
+                        : undefined
+                    }
+                  />
+                  <circle
+                    cx={item.x}
+                    cy={item.y}
+                    r="22"
+                    fill={item.color}
+                    className={
+                      highlightedConnectionId === item.id
+                        ? "private-connection-node-reveal"
+                        : undefined
+                    }
+                  />
+                  <text
+                    x={item.x}
+                    y={item.y + 5}
+                    textAnchor="middle"
+                    fontSize="13"
+                    fontWeight="700"
+                    fill="white"
+                    fontFamily="system-ui"
+                  >
+                    {(item.name?.[0] ?? "?").toUpperCase()}
+                  </text>
 
-                <rect
-                  x={item.x - 48}
-                  y={item.y + 30}
-                  width="96"
-                  height="18"
-                  rx="8"
-                  fill="rgba(0,0,0,0.6)"
-                />
-                <text
-                  x={item.x}
-                  y={item.y + 42}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fontWeight="600"
-                  fill="rgba(255,255,255,0.88)"
-                  fontFamily="system-ui"
-                >
-                  {item.name.split(" ")[0]}
-                </text>
+                  <rect
+                    x={item.x - 48}
+                    y={item.y + 30}
+                    width="96"
+                    height="18"
+                    rx="8"
+                    fill="rgba(0,0,0,0.6)"
+                  />
+                  <text
+                    x={item.x}
+                    y={item.y + 42}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="rgba(255,255,255,0.88)"
+                    fontFamily="system-ui"
+                  >
+                    {item.name.split(" ")[0]}
+                  </text>
+                </g>
               </g>
             );
           })}
