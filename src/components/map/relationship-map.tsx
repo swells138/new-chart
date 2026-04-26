@@ -654,9 +654,15 @@ export function RelationshipMap({
       );
     }
 
-    // Public view: show everyone on the chart
+    // Public view: show only users with connections, not isolated nodes
     const baseUsers = areaUsers && areaUsers.length > 0 ? areaUsers : users;
-    return baseUsers;
+    const connectedInGraph = new Set<string>();
+    approvedRelationships.forEach((item) => {
+      connectedInGraph.add(item.source);
+      connectedInGraph.add(item.target);
+    });
+
+    return baseUsers.filter((user) => connectedInGraph.has(user.id));
   }, [
     users,
     areaUsers,
