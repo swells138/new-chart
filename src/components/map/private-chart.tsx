@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type {
+  PrivateConfirmedConnectionEdge,
   PrivateConnectionEdge,
   PlaceholderPerson,
   Relationship,
@@ -195,6 +196,38 @@ export function PrivateChart({
   const [deletingWebEdgeId, setDeletingWebEdgeId] = useState<string | null>(
     null,
   );
+  const [confirmedWebEdges, setConfirmedWebEdges] = useState<
+    PrivateConfirmedConnectionEdge[]
+  >([]);
+  const [sourceConfirmedUserId, setSourceConfirmedUserId] = useState("");
+  const [targetConfirmedUserId, setTargetConfirmedUserId] = useState("");
+  const [confirmedWebRelationshipType, setConfirmedWebRelationshipType] =
+    useState<RelationshipType>("Friends");
+  const [confirmedWebNote, setConfirmedWebNote] = useState("");
+  const [isSavingConfirmedWebEdge, setIsSavingConfirmedWebEdge] =
+    useState(false);
+  const [deletingConfirmedWebEdgeId, setDeletingConfirmedWebEdgeId] = useState<
+    string | null
+  >(null);
+
+  const confirmedDirectNodes = useMemo(() => {
+    const usersById = new Map(users.map((u) => [u.id, u]));
+    const seen = new Set<string>();
+    return approvedConnections
+      .map((rel) => {
+        const otherId = rel.source === currentUserId ? rel.target : rel.source;
+        if (!otherId || seen.has(otherId)) {
+          return null;
+        }
+        seen.add(otherId);
+        const other = usersById.get(otherId);
+        if (!other) {
+          return null;
+        }
+        return { id: otherId, name: other.name };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [approvedConnections, users, currentUserId]);
 
   const chartPositionById = useMemo(() => {
     return new Map(chartLayout.map((item) => [item.id, item]));
@@ -210,7 +243,18 @@ export function PrivateChart({
     [privateWebEdges, chartPositionById],
   );
 
-  const discoveredConnections = chartConnections.length + privateWebEdges.length;
+  const visibleConfirmedWebEdges = useMemo(
+    () =>
+      confirmedWebEdges.filter(
+        (edge) =>
+          chartPositionById.has(`public-${edge.sourceUserId}`) &&
+          chartPositionById.has(`public-${edge.targetUserId}`),
+      ),
+    [confirmedWebEdges, chartPositionById],
+  );
+
+  const discoveredConnections =
+    chartConnections.length + privateWebEdges.length + confirmedWebEdges.length;
 
   // Add-form state
   const [addName, setAddName] = useState("");
@@ -271,6 +315,7 @@ export function PrivateChart({
   useEffect(() => {
     if (!currentUserId) {
       setPrivateWebEdges([]);
+      setConfirmedWebEdges([]);
       return;
     }
 
@@ -304,12 +349,68 @@ export function PrivateChart({
       }
     }
 
+    async function loadConfirmedWebEdges() {
+      try {
+        const res = await authFetch("/api/private-connections/web-confirmed", {
+          method: "GET",
+        });
+        const body = (await res.json()) as {
+          edges?: PrivateConfirmedConnectionEdge[];
+          error?: string;
+        };
+        if (!res.ok) {
+          if (!cancelled) {
+            setActionError(
+              body.error ??
+                "Could not load private confirmed web connections.",
+            );
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setConfirmedWebEdges(body.edges ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setActionError("Could not load private confirmed web connections.");
+        }
+      }
+    }
+
     void loadPrivateWebEdges();
+    void loadConfirmedWebEdges();
 
     return () => {
       cancelled = true;
     };
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (confirmedDirectNodes.length === 0) {
+      setSourceConfirmedUserId("");
+      setTargetConfirmedUserId("");
+      return;
+    }
+
+    if (
+      !sourceConfirmedUserId ||
+      !confirmedDirectNodes.some((node) => node.id === sourceConfirmedUserId)
+    ) {
+      setSourceConfirmedUserId(confirmedDirectNodes[0]?.id ?? "");
+    }
+
+    if (
+      !targetConfirmedUserId ||
+      !confirmedDirectNodes.some((node) => node.id === targetConfirmedUserId)
+    ) {
+      const fallback = confirmedDirectNodes.find(
+        (node) =>
+          node.id !== (sourceConfirmedUserId || confirmedDirectNodes[0]?.id),
+      );
+      setTargetConfirmedUserId(fallback?.id ?? "");
+    }
+  }, [confirmedDirectNodes, sourceConfirmedUserId, targetConfirmedUserId]);
 
   useEffect(() => {
     if (placeholders.length === 0) {
@@ -407,6 +508,92 @@ export function PrivateChart({
       setActionError("Could not remove that private web link.");
     } finally {
       setDeletingWebEdgeId(null);
+    }
+  }
+
+  async function handleCreateConfirmedWebEdge(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!sourceConfirmedUserId || !targetConfirmedUserId) {
+      setActionError("Pick two confirmed connections to link.");
+      return;
+    }
+
+    if (sourceConfirmedUserId === targetConfirmedUserId) {
+      setActionError("Pick two different confirmed connections.");
+      return;
+    }
+
+    setIsSavingConfirmedWebEdge(true);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const res = await authFetch("/api/private-connections/web-confirmed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceUserId: sourceConfirmedUserId,
+          targetUserId: targetConfirmedUserId,
+          relationshipType: confirmedWebRelationshipType,
+          note: confirmedWebNote.trim() || undefined,
+        }),
+      });
+
+      const body = (await res.json()) as {
+        edge?: PrivateConfirmedConnectionEdge;
+        error?: string;
+      };
+
+      if (!res.ok || !body.edge) {
+        setActionError(
+          body.error ?? "Could not create this private confirmed link.",
+        );
+        return;
+      }
+
+      setConfirmedWebEdges((prev) => {
+        const withoutSameId = prev.filter((item) => item.id !== body.edge!.id);
+        return [body.edge!, ...withoutSameId];
+      });
+      setConfirmedWebNote("");
+      setActionMessage("Private confirmed link created.");
+    } catch {
+      setActionError("Could not create this private confirmed link.");
+    } finally {
+      setIsSavingConfirmedWebEdge(false);
+    }
+  }
+
+  async function handleDeleteConfirmedWebEdge(id: string) {
+    setDeletingConfirmedWebEdgeId(id);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const res = await authFetch("/api/private-connections/web-confirmed", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      const body = (await res.json()) as {
+        deleted?: boolean;
+        error?: string;
+      };
+
+      if (!res.ok || !body.deleted) {
+        setActionError(
+          body.error ?? "Could not remove that private confirmed link.",
+        );
+        return;
+      }
+
+      setConfirmedWebEdges((prev) => prev.filter((edge) => edge.id !== id));
+      setActionMessage("Private confirmed link removed.");
+    } catch {
+      setActionError("Could not remove that private confirmed link.");
+    } finally {
+      setDeletingConfirmedWebEdgeId(null);
     }
   }
 
@@ -807,6 +994,56 @@ export function PrivateChart({
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
+                />
+                <rect
+                  x={mx - 34}
+                  y={my - 10}
+                  width="68"
+                  height="18"
+                  rx="5"
+                  fill="rgba(10,6,20,0.85)"
+                  stroke={edgeColor}
+                  strokeWidth="0.75"
+                  strokeOpacity="0.5"
+                />
+                <text
+                  x={mx}
+                  y={my + 3}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill={edgeColor}
+                  fontFamily="system-ui"
+                >
+                  {edge.relationshipType}
+                </text>
+              </g>
+            );
+          })}
+
+          {visibleConfirmedWebEdges.map((edge) => {
+            const source = chartPositionById.get(`public-${edge.sourceUserId}`);
+            const target = chartPositionById.get(`public-${edge.targetUserId}`);
+
+            if (!source || !target) {
+              return null;
+            }
+
+            const mx = (source.x + target.x) / 2;
+            const my = (source.y + target.y) / 2;
+            const edgeColor = TYPE_COLORS[edge.relationshipType] ?? "#9ca3af";
+
+            return (
+              <g key={`confirmed-web-edge-${edge.id}`}>
+                <line
+                  x1={source.x}
+                  y1={source.y}
+                  x2={target.x}
+                  y2={target.y}
+                  stroke={edgeColor}
+                  strokeWidth={1.5}
+                  strokeOpacity={0.65}
+                  strokeDasharray="4 3"
                 />
                 <rect
                   x={mx - 34}
@@ -1305,6 +1542,141 @@ export function PrivateChart({
                     className="ml-auto rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
                   >
                     {deletingWebEdgeId === edge.id ? "Removing..." : "Remove"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="paper-card rounded-2xl p-5">
+        <h3 className="text-sm font-bold uppercase tracking-wider">
+          Connect confirmed direct connections (private)
+        </h3>
+        <p className="mt-2 text-xs text-black/65 dark:text-white/65">
+          Add hidden links between your confirmed direct connections to expand
+          your private web.
+        </p>
+        {confirmedDirectNodes.length < 2 ? (
+          <p className="mt-3 text-xs text-black/60 dark:text-white/70">
+            You need at least two confirmed direct connections to create these
+            private links.
+          </p>
+        ) : (
+          <form className="mt-3 space-y-3" onSubmit={handleCreateConfirmedWebEdge}>
+            <div className="grid gap-2 md:grid-cols-2">
+              <select
+                value={sourceConfirmedUserId}
+                onChange={(e) => setSourceConfirmedUserId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                disabled={isSavingConfirmedWebEdge}
+              >
+                {confirmedDirectNodes.map((node) => (
+                  <option key={`c-src-${node.id}`} value={node.id}>
+                    {node.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={targetConfirmedUserId}
+                onChange={(e) => setTargetConfirmedUserId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                disabled={isSavingConfirmedWebEdge}
+              >
+                {confirmedDirectNodes.map((node) => (
+                  <option key={`c-tgt-${node.id}`} value={node.id}>
+                    {node.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr]">
+              <select
+                value={confirmedWebRelationshipType}
+                onChange={(e) =>
+                  setConfirmedWebRelationshipType(
+                    e.target.value as RelationshipType,
+                  )
+                }
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                disabled={isSavingConfirmedWebEdge}
+              >
+                {ALL_TYPES.map((t) => (
+                  <option key={`c-web-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={confirmedWebNote}
+                onChange={(e) => setConfirmedWebNote(e.target.value)}
+                maxLength={500}
+                placeholder="Optional note"
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                disabled={isSavingConfirmedWebEdge}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={
+                isSavingConfirmedWebEdge ||
+                !sourceConfirmedUserId ||
+                !targetConfirmedUserId ||
+                sourceConfirmedUserId === targetConfirmedUserId
+              }
+              className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {isSavingConfirmedWebEdge
+                ? "Connecting..."
+                : "Connect confirmed nodes"}
+            </button>
+          </form>
+        )}
+
+        {confirmedWebEdges.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            {confirmedWebEdges.map((edge) => {
+              const sourceName =
+                confirmedDirectNodes.find((node) => node.id === edge.sourceUserId)
+                  ?.name ?? "Unknown";
+              const targetName =
+                confirmedDirectNodes.find((node) => node.id === edge.targetUserId)
+                  ?.name ?? "Unknown";
+
+              return (
+                <div
+                  key={edge.id}
+                  className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.04]"
+                >
+                  <span className="font-semibold">
+                    {sourceName} {" <-> "} {targetName}
+                  </span>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{
+                      backgroundColor: `${TYPE_COLORS[edge.relationshipType]}33`,
+                      color: TYPE_COLORS[edge.relationshipType],
+                      border: `1px solid ${TYPE_COLORS[edge.relationshipType]}55`,
+                    }}
+                  >
+                    {edge.relationshipType}
+                  </span>
+                  {edge.note ? (
+                    <span className="text-black/60 dark:text-white/65">
+                      {edge.note}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteConfirmedWebEdge(edge.id)}
+                    disabled={deletingConfirmedWebEdgeId === edge.id}
+                    className="ml-auto rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
+                  >
+                    {deletingConfirmedWebEdgeId === edge.id
+                      ? "Removing..."
+                      : "Remove"}
                   </button>
                 </div>
               );
