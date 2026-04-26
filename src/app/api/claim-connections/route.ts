@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { currentUser } from "@clerk/nextjs/server";
+import { clerkClient, currentUser } from "@clerk/nextjs/server";
 import { claimPlaceholderForUser, dismissClaimCandidate, getClaimCandidatesForUser } from "@/lib/network-claims";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
@@ -40,8 +40,17 @@ async function getAuthenticatedDbUserId(request: Request) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  // Get the user's actual name from Clerk
-  const clerkUser = await currentUser();
+  let clerkUser = await currentUser();
+
+  if (!clerkUser || clerkUser.id !== userId) {
+    try {
+      const client = await clerkClient();
+      clerkUser = await client.users.getUser(userId);
+    } catch {
+      clerkUser = null;
+    }
+  }
+
   const hasVerifiedEmail = clerkUser?.emailAddresses.some(
     (emailAddress) => emailAddress.verification?.status === "verified"
   );
