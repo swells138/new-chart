@@ -172,10 +172,7 @@ export default async function MapPage() {
       areaUsers = [];
     }
 
-    // If user has no connections, start them in area mode data.
-    if (userConnections.length === 0) {
-      users = areaUsers.length > 0 ? areaUsers : allUsers;
-    }
+    // Keep `users` as the full dataset; private chart can still use `areaUsers` as a guided fallback.
   }
 
   const baseUrl =

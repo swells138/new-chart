@@ -654,8 +654,8 @@ export function RelationshipMap({
       );
     }
 
-    // Public view: show only users with connections, not isolated nodes
-    const baseUsers = areaUsers && areaUsers.length > 0 ? areaUsers : users;
+    // Public view: show all users who have at least one public connection
+    const baseUsers = users;
     const connectedInGraph = new Set<string>();
     approvedRelationships.forEach((item) => {
       connectedInGraph.add(item.source);
