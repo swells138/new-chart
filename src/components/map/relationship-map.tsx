@@ -1864,7 +1864,7 @@ export function RelationshipMap({
                               Expires: {new Date(parsed.expiresAt).toLocaleString()}
                             </p>
                           ) : null}
-                          <div className="mt-2 flex gap-2">
+                          <div className="mt-2 flex flex-wrap gap-2">
                             {isClaimedUserTurn ? (
                               <button
                                 type="button"
@@ -1874,7 +1874,7 @@ export function RelationshipMap({
                                 disabled={isRespondingId === item.id}
                                 className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
                               >
-                                Verify claim
+                                Verify — this is me
                               </button>
                             ) : null}
                             {isCreatorTurn ? (
@@ -1886,27 +1886,37 @@ export function RelationshipMap({
                                 disabled={isRespondingId === item.id}
                                 className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
                               >
-                                Confirm
+                                Yes, that&apos;s them — make public
                               </button>
                             ) : null}
-                            <button
-                              type="button"
-                              onClick={() =>
-                                respondToConnection(item.id, "reject")
-                              }
-                              disabled={isRespondingId === item.id}
-                              className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => disputeConnection(item.id)}
-                              disabled={isRespondingId === item.id}
-                              className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-70 dark:text-red-300"
-                            >
-                              Report / Dispute
-                            </button>
+                            {waitingForOtherUser ? (
+                              <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-black/60 dark:text-white/60">
+                                Waiting for{" "}
+                                {otherUser?.name ?? "the other person"}
+                              </span>
+                            ) : null}
+                            {(isClaimedUserTurn || isCreatorTurn) ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  respondToConnection(item.id, "reject")
+                                }
+                                disabled={isRespondingId === item.id}
+                                className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                              >
+                                Reject
+                              </button>
+                            ) : null}
+                            {(isClaimedUserTurn || isCreatorTurn) ? (
+                              <button
+                                type="button"
+                                onClick={() => disputeConnection(item.id)}
+                                disabled={isRespondingId === item.id}
+                                className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-70 dark:text-red-300"
+                              >
+                                Report / Dispute
+                              </button>
+                            ) : null}
                           </div>
                           {isClaimedUserTurn ? (
                             <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
@@ -1915,7 +1925,7 @@ export function RelationshipMap({
                           ) : null}
                           {isCreatorTurn ? (
                             <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                              Confirming publishes this connection publicly. Reject or dispute keeps it hidden.
+                              Confirming publishes this connection. Reject keeps it hidden.
                             </p>
                           ) : null}
                         </div>
