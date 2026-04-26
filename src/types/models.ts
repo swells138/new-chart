@@ -82,6 +82,16 @@ export interface PrivateConfirmedConnectionEdge {
   createdAt: string;
 }
 
+export interface PrivateMixedConnectionEdge {
+  id: string;
+  ownerId: string;
+  placeholderId: string;
+  userId: string;
+  relationshipType: RelationshipType;
+  note: string;
+  createdAt: string;
+}
+
 export interface ClaimCandidate {
   placeholderId: string;
   name: string;
