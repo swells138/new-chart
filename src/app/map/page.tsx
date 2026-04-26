@@ -1,6 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
@@ -193,14 +192,6 @@ export default async function MapPage() {
         title="Your Network"
         subtitle="Manage direct connections, verify pending matches, and explore the confirmed network around you."
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href="/map?chart=private&focus=manage"
-          className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-95"
-        >
-          Manage Connections
-        </Link>
-      </div>
       <RelationshipMap
         users={users}
         relationships={relationships}

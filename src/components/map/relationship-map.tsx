@@ -1497,6 +1497,28 @@ export function RelationshipMap({
                   >
                     {isConnecting ? "Creating..." : "Create connection"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!activeCurrentUserId) {
+                        setConnectionError(
+                          "Sign in to manage and edit your node changes.",
+                        );
+                        return;
+                      }
+                      setSelectedId(activeCurrentUserId);
+                      if (typeof window !== "undefined") {
+                        window.setTimeout(() => {
+                          document
+                            .getElementById("node-management")
+                            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 0);
+                      }
+                    }}
+                    className="block w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-center text-sm font-semibold text-black/75 transition hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10"
+                  >
+                    Manage Connections
+                  </button>
                 </form>
               ) : (
                 <p className="mt-2 text-xs text-black/65 dark:text-white/70">
@@ -1583,7 +1605,7 @@ export function RelationshipMap({
               </div>
             ) : null}
 
-            <div className="mt-4">
+            <div id="node-management" className="mt-4">
               {selectedUser ? (
                 <>
                   <div className="flex items-center gap-3">
