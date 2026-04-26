@@ -490,7 +490,12 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
   const result = await prisma.$transaction(async (tx) => {
     const placeholder = await tx.placeholderPerson.findUnique({
       where: { id: placeholderId },
-      include: {
+      select: {
+        id: true,
+        ownerId: true,
+        relationshipType: true,
+        linkedUserId: true,
+        note: true,
         owner: {
           select: { id: true, name: true },
         },
