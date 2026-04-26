@@ -654,14 +654,9 @@ export function RelationshipMap({
       );
     }
 
+    // Public view: show everyone on the chart
     const baseUsers = areaUsers && areaUsers.length > 0 ? areaUsers : users;
-    const connectedInGraph = new Set<string>();
-    approvedRelationships.forEach((item) => {
-      connectedInGraph.add(item.source);
-      connectedInGraph.add(item.target);
-    });
-
-    return baseUsers.filter((user) => connectedInGraph.has(user.id));
+    return baseUsers;
   }, [
     users,
     areaUsers,
@@ -804,8 +799,18 @@ export function RelationshipMap({
     });
 
     // simple collision separation pass to keep nodes visually distinct
-    const minDist = 110; // minimum center-to-center distance
+    // but only for unconnected nodes (connected nodes can float near each other)
+    const minDist = 110; // minimum center-to-center distance for unconnected nodes
     const iterations = 6;
+
+    // Build a set of connected node pairs so we can skip separation for them
+    const connectedPairs = new Set<string>();
+    filteredRelationships.forEach((rel) => {
+      const key1 = `${rel.source}|${rel.target}`;
+      const key2 = `${rel.target}|${rel.source}`;
+      connectedPairs.add(key1);
+      connectedPairs.add(key2);
+    });
 
     for (let it = 0; it < iterations; it++) {
       let moved = false;
@@ -813,6 +818,13 @@ export function RelationshipMap({
         for (let j = i + 1; j < items.length; j++) {
           const a = items[i];
           const b = items[j];
+          
+          // Skip separation for connected nodes
+          const pairKey = `${a.id}|${b.id}`;
+          if (connectedPairs.has(pairKey)) {
+            continue;
+          }
+          
           // keep active current user anchored
           const aFixed = a.id === activeCurrentUserId;
           const bFixed = b.id === activeCurrentUserId;
