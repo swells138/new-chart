@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -19,7 +19,7 @@ function getSafeRedirectPath(input: string | null) {
   return input;
 }
 
-export default function AgeCheckPage() {
+function AgeCheckContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -62,5 +62,13 @@ export default function AgeCheckPage() {
         </Link>
       </div>
     </section>
+  );
+}
+
+export default function AgeCheckPage() {
+  return (
+    <Suspense>
+      <AgeCheckContent />
+    </Suspense>
   );
 }
