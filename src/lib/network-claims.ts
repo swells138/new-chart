@@ -242,10 +242,6 @@ function normalizePhoneNumber(value: string | null | undefined) {
   return digits.length >= 7 ? digits : "";
 }
 
-function makePairKey(a: string, b: string) {
-  return a < b ? `${a}::${b}` : `${b}::${a}`;
-}
-
 function getNameMatchScore(userName: string, placeholderName: string) {
   const normalizedUser = normalizeMatchString(userName);
   const normalizedPlaceholder = normalizeMatchString(placeholderName);
@@ -383,21 +379,8 @@ export async function getClaimCandidatesForUser(
 
     const blockedOwnerIds = new Set<string>();
     pairRelationshipRows.forEach((relationship) => {
-      const meta = composeClaimMeta({
-        storedType: relationship.type,
-        user1Id: relationship.user1Id,
-        user2Id: relationship.user2Id,
-        note: relationship.note,
-      });
-
-      if (
-        meta.status === "active" ||
-        meta.status === "pending_claim" ||
-        meta.status === "pending_creator_confirmation"
-      ) {
-        const otherUserId = relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id;
-        blockedOwnerIds.add(otherUserId);
-      }
+      const otherUserId = relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id;
+      blockedOwnerIds.add(otherUserId);
     });
 
     const dedupedPlaceholders = new Map<string, PlaceholderWithOwner>();
