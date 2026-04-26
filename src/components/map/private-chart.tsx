@@ -219,6 +219,7 @@ export function PrivateChart({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [reportingId, setReportingId] = useState<string | null>(null);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -501,8 +502,43 @@ export function PrivateChart({
     }
   }
 
+  async function handleReport(p: PlaceholderPerson) {
+    const reason = window
+      .prompt(
+        `Report ${p.name}. Add a short reason (optional):`,
+        "Spam or fake profile",
+      )
+      ?.trim();
+
+    setReportingId(p.id);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const res = await authFetch("/api/private-connections/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: p.id,
+          reason: reason || undefined,
+        }),
+      });
+      const body = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok || !body.success) {
+        setActionError(body.error ?? "Could not submit report right now.");
+        return;
+      }
+
+      setActionMessage("Report submitted. Thank you for flagging this node.");
+    } catch {
+      setActionError("Could not submit report right now.");
+    } finally {
+      setReportingId(null);
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div id="manage-connections" className="space-y-6">
       {/* Privacy banner */}
 
       <section
@@ -959,6 +995,7 @@ export function PrivateChart({
               const publicConnectCandidate =
                 publicConnectCandidates[p.id] ?? null;
               const isPublicConnecting = publicConnectingPlaceholderId === p.id;
+              const isReporting = reportingId === p.id;
 
               return (
                 <div
@@ -1208,7 +1245,26 @@ export function PrivateChart({
                             >
                               {isWorking ? "…" : "Remove"}
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReport(p)}
+                              disabled={isReporting}
+                              className="rounded-full border border-amber-500/30 px-3 py-1 text-[11px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60"
+                            >
+                              {isReporting ? "Reporting..." : "Report"}
+                            </button>
                           </>
+                        ) : null}
+
+                        {!isOwned ? (
+                          <button
+                            type="button"
+                            onClick={() => handleReport(p)}
+                            disabled={isReporting}
+                            className="rounded-full border border-amber-500/30 px-3 py-1 text-[11px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60"
+                          >
+                            {isReporting ? "Reporting..." : "Report"}
+                          </button>
                         ) : null}
                       </div>
                     </>
