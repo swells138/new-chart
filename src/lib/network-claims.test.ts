@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const transactionMock = vi.fn();
 const messageCreateMock = vi.fn();
 
+const prismaUserFindUniqueMock = vi.fn();
+const prismaUserFindManyMock = vi.fn();
+const placeholderFindManyMock = vi.fn();
+const relationshipFindManyMock = vi.fn();
 const placeholderFindUniqueMock = vi.fn();
 const placeholderUpdateMock = vi.fn();
 const relationshipFindFirstMock = vi.fn();
@@ -14,6 +18,16 @@ const userUpdateMock = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: transactionMock,
+    user: {
+      findUnique: prismaUserFindUniqueMock,
+      findMany: prismaUserFindManyMock,
+    },
+    placeholderPerson: {
+      findMany: placeholderFindManyMock,
+    },
+    relationship: {
+      findMany: relationshipFindManyMock,
+    },
     message: {
       create: messageCreateMock,
     },
@@ -43,6 +57,10 @@ describe("claimPlaceholderForUser", () => {
     vi.resetModules();
     transactionMock.mockReset();
     messageCreateMock.mockReset();
+    prismaUserFindUniqueMock.mockReset();
+    prismaUserFindManyMock.mockReset();
+    placeholderFindManyMock.mockReset();
+    relationshipFindManyMock.mockReset();
     placeholderFindUniqueMock.mockReset();
     placeholderUpdateMock.mockReset();
     relationshipFindFirstMock.mockReset();
@@ -94,5 +112,114 @@ describe("claimPlaceholderForUser", () => {
         ignoredClaimPlaceholderIds: ["placeholder_old", "placeholder_1"],
       },
     });
+  });
+});
+
+describe("getClaimCandidatesForUser", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    prismaUserFindUniqueMock.mockReset();
+    prismaUserFindManyMock.mockReset();
+    placeholderFindManyMock.mockReset();
+    relationshipFindManyMock.mockReset();
+
+    prismaUserFindUniqueMock.mockResolvedValue({
+      id: "claimer_1",
+      name: "Exact Match",
+      email: null,
+      phoneNumber: null,
+      ignoredClaimPlaceholderIds: [],
+    });
+    prismaUserFindManyMock.mockResolvedValue([]);
+  });
+
+  it("keeps exact-name claim candidates even when a relationship row already exists", async () => {
+    placeholderFindManyMock
+      .mockResolvedValueOnce([
+        {
+          id: "placeholder_1",
+          ownerId: "owner_1",
+          name: "Exact Match",
+          offerToNameMatch: true,
+          email: null,
+          phoneNumber: null,
+          relationshipType: "Friends",
+          note: null,
+          inviteToken: null,
+          claimStatus: "unclaimed",
+          linkedUserId: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          owner: {
+            id: "owner_1",
+            name: "Owner",
+            handle: "owner",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    relationshipFindManyMock
+      .mockResolvedValueOnce([
+        {
+          user1Id: "claimer_1",
+          user2Id: "owner_1",
+          type: "Friends",
+          note: null,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const { getClaimCandidatesForUser } = await import("./network-claims");
+
+    const candidates = await getClaimCandidatesForUser("claimer_1");
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      placeholderId: "placeholder_1",
+      name: "Exact Match",
+      ownerId: "owner_1",
+      matchReasons: ["Exact name match"],
+    });
+  });
+
+  it("still suppresses weak name guesses when a relationship row already exists", async () => {
+    placeholderFindManyMock
+      .mockResolvedValueOnce([
+        {
+          id: "placeholder_1",
+          ownerId: "owner_1",
+          name: "Different Person",
+          offerToNameMatch: true,
+          email: null,
+          phoneNumber: null,
+          relationshipType: "Friends",
+          note: null,
+          inviteToken: null,
+          claimStatus: "unclaimed",
+          linkedUserId: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          owner: {
+            id: "owner_1",
+            name: "Owner",
+            handle: "owner",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    relationshipFindManyMock
+      .mockResolvedValueOnce([
+        {
+          user1Id: "claimer_1",
+          user2Id: "owner_1",
+          type: "Friends",
+          note: null,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const { getClaimCandidatesForUser } = await import("./network-claims");
+
+    await expect(getClaimCandidatesForUser("claimer_1")).resolves.toEqual([]);
   });
 });

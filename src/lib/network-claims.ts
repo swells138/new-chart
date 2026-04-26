@@ -377,13 +377,13 @@ export async function getClaimCandidatesForUser(
         })
       : [];
 
-    const blockedOwnerIds = new Set<string>();
+    const relatedOwnerIds = new Set<string>();
     pairRelationshipRows.forEach((relationship) => {
       const otherUserId = relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id;
-      blockedOwnerIds.add(otherUserId);
+      relatedOwnerIds.add(otherUserId);
     });
 
-    // Also suppress by already-claimed placeholders between the same pair,
+    // Suppress by already-claimed placeholders between the same pair,
     // even if relationship state is in transition.
     const claimedPairPlaceholders = ownerIds.length
       ? await prisma.placeholderPerson.findMany({
@@ -401,6 +401,7 @@ export async function getClaimCandidatesForUser(
         })
       : [];
 
+    const blockedOwnerIds = new Set<string>();
     claimedPairPlaceholders.forEach((placeholder) => {
       if (placeholder.ownerId !== userId) {
         blockedOwnerIds.add(placeholder.ownerId);
@@ -458,6 +459,12 @@ export async function getClaimCandidatesForUser(
         const phoneMatches =
           currentUserPhone.length > 0 &&
           normalizePhoneNumber(placeholder.phoneNumber) === currentUserPhone;
+        const hasStrongIdentityMatch =
+          nameScore >= 100 || emailMatches || phoneMatches;
+
+        if (relatedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+          return null;
+        }
 
         const score =
           nameScore +
@@ -493,6 +500,7 @@ export async function getClaimCandidatesForUser(
           score,
         };
       })
+      .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
       .filter((candidate) => candidate.score >= 55 || candidate.matchReasons.some((reason) => reason.includes("matches")))
       .sort((left, right) => right.score - left.score)
       .slice(0, limit)
