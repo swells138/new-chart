@@ -1512,24 +1512,6 @@ export function RelationshipMap({
                     : "Sign in to create and edit your own connections."}
               </p>
             )}
-            {chartLayer === "private" &&
-            activeCurrentUserId &&
-            limitedExtendedNodeIds.hiddenCount > 0 ? (
-              <div className="mb-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.03] p-3 text-sm dark:bg-white/5">
-                <p className="font-semibold">
-                  You&apos;ve explored your first 25 connections
-                </p>
-                <p className="mt-1 text-xs text-black/65 dark:text-white/70">
-                  +{limitedExtendedNodeIds.hiddenCount} more hidden
-                </p>
-                <Link
-                  href="/profile"
-                  className="mt-3 inline-flex rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white"
-                >
-                  Unlock full network
-                </Link>
-              </div>
-            ) : null}
             {connectionError ? (
               <p className="mb-3 text-sm text-red-700 dark:text-red-400">
                 {connectionError}
