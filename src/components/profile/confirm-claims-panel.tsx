@@ -23,7 +23,7 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
       const response = await fetch(`/api/relationships`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: relationshipId, action: "confirmCreator" }),
+        body: JSON.stringify({ id: relationshipId, action: "confirmCreator", actorNodeId: currentUserId }),
       });
 
       const body = (await response.json()) as { error?: string };
@@ -53,7 +53,7 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
       const response = await fetch(`/api/relationships`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: relationshipId, action: "reject" }),
+        body: JSON.stringify({ id: relationshipId, action: "reject", actorNodeId: currentUserId }),
       });
 
       const body = (await response.json()) as { error?: string };

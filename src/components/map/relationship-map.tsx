@@ -2163,6 +2163,27 @@ export function RelationshipMap({
                                   {selectedUser.id === activeCurrentUserId &&
                                   (parsed.claimedByUserId === activeCurrentUserId ||
                                     parsed.creatorId === activeCurrentUserId) ? (
+                                                                      {/* At pending_creator_confirmation, only the creator can reject.
+                                                                          At pending_claim, either party can reject. */}
+                                                                      {selectedUser.id === activeCurrentUserId &&
+                                                                      (
+                                                                        (parsed.status === "pending_claim" &&
+                                                                          (parsed.claimedByUserId === activeCurrentUserId ||
+                                                                            parsed.creatorId === activeCurrentUserId)) ||
+                                                                        (parsed.status === "pending_creator_confirmation" &&
+                                                                          parsed.creatorId === activeCurrentUserId)
+                                                                      ) ? (
+                                                                        <button
+                                                                          type="button"
+                                                                          onClick={() =>
+                                                                            respondToConnection(item.id, "reject")
+                                                                          }
+                                                                          disabled={isRespondingId === item.id}
+                                                                          className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                                                                        >
+                                                                          Reject
+                                                                        </button>
+                                                                      ) : null}
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -2198,6 +2219,88 @@ export function RelationshipMap({
                               parsed.creatorId === activeCurrentUserId ? (
                                 <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
                                   Confirming now makes this connection public. Reject/dispute keeps it hidden.
+                                                              {activeCurrentUserId &&
+                                                              (parsed.status === "pending_claim" ||
+                                                                parsed.status === "pending_creator_confirmation") ? (
+                                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                                  {/* pending_claim: only the claimed user (User 2) can approve */}
+                                                                  {selectedUser.id === activeCurrentUserId &&
+                                                                  parsed.status === "pending_claim" &&
+                                                                  parsed.claimedByUserId === activeCurrentUserId ? (
+                                                                    <button
+                                                                      type="button"
+                                                                      onClick={() => respondToConnection(item.id, "approve")}
+                                                                      disabled={isRespondingId === item.id}
+                                                                      className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                                                    >
+                                                                      Verify claim
+                                                                    </button>
+                                                                  ) : null}
+                                                                  {/* pending_creator_confirmation: only the creator (User 1) can confirm */}
+                                                                  {selectedUser.id === activeCurrentUserId &&
+                                                                  parsed.status === "pending_creator_confirmation" &&
+                                                                  parsed.creatorId === activeCurrentUserId ? (
+                                                                    <button
+                                                                      type="button"
+                                                                      onClick={() => respondToConnection(item.id, "confirmCreator")}
+                                                                      disabled={isRespondingId === item.id}
+                                                                      className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                                                    >
+                                                                      Confirm &amp; make public
+                                                                    </button>
+                                                                  ) : null}
+                                                                  {/* pending_creator_confirmation: User 2 is waiting — no action buttons */}
+                                                                  {selectedUser.id === activeCurrentUserId &&
+                                                                  parsed.status === "pending_creator_confirmation" &&
+                                                                  parsed.claimedByUserId === activeCurrentUserId ? (
+                                                                    <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-black/60 dark:text-white/60">
+                                                                      Waiting for creator to confirm
+                                                                    </span>
+                                                                  ) : null}
+                                                                  {/* Reject: at pending_claim either party can reject; at pending_creator_confirmation only creator */}
+                                                                  {selectedUser.id === activeCurrentUserId &&
+                                                                  (
+                                                                    (parsed.status === "pending_claim" &&
+                                                                      (parsed.claimedByUserId === activeCurrentUserId ||
+                                                                        parsed.creatorId === activeCurrentUserId)) ||
+                                                                    (parsed.status === "pending_creator_confirmation" &&
+                                                                      parsed.creatorId === activeCurrentUserId)
+                                                                  ) ? (
+                                                                    <button
+                                                                      type="button"
+                                                                      onClick={() => respondToConnection(item.id, "reject")}
+                                                                      disabled={isRespondingId === item.id}
+                                                                      className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                                                                    >
+                                                                      Reject
+                                                                    </button>
+                                                                  ) : null}
+                                                                  {selectedUser.id === activeCurrentUserId ? (
+                                                                    <button
+                                                                      type="button"
+                                                                      onClick={() => disputeConnection(item.id)}
+                                                                      disabled={isRespondingId === item.id}
+                                                                      className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-70 dark:text-red-300"
+                                                                    >
+                                                                      Report / Dispute
+                                                                    </button>
+                                                                  ) : null}
+                                                                </div>
+                                                              ) : null}
+                                                              {selectedUser.id === activeCurrentUserId &&
+                                                              parsed.status === "pending_claim" &&
+                                                              parsed.claimedByUserId === activeCurrentUserId ? (
+                                                                <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
+                                                                  Verifying keeps it private until the creator confirms.
+                                                                </p>
+                                                              ) : null}
+                                                              {selectedUser.id === activeCurrentUserId &&
+                                                              parsed.status === "pending_creator_confirmation" &&
+                                                              parsed.creatorId === activeCurrentUserId ? (
+                                                                <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                                                                  Confirming makes this connection public. Reject keeps it hidden.
+                                                                </p>
+                                                              ) : null}
                                 </p>
                               ) : null}
                             </>
