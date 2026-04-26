@@ -774,8 +774,8 @@ export function RelationshipMap({
 
     // Smart ordering: place connected nodes near each other to minimize edge crossings
     // Start with current user, then arrange others by connectivity
-    let orderedUsers: User[] = [];
     const positioned = new Set<string>();
+    const orderedUsers: User[] = [];
 
     if (activeCurrentUserId) {
       const currentUser = displayedUsers.find((u) => u.id === activeCurrentUserId);
