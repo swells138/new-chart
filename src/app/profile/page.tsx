@@ -1,13 +1,14 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
+import { ConfirmClaimsPanel } from "@/components/profile/confirm-claims-panel";
 import {
   ProfileConnectionsList,
   type ProfileConnectionItem,
 } from "@/components/profile/profile-connections-list";
 import { ProfileForm, type ProfileFormData } from "@/components/profile/profile-form";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getClaimCandidatesForUser } from "@/lib/network-claims";
+import { getClaimCandidatesForUser, getPendingCreatorConfirmations } from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 
@@ -106,10 +107,10 @@ export default async function ProfilePage() {
     interests: user.interests ?? [],
   };
 
-  const claimCandidates = await getClaimCandidatesForUser(user.id, {
-    includeDismissed: true,
-    limit: 5,
-  });
+  const [claimCandidates, pendingConfirmations] = await Promise.all([
+    getClaimCandidatesForUser(user.id, { includeDismissed: true, limit: 5 }),
+    getPendingCreatorConfirmations(user.id),
+  ]);
 
   const connections: ProfileConnectionItem[] = [
     ...user.relationships.map((relationship: { id: string; type: string; user2: ProfileConnectionItem["person"] }) => ({
@@ -142,6 +143,13 @@ export default async function ProfilePage() {
           />
         </aside>
       </div>
+
+      {pendingConfirmations.length > 0 ? (
+        <ConfirmClaimsPanel
+          initialConfirmations={pendingConfirmations}
+          currentUserId={user.id}
+        />
+      ) : null}
 
       <ClaimConnectionsPanel initialCandidates={claimCandidates} mode="settings" />
     </div>

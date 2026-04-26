@@ -650,3 +650,91 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
 
   return result;
 }
+
+export interface PendingCreatorConfirmation {
+  relationshipId: string;
+  claimedByUserId: string;
+  claimedByName: string;
+  claimedByHandle: string;
+  placeholderName: string;
+  relationshipType: string;
+  expiresAt: string | null;
+}
+
+export async function getPendingCreatorConfirmations(
+  creatorId: string,
+): Promise<PendingCreatorConfirmation[]> {
+  const relationships = await prisma.relationship.findMany({
+    where: {
+      OR: [{ user1Id: creatorId }, { user2Id: creatorId }],
+      type: { startsWith: pendingTypePrefix },
+    },
+    select: {
+      id: true,
+      user1Id: true,
+      user2Id: true,
+      type: true,
+      note: true,
+      user1: { select: { id: true, name: true, handle: true } },
+      user2: { select: { id: true, name: true, handle: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const results: PendingCreatorConfirmation[] = [];
+
+  for (const rel of relationships) {
+    let meta: { status: string; creatorId: string; claimedByUserId: string; expiresAt: string | null } | null = null;
+    try {
+      const noteStr = rel.note ?? "";
+      const start = noteStr.indexOf("[[meta:");
+      const end = noteStr.indexOf("]]", start);
+      if (start !== -1 && end !== -1) {
+        const parsed = JSON.parse(noteStr.slice(start + 7, end)) as Record<string, unknown>;
+        if (
+          typeof parsed.status === "string" &&
+          typeof parsed.creatorId === "string" &&
+          typeof parsed.claimedByUserId === "string"
+        ) {
+          meta = {
+            status: parsed.status,
+            creatorId: parsed.creatorId,
+            claimedByUserId: parsed.claimedByUserId,
+            expiresAt: typeof parsed.expiresAt === "string" ? parsed.expiresAt : null,
+          };
+        }
+      }
+    } catch {
+      continue;
+    }
+
+    if (!meta || meta.status !== "pending_creator_confirmation" || meta.creatorId !== creatorId) {
+      continue;
+    }
+
+    const claimedByUserId = meta.claimedByUserId ?? "";
+    const claimer = rel.user1.id === claimedByUserId ? rel.user1 : rel.user2;
+
+    // Derive the base relationship type from the pending type string: pending::<type>::<creatorId>::<claimedById>
+    const typeParts = rel.type.split("::");
+    const baseType = typeParts[1] ?? rel.type.replace(pendingTypePrefix, "");
+
+    // Look up the placeholder node that was claimed to get the name Sydney gave it
+    const placeholder = await prisma.placeholderPerson.findFirst({
+      where: { ownerId: creatorId, linkedUserId: claimedByUserId, claimStatus: "claimed" },
+      select: { name: true },
+    });
+
+    results.push({
+      relationshipId: rel.id,
+      claimedByUserId,
+      claimedByName: claimer.name ?? "Someone",
+      claimedByHandle: claimer.handle ?? "",
+      placeholderName: placeholder?.name ?? claimer.name ?? "Someone",
+      relationshipType: baseType,
+      expiresAt: meta.expiresAt ?? null,
+    });
+  }
+
+  return results;
+}

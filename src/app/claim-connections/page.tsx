@@ -1,9 +1,10 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
+import { ConfirmClaimsPanel } from "@/components/profile/confirm-claims-panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
-import { getClaimCandidatesForUser } from "@/lib/network-claims";
+import { getClaimCandidatesForUser, getPendingCreatorConfirmations } from "@/lib/network-claims";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -36,10 +37,10 @@ export default async function ClaimConnectionsPage() {
         "New member";
 
   const currentUserId = await ensureDbUserIdByClerkId(userId, fullName);
-  const candidates = await getClaimCandidatesForUser(currentUserId, {
-    includeDismissed: false,
-    limit: 5,
-  });
+  const [candidates, pendingConfirmations] = await Promise.all([
+    getClaimCandidatesForUser(currentUserId, { includeDismissed: false, limit: 5 }),
+    getPendingCreatorConfirmations(currentUserId),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -47,6 +48,12 @@ export default async function ClaimConnectionsPage() {
         title="Are any of these you?"
         subtitle="Confirm a placeholder node to pull its pending connections into your account for review."
       />
+      {pendingConfirmations.length > 0 ? (
+        <ConfirmClaimsPanel
+          initialConfirmations={pendingConfirmations}
+          currentUserId={currentUserId}
+        />
+      ) : null}
       <ClaimConnectionsPanel initialCandidates={candidates} mode="signup" />
     </div>
   );
