@@ -323,6 +323,7 @@ export function RelationshipMap({
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingEdit, setIsDeletingEdit] = useState(false);
   const [isRespondingId, setIsRespondingId] = useState<string | null>(null);
+  const [reportingUserId, setReportingUserId] = useState<string | null>(null);
   const [resolvedCurrentUserId, setResolvedCurrentUserId] = useState<
     string | null
   >(currentUserId);
@@ -1156,6 +1157,15 @@ export function RelationshipMap({
       return;
     }
 
+    if (action === "approve") {
+      const confirmed = window.confirm(
+        "Approving this connection makes it public on the network chart for everyone to see. Continue?",
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setIsRespondingId(id);
     setConnectionError(null);
 
@@ -1199,6 +1209,58 @@ export function RelationshipMap({
       setConnectionError("Could not update the request.");
     } finally {
       setIsRespondingId(null);
+    }
+  }
+
+  async function reportNode(userId: string, userName: string) {
+    const actorNodeId = activeCurrentUserId ?? (await ensureCurrentUserId());
+    if (!actorNodeId) {
+      setConnectionError("Sign in to report a node.");
+      return;
+    }
+
+    if (actorNodeId === userId) {
+      setConnectionError("You cannot report your own node.");
+      return;
+    }
+
+    const reason = window
+      .prompt(
+        `Report ${userName}. Add a short reason (optional):`,
+        "Spam or fake profile",
+      )
+      ?.trim();
+
+    setReportingUserId(userId);
+    setConnectionError(null);
+
+    try {
+      const response = await authFetch("/api/relationships/report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nodeId: userId,
+          reason: reason || undefined,
+        }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        success?: boolean;
+      };
+
+      if (!response.ok || !body.success) {
+        setConnectionError(body.error ?? "Could not submit report right now.");
+        return;
+      }
+
+      window.alert("Report submitted. Thank you for flagging this node.");
+    } catch {
+      setConnectionError("Could not submit report right now.");
+    } finally {
+      setReportingUserId(null);
     }
   }
 
@@ -1356,6 +1418,9 @@ export function RelationshipMap({
             <p className="mb-3 text-xs text-black/65 dark:text-white/70">
               Use the side form to connect with an existing member, or drag from
               your node to another member.
+            </p>
+            <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
+              Every public connection shown here was created and verified by both parties.
             </p>
             <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-white/90 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-medium">
@@ -1649,6 +1714,11 @@ export function RelationshipMap({
                               {needsApproval ? "Decline" : "Cancel"}
                             </button>
                           </div>
+                          {needsApproval ? (
+                            <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                              Warning: approving makes this connection public for everyone to see.
+                            </p>
+                          ) : null}
                         </div>
                       );
                     })}
@@ -1677,6 +1747,16 @@ export function RelationshipMap({
                   <p className="mt-2 text-xs text-black/65 dark:text-white/70">
                     Status: {selectedUser.relationshipStatus}
                   </p>
+                  {activeCurrentUserId && selectedUser.id !== activeCurrentUserId ? (
+                    <button
+                      type="button"
+                      onClick={() => reportNode(selectedUser.id, selectedUser.name)}
+                      disabled={reportingUserId === selectedUser.id}
+                      className="mt-3 rounded-full border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/30"
+                    >
+                      {reportingUserId === selectedUser.id ? "Reporting..." : "Report node"}
+                    </button>
+                  ) : null}
 
                   <div className="mt-5 space-y-2">
                     <h4 className="text-sm font-semibold uppercase tracking-wide">
@@ -1831,6 +1911,13 @@ export function RelationshipMap({
                                     </button>
                                   ) : null}
                                 </div>
+                              ) : null}
+                              {selectedUser.id === activeCurrentUserId &&
+                              parsed.status === "pending" &&
+                              parsed.responderId === activeCurrentUserId ? (
+                                <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                                  Warning: approving makes this connection public for everyone to see.
+                                </p>
                               ) : null}
                             </>
                           )}

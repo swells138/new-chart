@@ -192,6 +192,9 @@ export default async function MapPage() {
         title="Your Network"
         subtitle="Manage direct connections, verify pending matches, and explore the confirmed network around you."
       />
+      <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.03] px-4 py-3 text-xs text-black/70 dark:bg-white/[0.04] dark:text-white/70">
+        Disclaimer: all connections were created and verified by both parties.
+      </div>
       <RelationshipMap
         users={users}
         relationships={relationships}

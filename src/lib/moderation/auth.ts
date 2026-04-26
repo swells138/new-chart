@@ -1,0 +1,30 @@
+import { currentUser } from "@clerk/nextjs/server";
+
+const MODERATOR_EMAILS = new Set(["sydneywells103@gmail.com"]);
+
+function normalizeEmail(input: string | null | undefined) {
+  return (input ?? "").trim().toLowerCase();
+}
+
+export function isAllowedModeratorEmail(email: string | null | undefined) {
+  return MODERATOR_EMAILS.has(normalizeEmail(email));
+}
+
+export async function getCurrentUserPrimaryEmail() {
+  const clerk = await currentUser();
+  if (!clerk) {
+    return null;
+  }
+
+  const primary = clerk.primaryEmailAddress?.emailAddress;
+  if (primary) {
+    return primary;
+  }
+
+  return clerk.emailAddresses[0]?.emailAddress ?? null;
+}
+
+export async function isCurrentUserModerator() {
+  const email = await getCurrentUserPrimaryEmail();
+  return isAllowedModeratorEmail(email);
+}

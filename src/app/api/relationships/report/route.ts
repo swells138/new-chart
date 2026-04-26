@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
+import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
+import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { createModerationReport } from "@/lib/moderation/reports";
 
@@ -14,19 +15,10 @@ const hasClerkKeys =
 
 const reportSchema = z
   .object({
-    id: z.string().trim().min(1).max(100),
+    nodeId: z.string().trim().min(1).max(100),
     reason: z.string().trim().max(300).optional(),
   })
   .strict();
-
-function getPrismaErrorCode(error: unknown) {
-  if (typeof error === "object" && error !== null && "code" in error) {
-    const maybeCode = (error as { code?: unknown }).code;
-    return typeof maybeCode === "string" ? maybeCode : null;
-  }
-
-  return null;
-}
 
 async function getAuthenticatedDbUserId(request: Request) {
   if (!hasClerkKeys) {
@@ -38,44 +30,35 @@ async function getAuthenticatedDbUserId(request: Request) {
     };
   }
 
-  const userId = await resolveClerkUserId(request);
-  if (!userId) {
+  const clerkId = await resolveClerkUserId(request);
+  if (!clerkId) {
     return {
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true },
-  });
-
-  if (!dbUser) {
-    return {
-      error: NextResponse.json(
-        { error: "Profile not ready yet. Reload and try again." },
-        { status: 409 },
-      ),
-    };
-  }
-
-  return { dbUserId: dbUser.id };
+  const dbUserId = await ensureDbUserIdByClerkId(clerkId);
+  return { dbUserId };
 }
 
 export async function POST(request: Request) {
   try {
     const authResult = await getAuthenticatedDbUserId(request);
-    if (authResult.error) return authResult.error;
-    const currentDbUserId = authResult.dbUserId;
+    if (authResult.error) {
+      return authResult.error;
+    }
 
+    const reporterUserId = authResult.dbUserId;
     const ip = getRequestIp(request);
+
     const rateLimit = await checkRateLimit(
-      `private-connections-report:${currentDbUserId}:${ip}`,
+      `relationships-report:${reporterUserId}:${ip}`,
       {
         windowMs: 5 * 60 * 1000,
         maxRequests: 20,
       },
     );
+
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: "Too many reports. Please slow down." },
@@ -98,55 +81,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
     }
 
-    const { id, reason } = parsed.data;
+    const { nodeId, reason } = parsed.data;
 
-    const existing = await prisma.placeholderPerson.findUnique({
-      where: { id },
-      select: { id: true, name: true, ownerId: true },
+    if (nodeId === reporterUserId) {
+      return NextResponse.json(
+        { error: "You cannot report your own node." },
+        { status: 400 },
+      );
+    }
+
+    const node = await prisma.user.findUnique({
+      where: { id: nodeId },
+      select: { id: true, name: true, handle: true },
     });
-    if (!existing) {
-      return NextResponse.json({ error: "Not found." }, { status: 404 });
-    }
 
-    let canReport = existing.ownerId === currentDbUserId;
-    if (!canReport) {
-      try {
-        const withLinkedUser = await prisma.placeholderPerson.findUnique({
-          where: { id },
-          select: { linkedUserId: true },
-        });
-        canReport = withLinkedUser?.linkedUserId === currentDbUserId;
-      } catch (permissionError) {
-        const code = getPrismaErrorCode(permissionError);
-        if (code !== "P2022" && code !== "P2021") {
-          throw permissionError;
-        }
-      }
-    }
-
-    if (!canReport) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!node) {
+      return NextResponse.json({ error: "Node not found." }, { status: 404 });
     }
 
     const reporter = await prisma.user.findUnique({
-      where: { id: currentDbUserId },
+      where: { id: reporterUserId },
       select: { name: true, handle: true },
     });
 
     const reporterLabel = reporter?.name || reporter?.handle || null;
+    const targetLabel = node.name || node.handle || node.id;
 
     await createModerationReport({
-      kind: "private-node",
-      targetId: existing.id,
-      targetLabel: existing.name,
-      reporterUserId: currentDbUserId,
+      kind: "public-node",
+      targetId: nodeId,
+      targetLabel,
+      reporterUserId,
       reporterLabel,
       reason: reason ?? null,
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to submit private node report", error);
+    console.error("Failed to submit public node report", error);
     return NextResponse.json(
       { error: "Could not submit report right now." },
       { status: 500 },

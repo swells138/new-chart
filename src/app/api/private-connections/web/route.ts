@@ -6,6 +6,7 @@ import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { PrivateConnectionEdge, RelationshipType } from "@/types/models";
+import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -159,6 +160,10 @@ export async function POST(request: Request) {
     const authResult = await getAuthenticatedDbUserId(request);
     if (authResult.error) return authResult.error;
     const currentDbUserId = authResult.dbUserId;
+    const lockMessage = await getActiveUserLockMessage(currentDbUserId);
+    if (lockMessage) {
+      return NextResponse.json({ error: lockMessage }, { status: 403 });
+    }
 
     const ip = getRequestIp(request);
     const rateLimit = await checkRateLimit(
@@ -325,6 +330,10 @@ export async function DELETE(request: Request) {
     const authResult = await getAuthenticatedDbUserId(request);
     if (authResult.error) return authResult.error;
     const currentDbUserId = authResult.dbUserId;
+    const lockMessage = await getActiveUserLockMessage(currentDbUserId);
+    if (lockMessage) {
+      return NextResponse.json({ error: lockMessage }, { status: 403 });
+    }
 
     const ip = getRequestIp(request);
     const rateLimit = await checkRateLimit(

@@ -11,6 +11,12 @@ import {
   useUser,
 } from "@clerk/nextjs";
 
+const MODERATOR_EMAIL = "sydneywells103@gmail.com";
+
+function isModeratorEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase() === MODERATOR_EMAIL;
+}
+
 const links = [
   { href: "/", label: "Home" },
   { href: "/feed", label: "Feed" },
@@ -107,10 +113,13 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
 }
 
 function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   if (!isLoaded || !isSignedIn) return null;
 
-  return links
+  const primaryEmail = user.primaryEmailAddress?.emailAddress;
+  const showModeration = isModeratorEmail(primaryEmail);
+
+  const protectedLinks = links
     .filter((link) => link.requiresAuth)
     .map((link) => (
       <Link
@@ -126,13 +135,35 @@ function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {
         {link.label}
       </Link>
     ));
+
+  return (
+    <>
+      {protectedLinks}
+      {showModeration ? (
+        <Link
+          href="/moderation"
+          className={clsx(
+            "rounded-full px-4 py-2 text-sm font-semibold transition",
+            pathname === "/moderation"
+              ? "bg-[var(--accent)] text-white"
+              : "hover:bg-white/70 dark:hover:bg-black/30"
+          )}
+        >
+          Moderation
+        </Link>
+      ) : null}
+    </>
+  );
 }
 
 function ClerkMobileProtectedLinks({ pathname, onClick }: { pathname: string; onClick: () => void }) {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   if (!isLoaded || !isSignedIn) return null;
 
-  return links
+  const primaryEmail = user.primaryEmailAddress?.emailAddress;
+  const showModeration = isModeratorEmail(primaryEmail);
+
+  const protectedLinks = links
     .filter((link) => link.requiresAuth)
     .map((link) => (
       <Link
@@ -149,6 +180,26 @@ function ClerkMobileProtectedLinks({ pathname, onClick }: { pathname: string; on
         {link.label}
       </Link>
     ));
+
+  return (
+    <>
+      {protectedLinks}
+      {showModeration ? (
+        <Link
+          href="/moderation"
+          onClick={onClick}
+          className={clsx(
+            "rounded-xl px-3 py-2 text-sm font-semibold transition",
+            pathname === "/moderation"
+              ? "bg-[var(--accent)] text-white"
+              : "hover:bg-white/70 dark:hover:bg-black/30"
+          )}
+        >
+          Moderation
+        </Link>
+      ) : null}
+    </>
+  );
 }
 
 function DesktopAuthControls({ clerkEnabled }: { clerkEnabled: boolean }) {

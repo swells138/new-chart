@@ -6,6 +6,7 @@ import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { PlaceholderPerson, RelationshipType } from "@/types/models";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { currentUser } from "@clerk/nextjs/server";
+import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -280,6 +281,10 @@ export async function POST(request: Request) {
     const authResult = await getAuthenticatedDbUserId(request);
     if (authResult.error) return authResult.error;
     const currentDbUserId = authResult.dbUserId;
+    const lockMessage = await getActiveUserLockMessage(currentDbUserId);
+    if (lockMessage) {
+      return NextResponse.json({ error: lockMessage }, { status: 403 });
+    }
 
     const ip = getRequestIp(request);
     const rateLimit = await checkRateLimit(
@@ -433,6 +438,10 @@ export async function PATCH(request: Request) {
   const authResult = await getAuthenticatedDbUserId(request);
   if (authResult.error) return authResult.error;
   const currentDbUserId = authResult.dbUserId;
+  const lockMessage = await getActiveUserLockMessage(currentDbUserId);
+  if (lockMessage) {
+    return NextResponse.json({ error: lockMessage }, { status: 403 });
+  }
 
   const ip = getRequestIp(request);
   const rateLimit = await checkRateLimit(
@@ -554,6 +563,10 @@ export async function DELETE(request: Request) {
     const authResult = await getAuthenticatedDbUserId(request);
     if (authResult.error) return authResult.error;
     const currentDbUserId = authResult.dbUserId;
+    const lockMessage = await getActiveUserLockMessage(currentDbUserId);
+    if (lockMessage) {
+      return NextResponse.json({ error: lockMessage }, { status: 403 });
+    }
 
     let payload: unknown;
     try {
