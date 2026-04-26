@@ -211,6 +211,15 @@ const relationColors: Record<RelationshipType, string> = {
   FWB: "#63b1ff",
 };
 
+function isVisibleByType(type: string, active: RelationshipType[]) {
+  const isKnownType = Object.prototype.hasOwnProperty.call(relationColors, type);
+  if (!isKnownType) {
+    // Keep legacy/custom test relationship types visible by default.
+    return true;
+  }
+  return active.includes(type as RelationshipType);
+}
+
 interface Props {
   users: User[];
   relationships: Relationship[];
@@ -703,7 +712,7 @@ export function RelationshipMap({
 
     // Public view: show users that currently have at least one visible connection.
     const visiblePublicRelationships = approvedRelationships.filter((item) =>
-      activeTypes.includes(item.type),
+      isVisibleByType(item.type, activeTypes),
     );
 
     const baseUsers = users;
@@ -808,7 +817,7 @@ export function RelationshipMap({
   const filteredRelationships = useMemo(() => {
     return displayedRelationships.filter(
       (item) =>
-        activeTypes.includes(item.type) &&
+        isVisibleByType(item.type, activeTypes) &&
         displayedUserIds.has(item.source) &&
         displayedUserIds.has(item.target),
     );
@@ -1028,19 +1037,19 @@ export function RelationshipMap({
         label: item.type,
         animated: true,
         style: {
-          stroke: relationColors[item.type],
+          stroke: relationColors[item.type] ?? "#94a3b8",
           strokeWidth: 2.4,
           strokeOpacity: 0.8,
         },
         labelStyle: {
           fontSize: 10,
-          fill: relationColors[item.type],
+          fill: relationColors[item.type] ?? "#94a3b8",
           fontWeight: 600,
           fontFamily: "system-ui",
         },
         labelBgStyle: {
           fill: "rgba(8,6,22,0.8)",
-          stroke: relationColors[item.type],
+          stroke: relationColors[item.type] ?? "#94a3b8",
           strokeWidth: 0.75,
           strokeOpacity: 0.55,
         },
