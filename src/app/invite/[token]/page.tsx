@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 
 interface InviteData {
   placeholderId: string;
@@ -18,12 +19,31 @@ interface PageProps {
 
 export default function InvitePage({ params }: PageProps) {
   const router = useRouter();
+  const { getToken } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
   const [done, setDone] = useState<"approved" | "denied" | null>(null);
+
+  async function authFetch(input: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+
+    try {
+      const token = await getToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    } catch {
+      // Continue without token if Clerk token retrieval fails.
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  }
 
   useEffect(() => {
     params.then(({ token: t }) => setToken(t));
@@ -51,7 +71,7 @@ export default function InvitePage({ params }: PageProps) {
     setError(null);
 
     try {
-      const res = await fetch(`/api/invite/${token}`, {
+      const res = await authFetch(`/api/invite/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),

@@ -5,7 +5,21 @@ import { claimPlaceholderForUser } from "@/lib/network-claims";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY
+  );
+
+const claimDebugEnabled =
+  process.env.DEBUG_CLAIMS === "1" || process.env.NODE_ENV !== "production";
+
+function logClaimDebug(event: string, details?: Record<string, unknown>) {
+  if (!claimDebugEnabled) {
+    return;
+  }
+
+  console.info("[claim-debug]", event, details ?? {});
+}
 
 interface RouteContext {
   params: Promise<{ token: string }>;
@@ -42,8 +56,10 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
 // ───────────────────────────────────────────────
 export async function GET(_request: Request, context: RouteContext) {
   const { token } = await context.params;
+  logClaimDebug("invite.get.start", { tokenLength: token?.length ?? 0 });
 
   if (!token || typeof token !== "string" || token.length > 200) {
+    logClaimDebug("invite.get.invalid-token");
     return NextResponse.json({ error: "Invalid token." }, { status: 400 });
   }
 
@@ -55,16 +71,25 @@ export async function GET(_request: Request, context: RouteContext) {
   });
 
   if (!placeholder) {
+    logClaimDebug("invite.get.not-found", { tokenLength: token.length });
     return NextResponse.json({ error: "This invite link is invalid or has expired." }, { status: 404 });
   }
 
   if (placeholder.claimStatus === "claimed") {
+    logClaimDebug("invite.get.already-claimed", { placeholderId: placeholder.id });
     return NextResponse.json({ error: "This invite has already been accepted." }, { status: 410 });
   }
 
   if (placeholder.claimStatus === "denied") {
+    logClaimDebug("invite.get.denied", { placeholderId: placeholder.id });
     return NextResponse.json({ error: "This invite is no longer active." }, { status: 410 });
   }
+
+  logClaimDebug("invite.get.success", {
+    placeholderId: placeholder.id,
+    ownerId: placeholder.ownerId,
+    claimStatus: placeholder.claimStatus,
+  });
 
   // Return only the information the invitee needs to make a decision
   return NextResponse.json({
@@ -84,17 +109,21 @@ export async function GET(_request: Request, context: RouteContext) {
 // ───────────────────────────────────────────────
 export async function POST(request: Request, context: RouteContext) {
   const { token } = await context.params;
+  logClaimDebug("invite.post.start", { tokenLength: token?.length ?? 0 });
 
   if (!token || typeof token !== "string" || token.length > 200) {
+    logClaimDebug("invite.post.invalid-token");
     return NextResponse.json({ error: "Invalid token." }, { status: 400 });
   }
 
   if (!hasClerkKeys) {
+    logClaimDebug("invite.post.auth-config-missing");
     return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
   }
 
   const { userId } = await auth();
   if (!userId) {
+    logClaimDebug("invite.post.unauthorized");
     return NextResponse.json({ error: "You must be signed in to accept an invite." }, { status: 401 });
   }
 
@@ -103,6 +132,7 @@ export async function POST(request: Request, context: RouteContext) {
     (emailAddress) => emailAddress.verification?.status === "verified"
   );
   if (!hasVerifiedEmail) {
+    logClaimDebug("invite.post.unverified-email", { clerkUserId: userId });
     return NextResponse.json(
       { error: "Verify your email before claiming this connection invite." },
       { status: 403 }
@@ -114,10 +144,12 @@ export async function POST(request: Request, context: RouteContext) {
     const body = (await request.json()) as { action?: string };
     action = typeof body.action === "string" ? body.action : "";
   } catch {
+    logClaimDebug("invite.post.invalid-json", { clerkUserId: userId });
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
   if (action !== "approve" && action !== "deny") {
+    logClaimDebug("invite.post.invalid-action", { clerkUserId: userId, action });
     return NextResponse.json({ error: "action must be 'approve' or 'deny'." }, { status: 400 });
   }
 
@@ -128,19 +160,23 @@ export async function POST(request: Request, context: RouteContext) {
   });
 
   if (!placeholder) {
+    logClaimDebug("invite.post.not-found", { dbUserId: claimerDbId });
     return NextResponse.json({ error: "This invite link is invalid or has expired." }, { status: 404 });
   }
 
   if (placeholder.claimStatus === "claimed") {
+    logClaimDebug("invite.post.already-claimed", { placeholderId: placeholder.id, dbUserId: claimerDbId });
     return NextResponse.json({ error: "This invite has already been accepted." }, { status: 410 });
   }
 
   if (placeholder.claimStatus === "denied") {
+    logClaimDebug("invite.post.denied", { placeholderId: placeholder.id, dbUserId: claimerDbId });
     return NextResponse.json({ error: "This invite is no longer active." }, { status: 410 });
   }
 
   // Prevent someone from claiming their own invite
   if (placeholder.ownerId === claimerDbId) {
+    logClaimDebug("invite.post.self-claim-blocked", { placeholderId: placeholder.id, dbUserId: claimerDbId });
     return NextResponse.json({ error: "You cannot claim your own invite." }, { status: 400 });
   }
 
@@ -148,6 +184,11 @@ export async function POST(request: Request, context: RouteContext) {
     await prisma.placeholderPerson.update({
       where: { id: placeholder.id },
       data: { claimStatus: "denied", linkedUserId: claimerDbId },
+    });
+
+    logClaimDebug("invite.post.denied-success", {
+      placeholderId: placeholder.id,
+      dbUserId: claimerDbId,
     });
 
     // Notify the owner
@@ -168,6 +209,12 @@ export async function POST(request: Request, context: RouteContext) {
 
   // action === "approve"
   const result = await claimPlaceholderForUser(claimerDbId, placeholder.id);
+  logClaimDebug("invite.post.approved-success", {
+    placeholderId: placeholder.id,
+    dbUserId: claimerDbId,
+    relationshipId: result.relationshipId ?? null,
+    alreadyConnected: result.alreadyConnected,
+  });
   return NextResponse.json(
     {
       result: "claimed",

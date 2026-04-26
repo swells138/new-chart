@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import type { PendingCreatorConfirmation } from "@/lib/network-claims";
 
 interface Props {
@@ -19,16 +20,35 @@ function formatUtcDate(value: string) {
 
 export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Props) {
   const router = useRouter();
+  const { getToken } = useAuth();
   const [confirmations, setConfirmations] = useState(initialConfirmations);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function authFetch(input: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+
+    try {
+      const token = await getToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    } catch {
+      // Continue without token if Clerk token retrieval fails.
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  }
 
   async function confirmClaim(relationshipId: string) {
     setWorkingId(relationshipId);
     setError(null);
 
     try {
-      const response = await fetch(`/api/relationships`, {
+      const response = await authFetch(`/api/relationships`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: relationshipId, action: "confirmCreator", actorNodeId: currentUserId }),
@@ -58,7 +78,7 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
     setError(null);
 
     try {
-      const response = await fetch(`/api/relationships`, {
+      const response = await authFetch(`/api/relationships`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: relationshipId, action: "reject", actorNodeId: currentUserId }),

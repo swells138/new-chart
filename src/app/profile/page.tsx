@@ -18,7 +18,10 @@ const pendingTypePrefix = "pending::";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY
+  );
 
 async function getOrCreateProfile(clerkId: string) {
   const clerk = await currentUser();

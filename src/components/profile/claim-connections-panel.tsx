@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import type { ClaimCandidate } from "@/types/models";
 
 interface Props {
@@ -12,17 +13,36 @@ interface Props {
 
 export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
   const router = useRouter();
+  const { getToken } = useAuth();
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
   const [candidates, setCandidates] = useState(initialCandidates);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function authFetch(input: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+
+    try {
+      const token = await getToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    } catch {
+      // Continue without token if Clerk token retrieval fails.
+    }
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  }
 
   async function handleAction(action: "claim" | "dismiss", placeholderId: string) {
     setWorkingId(placeholderId);
     setError(null);
 
     try {
-      const response = await fetch("/api/claim-connections", {
+      const response = await authFetch("/api/claim-connections", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
