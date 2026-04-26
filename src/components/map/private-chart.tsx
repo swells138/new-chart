@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type {
+  PrivateConnectionEdge,
   PlaceholderPerson,
   Relationship,
   RelationshipType,
@@ -163,7 +164,53 @@ export function PrivateChart({
     return [...privateItems, ...publicItems].slice(0, 12);
   }, [placeholders, approvedConnections, users, currentUserId]);
 
-  const discoveredConnections = chartConnections.length;
+  const chartLayout = useMemo(
+    () =>
+      chartConnections.map((item, index) => {
+        const cx = 440;
+        const cy = 220;
+        const ring = index < 8 ? 150 : 210;
+        const ringIndex = index < 8 ? index : index - 8;
+        const ringTotal =
+          index < 8
+            ? Math.min(chartConnections.length, 8)
+            : Math.max(chartConnections.length - 8, 1);
+        const angle = (Math.PI * 2 * ringIndex) / ringTotal - Math.PI / 2;
+        const x = cx + Math.cos(angle) * ring;
+        const y = cy + Math.sin(angle) * (index < 8 ? 125 : 170);
+        return { ...item, x, y };
+      }),
+    [chartConnections],
+  );
+
+  const [privateWebEdges, setPrivateWebEdges] = useState<PrivateConnectionEdge[]>(
+    [],
+  );
+  const [sourcePlaceholderId, setSourcePlaceholderId] = useState("");
+  const [targetPlaceholderId, setTargetPlaceholderId] = useState("");
+  const [webRelationshipType, setWebRelationshipType] =
+    useState<RelationshipType>("Friends");
+  const [webNote, setWebNote] = useState("");
+  const [isSavingWebEdge, setIsSavingWebEdge] = useState(false);
+  const [deletingWebEdgeId, setDeletingWebEdgeId] = useState<string | null>(
+    null,
+  );
+
+  const chartPositionById = useMemo(() => {
+    return new Map(chartLayout.map((item) => [item.id, item]));
+  }, [chartLayout]);
+
+  const visiblePrivateWebEdges = useMemo(
+    () =>
+      privateWebEdges.filter(
+        (edge) =>
+          chartPositionById.has(`private-${edge.sourcePlaceholderId}`) &&
+          chartPositionById.has(`private-${edge.targetPlaceholderId}`),
+      ),
+    [privateWebEdges, chartPositionById],
+  );
+
+  const discoveredConnections = chartConnections.length + privateWebEdges.length;
 
   // Add-form state
   const [addName, setAddName] = useState("");
@@ -220,6 +267,148 @@ export function PrivateChart({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setPrivateWebEdges([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPrivateWebEdges() {
+      try {
+        const res = await authFetch("/api/private-connections/web", {
+          method: "GET",
+        });
+        const body = (await res.json()) as {
+          edges?: PrivateConnectionEdge[];
+          error?: string;
+        };
+        if (!res.ok) {
+          if (!cancelled) {
+            setActionError(
+              body.error ?? "Could not load your private web connections.",
+            );
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setPrivateWebEdges(body.edges ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setActionError("Could not load your private web connections.");
+        }
+      }
+    }
+
+    void loadPrivateWebEdges();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (placeholders.length === 0) {
+      setSourcePlaceholderId("");
+      setTargetPlaceholderId("");
+      return;
+    }
+
+    if (!sourcePlaceholderId || !placeholders.some((p) => p.id === sourcePlaceholderId)) {
+      setSourcePlaceholderId(placeholders[0]?.id ?? "");
+    }
+
+    if (!targetPlaceholderId || !placeholders.some((p) => p.id === targetPlaceholderId)) {
+      const fallback = placeholders.find((p) => p.id !== (sourcePlaceholderId || placeholders[0]?.id));
+      setTargetPlaceholderId(fallback?.id ?? "");
+    }
+  }, [placeholders, sourcePlaceholderId, targetPlaceholderId]);
+
+  async function handleCreateWebEdge(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!sourcePlaceholderId || !targetPlaceholderId) {
+      setActionError("Pick two nodes to connect.");
+      return;
+    }
+
+    if (sourcePlaceholderId === targetPlaceholderId) {
+      setActionError("Pick two different nodes.");
+      return;
+    }
+
+    setIsSavingWebEdge(true);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const res = await authFetch("/api/private-connections/web", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourcePlaceholderId,
+          targetPlaceholderId,
+          relationshipType: webRelationshipType,
+          note: webNote.trim() || undefined,
+        }),
+      });
+
+      const body = (await res.json()) as {
+        edge?: PrivateConnectionEdge;
+        error?: string;
+      };
+
+      if (!res.ok || !body.edge) {
+        setActionError(body.error ?? "Could not create this private web link.");
+        return;
+      }
+
+      setPrivateWebEdges((prev) => {
+        const withoutSameId = prev.filter((item) => item.id !== body.edge!.id);
+        return [body.edge!, ...withoutSameId];
+      });
+      setWebNote("");
+      setActionMessage("Private web link created.");
+    } catch {
+      setActionError("Could not create this private web link.");
+    } finally {
+      setIsSavingWebEdge(false);
+    }
+  }
+
+  async function handleDeleteWebEdge(id: string) {
+    setDeletingWebEdgeId(id);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const res = await authFetch("/api/private-connections/web", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      const body = (await res.json()) as {
+        deleted?: boolean;
+        error?: string;
+      };
+
+      if (!res.ok || !body.deleted) {
+        setActionError(body.error ?? "Could not remove that private web link.");
+        return;
+      }
+
+      setPrivateWebEdges((prev) => prev.filter((edge) => edge.id !== id));
+      setActionMessage("Private web link removed.");
+    } catch {
+      setActionError("Could not remove that private web link.");
+    } finally {
+      setDeletingWebEdgeId(null);
+    }
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -388,6 +577,12 @@ export function PrivateChart({
       console.info("Delete succeeded:", { id });
 
       setPlaceholders((prev) => prev.filter((p) => p.id !== id));
+      setPrivateWebEdges((prev) =>
+        prev.filter(
+          (edge) =>
+            edge.sourcePlaceholderId !== id && edge.targetPlaceholderId !== id,
+        ),
+      );
       setPublicConnectCandidates((prev) => {
         const next = { ...prev };
         delete next[id];
@@ -586,28 +781,72 @@ export function PrivateChart({
 
           <rect width="880" height="460" fill="url(#private-grid)" />
 
-          {chartConnections.map((item, index) => {
+          {visiblePrivateWebEdges.map((edge) => {
+            const source = chartPositionById.get(
+              `private-${edge.sourcePlaceholderId}`,
+            );
+            const target = chartPositionById.get(
+              `private-${edge.targetPlaceholderId}`,
+            );
+
+            if (!source || !target) {
+              return null;
+            }
+
+            const mx = (source.x + target.x) / 2;
+            const my = (source.y + target.y) / 2;
+            const edgeColor = TYPE_COLORS[edge.relationshipType] ?? "#9ca3af";
+
+            return (
+              <g key={`web-edge-${edge.id}`}>
+                <line
+                  x1={source.x}
+                  y1={source.y}
+                  x2={target.x}
+                  y2={target.y}
+                  stroke={edgeColor}
+                  strokeWidth={1.5}
+                  strokeOpacity={0.65}
+                />
+                <rect
+                  x={mx - 34}
+                  y={my - 10}
+                  width="68"
+                  height="18"
+                  rx="5"
+                  fill="rgba(10,6,20,0.85)"
+                  stroke={edgeColor}
+                  strokeWidth="0.75"
+                  strokeOpacity="0.5"
+                />
+                <text
+                  x={mx}
+                  y={my + 3}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill={edgeColor}
+                  fontFamily="system-ui"
+                >
+                  {edge.relationshipType}
+                </text>
+              </g>
+            );
+          })}
+
+          {chartLayout.map((item) => {
             const cx = 440;
             const cy = 220;
-            const ring = index < 8 ? 150 : 210;
-            const ringIndex = index < 8 ? index : index - 8;
-            const ringTotal =
-              index < 8
-                ? Math.min(chartConnections.length, 8)
-                : Math.max(chartConnections.length - 8, 1);
-            const angle = (Math.PI * 2 * ringIndex) / ringTotal - Math.PI / 2;
-            const x = cx + Math.cos(angle) * ring;
-            const y = cy + Math.sin(angle) * (index < 8 ? 125 : 170);
-            const mx = (cx + x) / 2;
-            const my = (cy + y) / 2;
+            const mx = (cx + item.x) / 2;
+            const my = (cy + item.y) / 2;
 
             return (
               <g key={item.id}>
                 <line
                   x1={cx}
                   y1={cy}
-                  x2={x}
-                  y2={y}
+                  x2={item.x}
+                  y2={item.y}
                   stroke={item.color}
                   strokeWidth={highlightedConnectionId === item.id ? 3 : 2}
                   strokeOpacity={
@@ -644,8 +883,8 @@ export function PrivateChart({
                 </text>
 
                 <circle
-                  cx={x}
-                  cy={y}
+                  cx={item.x}
+                  cy={item.y}
                   r="28"
                   fill={item.color}
                   fillOpacity="0.17"
@@ -656,8 +895,8 @@ export function PrivateChart({
                   }
                 />
                 <circle
-                  cx={x}
-                  cy={y}
+                  cx={item.x}
+                  cy={item.y}
                   r="22"
                   fill={item.color}
                   className={
@@ -667,8 +906,8 @@ export function PrivateChart({
                   }
                 />
                 <text
-                  x={x}
-                  y={y + 5}
+                  x={item.x}
+                  y={item.y + 5}
                   textAnchor="middle"
                   fontSize="13"
                   fontWeight="700"
@@ -679,16 +918,16 @@ export function PrivateChart({
                 </text>
 
                 <rect
-                  x={x - 48}
-                  y={y + 30}
+                  x={item.x - 48}
+                  y={item.y + 30}
                   width="96"
                   height="18"
                   rx="8"
                   fill="rgba(0,0,0,0.6)"
                 />
                 <text
-                  x={x}
-                  y={y + 42}
+                  x={item.x}
+                  y={item.y + 42}
                   textAnchor="middle"
                   fontSize="10"
                   fontWeight="600"
@@ -945,6 +1184,133 @@ export function PrivateChart({
             start confirmation.
           </p>
         </form>
+      </div>
+
+      <div className="paper-card rounded-2xl p-5">
+        <h3 className="text-sm font-bold uppercase tracking-wider">
+          Build your private web (step 2)
+        </h3>
+        <p className="mt-2 text-xs text-black/65 dark:text-white/65">
+          Connect people in your private chart to map how your circle connects.
+        </p>
+        {placeholders.length < 2 ? (
+          <p className="mt-3 text-xs text-black/60 dark:text-white/70">
+            Add at least two private nodes to create web links.
+          </p>
+        ) : (
+          <form className="mt-3 space-y-3" onSubmit={handleCreateWebEdge}>
+            <div className="grid gap-2 md:grid-cols-2">
+              <select
+                value={sourcePlaceholderId}
+                onChange={(e) => setSourcePlaceholderId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                disabled={isSavingWebEdge}
+              >
+                {placeholders.map((p) => (
+                  <option key={`src-${p.id}`} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={targetPlaceholderId}
+                onChange={(e) => setTargetPlaceholderId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                disabled={isSavingWebEdge}
+              >
+                {placeholders.map((p) => (
+                  <option key={`tgt-${p.id}`} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr]">
+              <select
+                value={webRelationshipType}
+                onChange={(e) =>
+                  setWebRelationshipType(e.target.value as RelationshipType)
+                }
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                disabled={isSavingWebEdge}
+              >
+                {ALL_TYPES.map((t) => (
+                  <option key={`web-${t}`} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={webNote}
+                onChange={(e) => setWebNote(e.target.value)}
+                maxLength={500}
+                placeholder="Optional note"
+                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                disabled={isSavingWebEdge}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={
+                isSavingWebEdge ||
+                !sourcePlaceholderId ||
+                !targetPlaceholderId ||
+                sourcePlaceholderId === targetPlaceholderId
+              }
+              className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {isSavingWebEdge ? "Connecting..." : "Connect these nodes"}
+            </button>
+          </form>
+        )}
+
+        {privateWebEdges.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            {privateWebEdges.map((edge) => {
+              const sourceName =
+                placeholders.find((p) => p.id === edge.sourcePlaceholderId)
+                  ?.name ?? "Unknown";
+              const targetName =
+                placeholders.find((p) => p.id === edge.targetPlaceholderId)
+                  ?.name ?? "Unknown";
+
+              return (
+                <div
+                  key={edge.id}
+                  className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.04]"
+                >
+                  <span className="font-semibold">
+                    {sourceName} <-> {targetName}
+                  </span>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                    style={{
+                      backgroundColor: `${TYPE_COLORS[edge.relationshipType]}33`,
+                      color: TYPE_COLORS[edge.relationshipType],
+                      border: `1px solid ${TYPE_COLORS[edge.relationshipType]}55`,
+                    }}
+                  >
+                    {edge.relationshipType}
+                  </span>
+                  {edge.note ? (
+                    <span className="text-black/60 dark:text-white/65">
+                      {edge.note}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteWebEdge(edge.id)}
+                    disabled={deletingWebEdgeId === edge.id}
+                    className="ml-auto rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
+                  >
+                    {deletingWebEdgeId === edge.id ? "Removing..." : "Remove"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {actionError ? (

@@ -62,6 +62,16 @@ export interface PlaceholderPerson {
   createdAt: string;
 }
 
+export interface PrivateConnectionEdge {
+  id: string;
+  ownerId: string;
+  sourcePlaceholderId: string;
+  targetPlaceholderId: string;
+  relationshipType: RelationshipType;
+  note: string;
+  createdAt: string;
+}
+
 export interface ClaimCandidate {
   placeholderId: string;
   name: string;
