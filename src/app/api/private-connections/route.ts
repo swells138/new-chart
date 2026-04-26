@@ -391,7 +391,7 @@ export async function POST(request: Request) {
         data: {
           ownerId: currentDbUserId,
           name: name.trim(),
-          offerToNameMatch: offerToNameMatch ?? false,
+          offerToNameMatch: offerToNameMatch ?? true,
           email: normalizedEmail,
           phoneNumber: normalizedPhoneNumber,
           relationshipType,

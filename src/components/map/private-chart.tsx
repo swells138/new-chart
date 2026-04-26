@@ -389,7 +389,7 @@ export function PrivateChart({
 
   // Add-form state
   const [addName, setAddName] = useState("");
-  const [addOfferToNameMatch, setAddOfferToNameMatch] = useState(false);
+  const [addOfferToNameMatch, setAddOfferToNameMatch] = useState(true);
   const [addEmail, setAddEmail] = useState("");
   const [addPhoneNumber, setAddPhoneNumber] = useState("");
   const [addType, setAddType] = useState<RelationshipType>("Friends");
@@ -797,7 +797,7 @@ export function PrivateChart({
         }));
       }
       setAddName("");
-      setAddOfferToNameMatch(false);
+      setAddOfferToNameMatch(true);
       setAddEmail("");
       setAddPhoneNumber("");
       setAddNote("");
