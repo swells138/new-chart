@@ -13,11 +13,22 @@ const whitespaceCharacters = /\s+/g;
 const phoneCharacters = /\D/g;
 
 function isColumnMissingError(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  if ("code" in error && (error as { code?: string }).code === "P2022") {
+    return true;
+  }
+
+  const message =
+    "message" in error && typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : String(error);
+
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2022"
+    message.includes("does not exist in the current database") ||
+    message.includes("column") && message.includes("does not exist")
   );
 }
 
