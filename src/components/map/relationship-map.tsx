@@ -2017,7 +2017,7 @@ export function RelationshipMap({
                     </h4>
                     {selectedUser.id !== activeCurrentUserId ? (
                       <p className="text-xs text-black/65 dark:text-white/70">
-                        You are viewing this member's visible public connections.
+                        You are viewing this member&apos;s visible public connections.
                       </p>
                     ) : null}
                     {isConnecting ? (

@@ -139,7 +139,7 @@ export function ConfirmClaimsPanel({ initialConfirmations, currentUserId }: Prop
     <section className="paper-card rounded-2xl p-5">
       <h3 className="text-xl font-semibold">Confirm Claimed Connections</h3>
       <p className="mt-1 text-sm text-black/65 dark:text-white/70">
-        Someone accepted a placeholder you made as themselves. Confirm it's them to make the connection public, or reject it if it's the wrong person.
+        Someone accepted a placeholder you made as themselves. Confirm it&apos;s them to make the connection public, or reject it if it&apos;s the wrong person.
       </p>
 
       {error ? (
