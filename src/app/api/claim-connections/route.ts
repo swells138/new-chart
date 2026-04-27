@@ -31,6 +31,22 @@ const actionSchema = z
   })
   .strict();
 
+function getClerkNameCandidates(
+  clerkUser: Awaited<ReturnType<typeof currentUser>>,
+) {
+  if (!clerkUser) {
+    return [];
+  }
+
+  return [
+    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" "),
+    clerkUser.fullName,
+    clerkUser.username,
+    clerkUser.firstName,
+    clerkUser.lastName,
+  ].filter((name): name is string => Boolean(name?.trim()));
+}
+
 async function getAuthenticatedDbUserId(request: Request) {
   if (!hasClerkKeys) {
     return { error: NextResponse.json({ error: "Auth is not configured." }, { status: 503 }) };
@@ -65,13 +81,15 @@ async function getAuthenticatedDbUserId(request: Request) {
   }
 
   const fullName =
-    clerkUser?.firstName && clerkUser?.lastName
-      ? `${clerkUser.firstName} ${clerkUser.lastName}`
-      : clerkUser?.username ||
-        clerkUser?.firstName ||
-        "New member";
+    getClerkNameCandidates(clerkUser)[0] ||
+    clerkUser?.username ||
+    clerkUser?.firstName ||
+    "New member";
 
-  return { dbUserId: await ensureDbUserIdByClerkId(userId, fullName) };
+  return {
+    dbUserId: await ensureDbUserIdByClerkId(userId, fullName),
+    nameCandidates: getClerkNameCandidates(clerkUser),
+  };
 }
 
 export async function GET(request: Request) {
@@ -87,6 +105,7 @@ export async function GET(request: Request) {
 
   const includeDismissed = new URL(request.url).searchParams.get("includeDismissed") === "1";
   const candidates = await getClaimCandidatesForUser(authResult.dbUserId, {
+    alternateNames: authResult.nameCandidates,
     includeDismissed,
     limit: includeDismissed ? 5 : 5,
   });
@@ -186,6 +205,7 @@ export async function POST(request: Request) {
     }
 
     const candidates = await getClaimCandidatesForUser(authResult.dbUserId, {
+      alternateNames: authResult.nameCandidates,
       includeDismissed: false,
       limit: 5,
     });

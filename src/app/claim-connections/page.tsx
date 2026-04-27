@@ -15,6 +15,20 @@ const hasClerkKeys =
       process.env.CLERK_PUBLISHABLE_KEY
   );
 
+function getClerkNameCandidates(clerkUser: Awaited<ReturnType<typeof currentUser>>) {
+  if (!clerkUser) {
+    return [];
+  }
+
+  return [
+    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" "),
+    clerkUser.fullName,
+    clerkUser.username,
+    clerkUser.firstName,
+    clerkUser.lastName,
+  ].filter((name): name is string => Boolean(name?.trim()));
+}
+
 export default async function ClaimConnectionsPage() {
   if (!hasClerkKeys) {
     return (
@@ -31,16 +45,20 @@ export default async function ClaimConnectionsPage() {
 
   // Get the user's actual name from Clerk
   const clerkUser = await currentUser();
+  const clerkNameCandidates = getClerkNameCandidates(clerkUser);
   const fullName =
-    clerkUser?.firstName && clerkUser?.lastName
-      ? `${clerkUser.firstName} ${clerkUser.lastName}`
-      : clerkUser?.username ||
-        clerkUser?.firstName ||
-        "New member";
+    clerkNameCandidates[0] ||
+    clerkUser?.username ||
+    clerkUser?.firstName ||
+    "New member";
 
   const currentUserId = await ensureDbUserIdByClerkId(userId, fullName);
   const [candidates, pendingConfirmations] = await Promise.all([
-    getClaimCandidatesForUser(currentUserId, { includeDismissed: false, limit: 5 }),
+    getClaimCandidatesForUser(currentUserId, {
+      alternateNames: clerkNameCandidates,
+      includeDismissed: false,
+      limit: 5,
+    }),
     getPendingCreatorConfirmations(currentUserId),
   ]);
 

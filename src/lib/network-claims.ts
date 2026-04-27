@@ -335,7 +335,7 @@ function toClaimCandidate(
 
 export async function getClaimCandidatesForUser(
   userId: string,
-  options?: { includeDismissed?: boolean; limit?: number }
+  options?: { alternateNames?: string[]; includeDismissed?: boolean; limit?: number }
 ) {
   const includeDismissed = options?.includeDismissed ?? false;
   const limit = options?.limit ?? 5;
@@ -439,6 +439,13 @@ export async function getClaimCandidatesForUser(
 
     const currentUserEmail = (currentUser.email ?? "").trim().toLowerCase();
     const currentUserPhone = normalizePhoneNumber(currentUser.phoneNumber);
+    const candidateNames = Array.from(
+      new Set(
+        [currentUser.name, ...(options?.alternateNames ?? [])]
+          .map((name) => normalizeMatchString(name))
+          .filter(Boolean),
+      ),
+    );
 
     const rankedCandidates = filteredPlaceholders
       .map((placeholder) => {
@@ -452,7 +459,10 @@ export async function getClaimCandidatesForUser(
           .filter((name): name is string => Boolean(name))
           .slice(0, 3);
 
-        const nameScore = getNameMatchScore(currentUser.name ?? "", placeholder.name);
+        const nameScore = Math.max(
+          0,
+          ...candidateNames.map((name) => getNameMatchScore(name, placeholder.name)),
+        );
         const emailMatches =
           currentUserEmail.length > 0 &&
           (placeholder.email ?? "").trim().toLowerCase() === currentUserEmail;

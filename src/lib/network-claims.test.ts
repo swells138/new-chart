@@ -182,6 +182,51 @@ describe("getClaimCandidatesForUser", () => {
     });
   });
 
+  it("matches against alternate display names when the stored DB name is stale", async () => {
+    prismaUserFindUniqueMock.mockResolvedValue({
+      id: "claimer_1",
+      name: "New member",
+      email: null,
+      phoneNumber: null,
+      ignoredClaimPlaceholderIds: [],
+    });
+    placeholderFindManyMock
+      .mockResolvedValueOnce([
+        {
+          id: "placeholder_1",
+          ownerId: "owner_1",
+          name: "Exact Match",
+          offerToNameMatch: true,
+          email: null,
+          phoneNumber: null,
+          relationshipType: "Friends",
+          note: null,
+          inviteToken: null,
+          claimStatus: "unclaimed",
+          linkedUserId: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          owner: {
+            id: "owner_1",
+            name: "Owner",
+            handle: "owner",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    relationshipFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    const { getClaimCandidatesForUser } = await import("./network-claims");
+
+    const candidates = await getClaimCandidatesForUser("claimer_1", {
+      alternateNames: ["Exact Match"],
+    });
+
+    expect(candidates[0]).toMatchObject({
+      placeholderId: "placeholder_1",
+      matchReasons: ["Exact name match"],
+    });
+  });
+
   it("still suppresses weak name guesses when a relationship row already exists", async () => {
     placeholderFindManyMock
       .mockResolvedValueOnce([
