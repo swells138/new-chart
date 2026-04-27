@@ -557,21 +557,60 @@ export async function getClaimCandidateDiagnosticsForUser(
       ),
     );
 
-    const placeholders = await prisma.placeholderPerson.findMany({
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            handle: true,
+    let placeholders: PlaceholderWithOwner[] = [];
+    try {
+      placeholders = await prisma.placeholderPerson.findMany({
+        include: {
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 300,
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 300,
+      });
+    } catch (error) {
+      if (!isColumnMissingError(error)) {
+        throw error;
+      }
+
+      const legacyPlaceholders = await prisma.placeholderPerson.findMany({
+        select: {
+          id: true,
+          ownerId: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          relationshipType: true,
+          note: true,
+          inviteToken: true,
+          claimStatus: true,
+          linkedUserId: true,
+          createdAt: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              handle: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 300,
+      });
+
+      placeholders = legacyPlaceholders.map((placeholder) => ({
+        ...placeholder,
+        offerToNameMatch: true,
+      }));
+    }
 
     const scoredPlaceholders = placeholders
       .map((placeholder) => {
