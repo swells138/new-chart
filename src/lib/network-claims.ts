@@ -529,6 +529,191 @@ export async function getClaimCandidatesForUser(
   }
 }
 
+export async function getClaimCandidateDiagnosticsForUser(
+  userId: string,
+  options?: { alternateNames?: string[]; limit?: number },
+) {
+  const limit = options?.limit ?? 10;
+
+  try {
+    const currentUser = await getClaimUserRecord(userId);
+
+    if (!currentUser) {
+      return {
+        user: null,
+        candidateNames: [],
+        matches: [],
+        queryError: "Current user was not found.",
+      };
+    }
+
+    const currentUserEmail = (currentUser.email ?? "").trim().toLowerCase();
+    const currentUserPhone = normalizePhoneNumber(currentUser.phoneNumber);
+    const candidateNames = Array.from(
+      new Set(
+        [currentUser.name, ...(options?.alternateNames ?? [])]
+          .map((name) => normalizeMatchString(name))
+          .filter(Boolean),
+      ),
+    );
+
+    const placeholders = await prisma.placeholderPerson.findMany({
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 300,
+    });
+
+    const scoredPlaceholders = placeholders
+      .map((placeholder) => {
+        const nameScore = Math.max(
+          0,
+          ...candidateNames.map((name) => getNameMatchScore(name, placeholder.name)),
+        );
+        const emailMatches =
+          currentUserEmail.length > 0 &&
+          (placeholder.email ?? "").trim().toLowerCase() === currentUserEmail;
+        const phoneMatches =
+          currentUserPhone.length > 0 &&
+          normalizePhoneNumber(placeholder.phoneNumber) === currentUserPhone;
+
+        return {
+          placeholder,
+          nameScore,
+          emailMatches,
+          phoneMatches,
+        };
+      })
+      .filter(
+        (item) =>
+          item.nameScore >= 55 || item.emailMatches || item.phoneMatches,
+      )
+      .slice(0, limit);
+
+    const ownerIds = Array.from(
+      new Set(scoredPlaceholders.map((item) => item.placeholder.ownerId)),
+    );
+    const pairRelationshipRows = ownerIds.length
+      ? await prisma.relationship.findMany({
+          where: {
+            OR: [
+              { user1Id: userId, user2Id: { in: ownerIds } },
+              { user2Id: userId, user1Id: { in: ownerIds } },
+            ],
+          },
+          select: {
+            user1Id: true,
+            user2Id: true,
+            type: true,
+          },
+        })
+      : [];
+    const relatedOwnerIds = new Set(
+      pairRelationshipRows.map((relationship) =>
+        relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id,
+      ),
+    );
+    const claimedPairPlaceholders = ownerIds.length
+      ? await prisma.placeholderPerson.findMany({
+          where: {
+            claimStatus: "claimed",
+            OR: [
+              { ownerId: { in: ownerIds }, linkedUserId: userId },
+              { ownerId: userId, linkedUserId: { in: ownerIds } },
+            ],
+          },
+          select: {
+            ownerId: true,
+            linkedUserId: true,
+          },
+        })
+      : [];
+    const blockedOwnerIds = new Set<string>();
+    claimedPairPlaceholders.forEach((placeholder) => {
+      if (placeholder.ownerId !== userId) {
+        blockedOwnerIds.add(placeholder.ownerId);
+      }
+      if (placeholder.linkedUserId && placeholder.linkedUserId !== userId) {
+        blockedOwnerIds.add(placeholder.linkedUserId);
+      }
+    });
+
+    return {
+      user: {
+        id: currentUser.id,
+        name: currentUser.name,
+        hasEmail: Boolean(currentUserEmail),
+        hasPhone: Boolean(currentUserPhone),
+        ignoredCount: currentUser.ignoredClaimPlaceholderIds.length,
+      },
+      candidateNames,
+      matches: scoredPlaceholders.map((item) => {
+        const placeholder = item.placeholder;
+        const reasons: string[] = [];
+        const status = placeholder.claimStatus?.toLowerCase();
+        const hasStrongIdentityMatch =
+          item.nameScore >= 100 || item.emailMatches || item.phoneMatches;
+
+        if (placeholder.ownerId === userId) reasons.push("same-account-owner");
+        if (placeholder.linkedUserId === userId) reasons.push("already-linked-to-you");
+        if (placeholder.linkedUserId && placeholder.linkedUserId !== userId) {
+          reasons.push("linked-to-another-user");
+        }
+        if (status !== "unclaimed" && status !== "invited") {
+          reasons.push(`status-${status || "missing"}`);
+        }
+        if (currentUser.ignoredClaimPlaceholderIds.includes(placeholder.id)) {
+          reasons.push("dismissed-by-you");
+        }
+        if (placeholder.offerToNameMatch === false) {
+          reasons.push("claim-suggestions-off");
+        }
+        if (blockedOwnerIds.has(placeholder.ownerId)) {
+          reasons.push("already-claimed-between-this-pair");
+        }
+        if (relatedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+          reasons.push("existing-relationship-weak-match");
+        }
+        if (reasons.length === 0) {
+          reasons.push("eligible");
+        }
+
+        return {
+          placeholderId: placeholder.id,
+          placeholderName: placeholder.name,
+          ownerId: placeholder.ownerId,
+          ownerName: placeholder.owner.name ?? "Someone",
+          claimStatus: placeholder.claimStatus,
+          linkedToCurrentUser: placeholder.linkedUserId === userId,
+          hasLinkedUser: Boolean(placeholder.linkedUserId),
+          offerToNameMatch: placeholder.offerToNameMatch,
+          nameScore: item.nameScore,
+          emailMatches: item.emailMatches,
+          phoneMatches: item.phoneMatches,
+          reasons,
+        };
+      }),
+      queryError: null,
+    };
+  } catch (error) {
+    return {
+      user: null,
+      candidateNames: [],
+      matches: [],
+      queryError: error instanceof Error ? error.message : "Unknown claim diagnostic error.",
+    };
+  }
+}
+
 export async function dismissClaimCandidate(userId: string, placeholderId: string) {
   let user: { ignoredClaimPlaceholderIds: string[] } | null = null;
 

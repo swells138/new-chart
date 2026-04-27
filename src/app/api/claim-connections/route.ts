@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clerkClient, currentUser } from "@clerk/nextjs/server";
-import { claimPlaceholderForUser, dismissClaimCandidate, getClaimCandidatesForUser } from "@/lib/network-claims";
+import {
+  claimPlaceholderForUser,
+  dismissClaimCandidate,
+  getClaimCandidateDiagnosticsForUser,
+  getClaimCandidatesForUser,
+} from "@/lib/network-claims";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { prisma } from "@/lib/prisma";
@@ -103,12 +108,19 @@ export async function GET(request: Request) {
     return authResult.error;
   }
 
-  const includeDismissed = new URL(request.url).searchParams.get("includeDismissed") === "1";
+  const searchParams = new URL(request.url).searchParams;
+  const includeDismissed = searchParams.get("includeDismissed") === "1";
   const candidates = await getClaimCandidatesForUser(authResult.dbUserId, {
     alternateNames: authResult.nameCandidates,
     includeDismissed,
     limit: includeDismissed ? 5 : 5,
   });
+  const diagnostics =
+    searchParams.get("debug") === "1"
+      ? await getClaimCandidateDiagnosticsForUser(authResult.dbUserId, {
+          alternateNames: authResult.nameCandidates,
+        })
+      : null;
 
   logClaimDebug("claim-connections.get.success", {
     dbUserId: authResult.dbUserId,
@@ -116,7 +128,10 @@ export async function GET(request: Request) {
     candidateCount: candidates.length,
   });
 
-  return NextResponse.json({ candidates });
+  return NextResponse.json({
+    candidates,
+    ...(diagnostics ? { diagnostics } : {}),
+  });
 }
 
 export async function POST(request: Request) {
