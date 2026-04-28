@@ -6,6 +6,7 @@ import {
   dismissClaimCandidate,
   getClaimCandidateDiagnosticsForUser,
   getClaimCandidatesForUser,
+  getPendingCreatorConfirmations,
 } from "@/lib/network-claims";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
@@ -121,6 +122,10 @@ export async function GET(request: Request) {
           alternateNames: authResult.nameCandidates,
         })
       : null;
+  const pendingConfirmations =
+    searchParams.get("debug") === "1"
+      ? await getPendingCreatorConfirmations(authResult.dbUserId)
+      : null;
 
   logClaimDebug("claim-connections.get.success", {
     dbUserId: authResult.dbUserId,
@@ -131,6 +136,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     candidates,
     ...(diagnostics ? { diagnostics } : {}),
+    ...(pendingConfirmations ? { pendingConfirmations } : {}),
   });
 }
 
