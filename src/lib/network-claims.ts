@@ -590,37 +590,75 @@ export async function getClaimCandidateDiagnosticsForUser(
         throw error;
       }
 
-      const legacyPlaceholders = await prisma.placeholderPerson.findMany({
-        select: {
-          id: true,
-          ownerId: true,
-          name: true,
-          email: true,
-          phoneNumber: true,
-          relationshipType: true,
-          note: true,
-          inviteToken: true,
-          claimStatus: true,
-          linkedUserId: true,
-          createdAt: true,
-          owner: {
-            select: {
-              id: true,
-              name: true,
-              handle: true,
+      try {
+        const legacyPlaceholders = await prisma.placeholderPerson.findMany({
+          select: {
+            id: true,
+            ownerId: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+            relationshipType: true,
+            note: true,
+            inviteToken: true,
+            claimStatus: true,
+            linkedUserId: true,
+            createdAt: true,
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                handle: true,
+              },
             },
           },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 300,
-      });
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 300,
+        });
 
-      placeholders = legacyPlaceholders.map((placeholder) => ({
-        ...placeholder,
-        offerToNameMatch: true,
-      }));
+        placeholders = legacyPlaceholders.map((placeholder) => ({
+          ...placeholder,
+          offerToNameMatch: true,
+        }));
+      } catch (legacyError) {
+        if (!isColumnMissingError(legacyError)) {
+          throw legacyError;
+        }
+
+        const minimalPlaceholders = await prisma.placeholderPerson.findMany({
+          select: {
+            id: true,
+            ownerId: true,
+            name: true,
+            relationshipType: true,
+            linkedUserId: true,
+            claimStatus: true,
+            createdAt: true,
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                handle: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 300,
+        });
+
+        placeholders = minimalPlaceholders.map((placeholder) => ({
+          ...placeholder,
+          offerToNameMatch: true,
+          email: null,
+          phoneNumber: null,
+          note: null,
+          inviteToken: null,
+        }));
+      }
     }
 
     const scoredPlaceholders = placeholders
