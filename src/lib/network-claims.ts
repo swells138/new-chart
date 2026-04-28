@@ -925,47 +925,46 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       alreadyConnected = !existingRelationship.type.startsWith(pendingTypePrefix);
       relationshipId = existingRelationship.id;
 
-      if (!alreadyConnected) {
-        const existingMeta = composeClaimMeta({
-          storedType: existingRelationship.type,
-          user1Id: existingRelationship.user1Id,
-          user2Id: existingRelationship.user2Id,
-          note: existingRelationship.note,
+      const existingMeta = composeClaimMeta({
+        storedType: existingRelationship.type,
+        user1Id: existingRelationship.user1Id,
+        user2Id: existingRelationship.user2Id,
+        note: existingRelationship.note,
+      });
+
+      // If the existing pending relationship was initiated by the claimer (userId),
+      // and the placeholder owner is now accepting by being the claimed user on the
+      // other side, both sides have effectively confirmed. Auto-resolve to active.
+      const crossConfirm =
+        existingMeta.status === "pending_creator_confirmation" &&
+        existingMeta.creatorId === userId;
+
+      if (crossConfirm) {
+        const baseType = parseStoredRelationshipType(
+          existingRelationship.type,
+          existingRelationship.user1Id,
+          existingRelationship.user2Id,
+        ).baseType;
+        await tx.relationship.update({
+          where: { id: existingRelationship.id },
+          data: {
+            type: baseType,
+            note: "",
+            isPublic: true,
+          },
         });
-
-        // If the existing pending relationship was initiated by the claimer (userId),
-        // and the placeholder owner is now accepting by being the claimed user on the
-        // other side — both sides have effectively confirmed. Auto-resolve to active.
-        const crossConfirm =
-          existingMeta.status === "pending_creator_confirmation" &&
-          existingMeta.creatorId === userId;
-
-        if (crossConfirm) {
-          const baseType = parseStoredRelationshipType(
-            existingRelationship.type,
-            existingRelationship.user1Id,
-            existingRelationship.user2Id,
-          ).baseType;
-          await tx.relationship.update({
-            where: { id: existingRelationship.id },
-            data: {
-              type: baseType,
-              note: "",
-              isPublic: true,
-            },
-          });
-          alreadyConnected = true;
-        } else {
-          // Upgrade any stale pending relationship to pending_creator_confirmation.
-          await tx.relationship.update({
-            where: { id: existingRelationship.id },
-            data: {
-              type: pendingType,
-              note: pendingMeta,
-              isPublic: false,
-            },
-          });
-        }
+        alreadyConnected = true;
+      } else {
+        // Move even an existing active relationship into creator confirmation
+        // so the placeholder owner gets the final say for this claim.
+        await tx.relationship.update({
+          where: { id: existingRelationship.id },
+          data: {
+            type: pendingType,
+            note: pendingMeta,
+            isPublic: false,
+          },
+        });
       }
     }
 

@@ -113,6 +113,32 @@ describe("claimPlaceholderForUser", () => {
       },
     });
   });
+
+  it("moves an existing active relationship into creator confirmation when claimed", async () => {
+    userFindUniqueMock.mockResolvedValue({
+      ignoredClaimPlaceholderIds: [],
+    });
+    relationshipFindFirstMock.mockResolvedValue({
+      id: "relationship_1",
+      user1Id: "owner_1",
+      user2Id: "claimer_1",
+      type: "Friends",
+      note: "",
+    });
+
+    const { claimPlaceholderForUser } = await import("./network-claims");
+
+    await claimPlaceholderForUser("claimer_1", "placeholder_1");
+
+    expect(relationshipUpdateMock).toHaveBeenCalledWith({
+      where: { id: "relationship_1" },
+      data: {
+        type: expect.stringContaining("pending::Friends::owner_1::claimer_1"),
+        note: expect.stringContaining("\"status\":\"pending_creator_confirmation\""),
+        isPublic: false,
+      },
+    });
+  });
 });
 
 describe("getClaimCandidatesForUser", () => {
