@@ -412,19 +412,18 @@ export async function getClaimCandidatesForUser(
         })
       : [];
 
-    const blockedOwnerIds = new Set<string>();
+    const claimedOwnerIds = new Set<string>();
     claimedPairPlaceholders.forEach((placeholder) => {
       if (placeholder.ownerId !== userId) {
-        blockedOwnerIds.add(placeholder.ownerId);
+        claimedOwnerIds.add(placeholder.ownerId);
       }
       if (placeholder.linkedUserId && placeholder.linkedUserId !== userId) {
-        blockedOwnerIds.add(placeholder.linkedUserId);
+        claimedOwnerIds.add(placeholder.linkedUserId);
       }
     });
 
     const dedupedPlaceholders = new Map<string, PlaceholderWithOwner>();
     visiblePlaceholders
-      .filter((placeholder) => !blockedOwnerIds.has(placeholder.ownerId))
       .forEach((placeholder) => {
         const key = `${placeholder.ownerId}::${normalizeMatchString(placeholder.name)}`;
         const existing = dedupedPlaceholders.get(key);
@@ -482,6 +481,10 @@ export async function getClaimCandidatesForUser(
           normalizePhoneNumber(placeholder.phoneNumber) === currentUserPhone;
         const hasStrongIdentityMatch =
           nameScore >= 100 || emailMatches || phoneMatches;
+
+        if (claimedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+          return null;
+        }
 
         if (relatedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
           return null;
@@ -725,13 +728,13 @@ export async function getClaimCandidateDiagnosticsForUser(
           },
         })
       : [];
-    const blockedOwnerIds = new Set<string>();
+    const claimedOwnerIds = new Set<string>();
     claimedPairPlaceholders.forEach((placeholder) => {
       if (placeholder.ownerId !== userId) {
-        blockedOwnerIds.add(placeholder.ownerId);
+        claimedOwnerIds.add(placeholder.ownerId);
       }
       if (placeholder.linkedUserId && placeholder.linkedUserId !== userId) {
-        blockedOwnerIds.add(placeholder.linkedUserId);
+        claimedOwnerIds.add(placeholder.linkedUserId);
       }
     });
 
@@ -765,7 +768,7 @@ export async function getClaimCandidateDiagnosticsForUser(
         if (placeholder.offerToNameMatch === false) {
           reasons.push("claim-suggestions-off");
         }
-        if (blockedOwnerIds.has(placeholder.ownerId)) {
+        if (claimedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
           reasons.push("already-claimed-between-this-pair");
         }
         if (relatedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {

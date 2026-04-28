@@ -227,6 +227,49 @@ describe("getClaimCandidatesForUser", () => {
     });
   });
 
+  it("keeps exact-name candidates even when another placeholder was already claimed between the pair", async () => {
+    placeholderFindManyMock
+      .mockResolvedValueOnce([
+        {
+          id: "placeholder_1",
+          ownerId: "owner_1",
+          name: "Exact Match",
+          offerToNameMatch: true,
+          email: null,
+          phoneNumber: null,
+          relationshipType: "Friends",
+          note: null,
+          inviteToken: null,
+          claimStatus: "unclaimed",
+          linkedUserId: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          owner: {
+            id: "owner_1",
+            name: "Owner",
+            handle: "owner",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ownerId: "owner_1",
+          linkedUserId: "claimer_1",
+        },
+      ]);
+
+    relationshipFindManyMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    const { getClaimCandidatesForUser } = await import("./network-claims");
+
+    const candidates = await getClaimCandidatesForUser("claimer_1");
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      placeholderId: "placeholder_1",
+      matchReasons: ["Exact name match"],
+    });
+  });
+
   it("still suppresses weak name guesses when a relationship row already exists", async () => {
     placeholderFindManyMock
       .mockResolvedValueOnce([
