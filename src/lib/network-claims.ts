@@ -1123,6 +1123,92 @@ export interface PendingCreatorConfirmation {
   expiresAt: string | null;
 }
 
+function getPrismaErrorCode(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const maybeCode = (error as { code?: unknown }).code;
+    return typeof maybeCode === "string" ? maybeCode : null;
+  }
+
+  return null;
+}
+
+async function repairMissingCreatorConfirmationRelationships(creatorId: string) {
+  try {
+    const claimedPlaceholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: creatorId,
+        claimStatus: "claimed",
+        linkedUserId: { not: null },
+      },
+      select: {
+        id: true,
+        linkedUserId: true,
+        relationshipType: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 20,
+    });
+
+    for (const placeholder of claimedPlaceholders) {
+      if (!placeholder.linkedUserId) {
+        continue;
+      }
+
+      const existingRelationship = await prisma.relationship.findFirst({
+        where: {
+          OR: [
+            { user1Id: creatorId, user2Id: placeholder.linkedUserId },
+            { user1Id: placeholder.linkedUserId, user2Id: creatorId },
+          ],
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingRelationship) {
+        continue;
+      }
+
+      const claimConfirmedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      try {
+        await prisma.relationship.create({
+          data: {
+            user1Id: creatorId,
+            user2Id: placeholder.linkedUserId,
+            type: encodePendingType(
+              placeholder.relationshipType as RelationshipType,
+              creatorId,
+              placeholder.linkedUserId,
+            ),
+            note: buildClaimMetaNote({
+              status: "pending_creator_confirmation",
+              creatorId,
+              claimedByUserId: placeholder.linkedUserId,
+              claimConfirmedAt,
+              expiresAt,
+              disputeReason: null,
+            }),
+            isPublic: false,
+          },
+        });
+      } catch (error) {
+        if (getPrismaErrorCode(error) !== "P2002") {
+          throw error;
+        }
+      }
+    }
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+  }
+}
+
 export async function getPendingCreatorConfirmations(
   creatorId: string,
 ): Promise<PendingCreatorConfirmation[]> {
@@ -1137,6 +1223,8 @@ export async function getPendingCreatorConfirmations(
   }[] = [];
 
   try {
+    await repairMissingCreatorConfirmationRelationships(creatorId);
+
     relationships = await prisma.relationship.findMany({
       where: {
         OR: [{ user1Id: creatorId }, { user2Id: creatorId }],
