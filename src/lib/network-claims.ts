@@ -793,6 +793,7 @@ export async function getClaimCandidateDiagnosticsForUser(
           reasons,
         };
       }),
+      ownedClaimedPlaceholders: await getOwnedClaimedPlaceholderDiagnostics(userId),
       queryError: null,
     };
   } catch (error) {
@@ -800,8 +801,96 @@ export async function getClaimCandidateDiagnosticsForUser(
       user: null,
       candidateNames: [],
       matches: [],
+      ownedClaimedPlaceholders: [],
       queryError: error instanceof Error ? error.message : "Unknown claim diagnostic error.",
     };
+  }
+}
+
+async function getOwnedClaimedPlaceholderDiagnostics(userId: string) {
+  try {
+    const placeholders = await prisma.placeholderPerson.findMany({
+      where: {
+        ownerId: userId,
+        claimStatus: "claimed",
+      },
+      select: {
+        id: true,
+        name: true,
+        relationshipType: true,
+        linkedUserId: true,
+        linkedUser: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 20,
+    });
+
+    const linkedUserIds = placeholders
+      .map((placeholder) => placeholder.linkedUserId)
+      .filter((id): id is string => Boolean(id));
+    const relationships = linkedUserIds.length
+      ? await prisma.relationship.findMany({
+          where: {
+            OR: [
+              { user1Id: userId, user2Id: { in: linkedUserIds } },
+              { user2Id: userId, user1Id: { in: linkedUserIds } },
+            ],
+          },
+          select: {
+            id: true,
+            user1Id: true,
+            user2Id: true,
+            type: true,
+            note: true,
+            isPublic: true,
+          },
+        })
+      : [];
+
+    return placeholders.map((placeholder) => {
+      const relationship = relationships.find(
+        (item) =>
+          item.user1Id === placeholder.linkedUserId ||
+          item.user2Id === placeholder.linkedUserId,
+      );
+      const claimMeta = relationship
+        ? composeClaimMeta({
+            storedType: relationship.type,
+            user1Id: relationship.user1Id,
+            user2Id: relationship.user2Id,
+            note: relationship.note,
+          })
+        : null;
+
+      return {
+        placeholderId: placeholder.id,
+        placeholderName: placeholder.name,
+        relationshipType: placeholder.relationshipType,
+        linkedUserId: placeholder.linkedUserId,
+        linkedUserName: placeholder.linkedUser?.name ?? null,
+        linkedUserHandle: placeholder.linkedUser?.handle ?? null,
+        relationshipId: relationship?.id ?? null,
+        relationshipTypeStored: relationship?.type ?? null,
+        relationshipIsPublic: relationship?.isPublic ?? null,
+        claimStatus: claimMeta?.status ?? null,
+        claimCreatorId: claimMeta?.creatorId ?? null,
+        claimClaimedByUserId: claimMeta?.claimedByUserId ?? null,
+      };
+    });
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+
+    return [];
   }
 }
 
