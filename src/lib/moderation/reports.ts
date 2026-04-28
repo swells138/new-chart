@@ -62,61 +62,12 @@ interface ModerationReportRow {
   resolvedAt: Date | null;
 }
 
-let moderationTableReady = false;
-let moderationLockTableReady = false;
-
 async function ensureModerationReportsTable() {
-  if (moderationTableReady) {
-    return;
-  }
-
-  await prisma.$executeRaw`
-    CREATE TABLE IF NOT EXISTS "ModerationReport" (
-      "id" TEXT PRIMARY KEY,
-      "kind" TEXT NOT NULL,
-      "targetId" TEXT NOT NULL,
-      "targetLabel" TEXT,
-      "reason" TEXT,
-      "reporterUserId" TEXT,
-      "reporterLabel" TEXT,
-      "status" TEXT NOT NULL DEFAULT 'open',
-      "decisionNote" TEXT,
-      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      "resolvedAt" TIMESTAMPTZ
-    )
-  `;
-
-  await prisma.$executeRaw`
-    CREATE INDEX IF NOT EXISTS "ModerationReport_status_createdAt_idx"
-    ON "ModerationReport" ("status", "createdAt" DESC)
-  `;
-
-  moderationTableReady = true;
+  return;
 }
 
 async function ensureModerationUserLockTable() {
-  if (moderationLockTableReady) {
-    return;
-  }
-
-  await prisma.$executeRaw`
-    CREATE TABLE IF NOT EXISTS "ModerationUserLock" (
-      "userId" TEXT PRIMARY KEY,
-      "reason" TEXT,
-      "lockedBy" TEXT,
-      "lockedUntil" TIMESTAMPTZ NOT NULL,
-      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-
-  await prisma.$executeRaw`
-    CREATE INDEX IF NOT EXISTS "ModerationUserLock_lockedUntil_idx"
-    ON "ModerationUserLock" ("lockedUntil")
-  `;
-
-  moderationLockTableReady = true;
+  return;
 }
 
 function toReport(row: ModerationReportRow): ModerationReport {

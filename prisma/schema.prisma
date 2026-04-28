@@ -141,3 +141,31 @@ model PlaceholderPerson {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
+
+model ModerationReport {
+  id             String    @id
+  kind           String
+  targetId       String
+  targetLabel    String?
+  reason         String?
+  reporterUserId String?
+  reporterLabel  String?
+  status         String    @default("open")
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  resolvedAt     DateTime?
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model ModerationUserLock {
+  userId      String   @id
+  reason      String?
+  lockedBy    String?
+  lockedUntil DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([lockedUntil])
+}

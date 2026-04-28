@@ -1,6 +1,11 @@
 import { currentUser } from "@clerk/nextjs/server";
 
-const MODERATOR_EMAILS = new Set(["sydneywells103@gmail.com"]);
+const MODERATOR_EMAILS = new Set(
+  (process.env.MODERATOR_EMAILS ?? "sydneywells103@gmail.com")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 function normalizeEmail(input: string | null | undefined) {
   return (input ?? "").trim().toLowerCase();

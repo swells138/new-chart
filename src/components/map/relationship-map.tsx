@@ -15,7 +15,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   PlaceholderPerson,
   Relationship,
@@ -425,7 +425,7 @@ export function RelationshipMap({
     }, 1300);
   }
 
-  async function getBrowserClerkToken() {
+  const getBrowserClerkToken = useCallback(async () => {
     if (typeof window === "undefined") {
       return null;
     }
@@ -449,14 +449,14 @@ export function RelationshipMap({
     } catch {
       return null;
     }
-  }
+  }, []);
 
   const activeCurrentUserId = resolvedCurrentUserId ?? currentUserId;
   const hasDbUser = Boolean(activeCurrentUserId);
   const isSignedInEffective = Boolean(isSignedIn || hasBrowserSession);
   const needsAccountSync = isSignedInEffective && !hasDbUser;
 
-  async function authFetch(input: string, init?: RequestInit) {
+  const authFetch = useCallback(async (input: string, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
 
     const token = await getBrowserClerkToken();
@@ -468,7 +468,7 @@ export function RelationshipMap({
       ...init,
       headers,
     });
-  }
+  }, [getBrowserClerkToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -483,7 +483,7 @@ export function RelationshipMap({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [getBrowserClerkToken]);
 
   useEffect(() => {
     setResolvedCurrentUserId(currentUserId);
@@ -497,7 +497,7 @@ export function RelationshipMap({
     };
   }, []);
 
-  async function ensureCurrentUserId(options?: { silent?: boolean }) {
+  const ensureCurrentUserId = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
 
     if (activeCurrentUserId) {
@@ -547,7 +547,7 @@ export function RelationshipMap({
     } finally {
       setIsResolvingCurrentUserId(false);
     }
-  }
+  }, [activeCurrentUserId, authFetch, isResolvingCurrentUserId]);
 
   useEffect(() => {
     if (activeCurrentUserId || hasAttemptedUserBootstrap) {

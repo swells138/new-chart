@@ -29,7 +29,7 @@
     "@xyflow/react": "^12.10.2",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
-    "next": "16.2.3",
+    "next": "^16.2.4",
     "next-themes": "^0.4.6",
     "pg": "^8.20.0",
     "prisma": "^7.7.0",
@@ -45,11 +45,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.3",
+    "eslint-config-next": "^16.2.4",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "@hono/node-server": "^1.19.13",
+    "postcss": "^8.5.12"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

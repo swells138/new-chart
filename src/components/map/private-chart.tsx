@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import type {
   PrivateConfirmedConnectionEdge,
@@ -173,7 +173,7 @@ export function PrivateChart({
     }, 1400);
   }
 
-  async function authFetch(input: string, init?: RequestInit) {
+  const authFetch = useCallback(async (input: string, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
 
     try {
@@ -189,7 +189,7 @@ export function PrivateChart({
       ...init,
       headers,
     });
-  }
+  }, [getToken]);
 
   const currentUserName = useMemo(() => {
     if (!currentUserId) return "You";
@@ -547,7 +547,7 @@ export function PrivateChart({
     return () => {
       cancelled = true;
     };
-  }, [currentUserId]);
+  }, [authFetch, currentUserId]);
 
   useEffect(() => {
     if (webNodeOptions.length === 0) {
@@ -879,7 +879,6 @@ export function PrivateChart({
         | undefined;
       try {
         const text = await res.text();
-        console.error("Delete raw response:", res.status, text);
         try {
           parsed = JSON.parse(text) as {
             deleted?: boolean;
@@ -890,22 +889,17 @@ export function PrivateChart({
           // If response isn't JSON, keep the raw text in the error field.
           parsed = { error: text };
         }
-      } catch (e) {
+      } catch {
         setActionError("Invalid response from server.");
         return;
       }
       if (!res.ok || !parsed?.deleted) {
-        // Log full parsed response for debugging so we can see why deletion failed locally
-        console.error("Delete failed:", { status: res.status, body: parsed });
         setActionError(
           parsed?.error ??
             "Could not remove this connection. Please try again.",
         );
         return;
       }
-
-      // Log success for debugging (no behavior change)
-      console.info("Delete succeeded:", { id });
 
       setPlaceholders((prev) => prev.filter((p) => p.id !== id));
       setPrivateWebEdges((prev) =>
