@@ -86,6 +86,7 @@ type PersonNodeData = {
   label: string;
   handle: string;
   color: string;
+  profileImage?: string | null;
   isPulsing?: boolean;
   isBouncing?: boolean;
   isConnected?: boolean;
@@ -140,17 +141,25 @@ function PersonNode({
                 : "translateY(0) scale(1)",
             }}
           >
-            <span
-              style={{
-                color: "white",
-                fontWeight: 700,
-                fontSize: 13,
-                fontFamily: "system-ui",
-                userSelect: "none",
-              }}
-            >
-              {initial}
-            </span>
+            {data.profileImage ? (
+              <Avatar
+                name={data.label}
+                src={data.profileImage}
+                className="h-full w-full"
+              />
+            ) : (
+              <span
+                style={{
+                  color: "white",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  fontFamily: "system-ui",
+                  userSelect: "none",
+                }}
+              >
+                {initial}
+              </span>
+            )}
           </div>
         </div>
 
@@ -948,6 +957,7 @@ export function RelationshipMap({
           label: user.name,
           handle: user.handle,
           color: hashColor(user.id),
+          profileImage: user.profileImage,
           isPulsing: pulsingNodeIds.includes(user.id),
           isBouncing: bouncingNodeId === user.id,
           isConnected: degree > 0,

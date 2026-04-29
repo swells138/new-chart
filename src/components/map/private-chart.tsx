@@ -196,6 +196,11 @@ export function PrivateChart({
     return users.find((user) => user.id === currentUserId)?.name || "You";
   }, [users, currentUserId]);
 
+  const currentUserProfileImage = useMemo(() => {
+    if (!currentUserId) return null;
+    return users.find((user) => user.id === currentUserId)?.profileImage ?? null;
+  }, [users, currentUserId]);
+
   const chartConnections = useMemo(() => {
     const privateItems = placeholders.map((item) => ({
       id: `private-${item.id}`,
@@ -1097,6 +1102,9 @@ export function PrivateChart({
           aria-label="Direct connection chart"
         >
           <defs>
+            <clipPath id="current-user-avatar-clip">
+              <circle cx="440" cy="220" r="28" />
+            </clipPath>
             <pattern
               id="private-grid"
               x="0"
@@ -1417,18 +1425,42 @@ export function PrivateChart({
               fill="#ff8f84"
               fillOpacity="0.18"
             />
-            <circle cx="440" cy="220" r="28" fill="#ff8f84" />
-            <text
-              x="440"
-              y="226"
-              textAnchor="middle"
-              fontSize="14"
-              fontWeight="700"
-              fill="white"
-              fontFamily="system-ui"
-            >
-              YOU
-            </text>
+            {currentUserProfileImage ? (
+              <>
+                <image
+                  href={currentUserProfileImage}
+                  x="412"
+                  y="192"
+                  width="56"
+                  height="56"
+                  preserveAspectRatio="xMidYMid slice"
+                  clipPath="url(#current-user-avatar-clip)"
+                />
+                <circle
+                  cx="440"
+                  cy="220"
+                  r="28"
+                  fill="none"
+                  stroke="#ff8f84"
+                  strokeWidth="2"
+                />
+              </>
+            ) : (
+              <>
+                <circle cx="440" cy="220" r="28" fill="#ff8f84" />
+                <text
+                  x="440"
+                  y="226"
+                  textAnchor="middle"
+                  fontSize="14"
+                  fontWeight="700"
+                  fill="white"
+                  fontFamily="system-ui"
+                >
+                  YOU
+                </text>
+              </>
+            )}
             <rect
               x="384"
               y="258"

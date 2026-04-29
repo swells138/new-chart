@@ -93,7 +93,11 @@ async function getAuthenticatedDbUserId(request: Request) {
     "New member";
 
   return {
-    dbUserId: await ensureDbUserIdByClerkId(userId, fullName),
+    dbUserId: await ensureDbUserIdByClerkId(
+      userId,
+      fullName,
+      clerkUser?.imageUrl,
+    ),
     nameCandidates: getClerkNameCandidates(clerkUser),
   };
 }

@@ -45,7 +45,7 @@ async function getOrCreateProfile(clerkId: string) {
     clerk?.username ||
     clerk?.firstName ||
     "New member";
-  const user = await ensureDbUserByClerkId(clerkId, fullName);
+  const user = await ensureDbUserByClerkId(clerkId, fullName, clerk?.imageUrl);
 
   const [relationships, reverseRelationships] = await Promise.all([
     prisma.relationship.findMany({

@@ -10,6 +10,7 @@ type ClerkWebhookEvent = {
     phone_numbers?: Array<{ phone_number: string }>;
     first_name?: string | null;
     last_name?: string | null;
+    image_url?: string | null;
   };
 };
 
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
   const eventType = evt.type;
 
   if (eventType === "user.created") {
-    const { id, email_addresses, phone_numbers, first_name, last_name } = evt.data;
+    const { id, email_addresses, phone_numbers, first_name, last_name, image_url } = evt.data;
 
     if (!id) {
       return new Response("Missing user id", { status: 400 });
@@ -75,11 +76,13 @@ export async function POST(req: Request) {
           email: email_addresses?.[0]?.email_address,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
+          profileImage: image_url || null,
         },
         update: {
           email: email_addresses?.[0]?.email_address,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
+          profileImage: image_url || null,
         },
       });
     } catch (error) {
@@ -89,7 +92,7 @@ export async function POST(req: Request) {
   }
 
   if (eventType === "user.updated") {
-    const { id, email_addresses, phone_numbers, first_name, last_name } = evt.data;
+    const { id, email_addresses, phone_numbers, first_name, last_name, image_url } = evt.data;
 
     if (!id) {
       return new Response("Missing user id", { status: 400 });
@@ -104,11 +107,13 @@ export async function POST(req: Request) {
           email: email_addresses?.[0]?.email_address,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
+          profileImage: image_url || null,
         },
         update: {
           email: email_addresses?.[0]?.email_address,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
+          profileImage: image_url || null,
         },
       });
     } catch (error) {

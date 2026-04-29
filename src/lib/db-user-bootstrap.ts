@@ -54,7 +54,11 @@ async function insertLegacyCompatibleUser(clerkId: string, name: string = "New m
   `;
 }
 
-export async function ensureDbUserByClerkId(clerkId: string, name: string = "New member") {
+export async function ensureDbUserByClerkId(
+  clerkId: string,
+  name: string = "New member",
+  profileImage?: string | null,
+) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
     select: bootstrapUserSelect,
@@ -63,10 +67,23 @@ export async function ensureDbUserByClerkId(clerkId: string, name: string = "New
   const preferredName = toPreferredDisplayName(name);
 
   if (existing) {
+    const profileImageUpdate =
+      profileImage && existing.profileImage !== profileImage
+        ? { profileImage }
+        : {};
+
     if (preferredName && isPlaceholderDisplayName(existing.name)) {
       return prisma.user.update({
         where: { id: existing.id },
-        data: { name: preferredName },
+        data: { name: preferredName, ...profileImageUpdate },
+        select: bootstrapUserSelect,
+      });
+    }
+
+    if (Object.keys(profileImageUpdate).length > 0) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: profileImageUpdate,
         select: bootstrapUserSelect,
       });
     }
@@ -93,7 +110,10 @@ export async function ensureDbUserByClerkId(clerkId: string, name: string = "New
   for (const data of attempts) {
     try {
       return await prisma.user.create({
-        data,
+        data: {
+          ...data,
+          ...(profileImage ? { profileImage } : {}),
+        },
         select: bootstrapUserSelect,
       });
     } catch (error) {
@@ -135,7 +155,11 @@ export async function ensureDbUserByClerkId(clerkId: string, name: string = "New
   throw new Error("Could not provision user profile record.");
 }
 
-export async function ensureDbUserIdByClerkId(clerkId: string, name: string = "New member") {
-  const user = await ensureDbUserByClerkId(clerkId, name);
+export async function ensureDbUserIdByClerkId(
+  clerkId: string,
+  name: string = "New member",
+  profileImage?: string | null,
+) {
+  const user = await ensureDbUserByClerkId(clerkId, name, profileImage);
   return user.id;
 }

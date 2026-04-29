@@ -44,22 +44,30 @@ export default async function MapPage() {
       sessionSignedIn = Boolean(userId) || hasSessionCookie;
 
       if (userId) {
+        const clerk = await currentUser();
+        const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+        const profileImage = clerk?.imageUrl || null;
         const existing = await prisma.user.findUnique({
           where: { clerkId: userId },
-          select: { id: true },
+          select: { id: true, profileImage: true },
         });
 
         if (existing) {
           currentUserDbId = existing.id;
+          if (profileImage && existing.profileImage !== profileImage) {
+            await prisma.user.update({
+              where: { id: existing.id },
+              data: { profileImage },
+              select: { id: true },
+            });
+          }
         } else {
-          const clerk = await currentUser();
-          const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
-
           try {
             const created = await prisma.user.create({
               data: {
                 clerkId: userId,
                 name: fullName || clerk?.username || "New member",
+                profileImage,
               },
               select: { id: true },
             });

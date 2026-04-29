@@ -52,7 +52,11 @@ export default async function ClaimConnectionsPage() {
     clerkUser?.firstName ||
     "New member";
 
-  const currentUserId = await ensureDbUserIdByClerkId(userId, fullName);
+  const currentUserId = await ensureDbUserIdByClerkId(
+    userId,
+    fullName,
+    clerkUser?.imageUrl,
+  );
   const [candidates, pendingConfirmations] = await Promise.all([
     getClaimCandidatesForUser(currentUserId, {
       alternateNames: clerkNameCandidates,
