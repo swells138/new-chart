@@ -253,6 +253,15 @@ function getConnectionSearchTokens(user: User) {
   ].map(normalizeConnectionSearchValue);
 }
 
+function isObviousTestProfile(user: User) {
+  const values = [user.name, user.handle, user.firstName, user.lastName].map(
+    normalizeConnectionSearchValue,
+  );
+  return values.some((value) =>
+    ["mctester", "titesti", "exact match", "exactmatch"].includes(value),
+  );
+}
+
 interface Props {
   users: User[];
   relationships: Relationship[];
@@ -438,6 +447,12 @@ export function RelationshipMap({
   const [recentEdgeId, setRecentEdgeId] = useState<string | null>(null);
   const [pulsingNodeIds, setPulsingNodeIds] = useState<string[]>([]);
   const [bouncingNodeId, setBouncingNodeId] = useState<string | null>(null);
+  const [clientPrivateConnectionCount, setClientPrivateConnectionCount] =
+    useState(privatePlaceholders.length);
+  const [clientCreatedConnectionCount, setClientCreatedConnectionCount] =
+    useState(0);
+  const [showSecondaryActions, setShowSecondaryActions] = useState(false);
+  const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(false);
   const feedbackTimeoutRef = useRef<number | null>(null);
 
   function triggerConnectionFeedback(
@@ -498,9 +513,17 @@ export function RelationshipMap({
     return users.map((user) =>
       user.id === activeCurrentUserId
         ? { ...user, profileImage: clerkImageUrl }
-        : user,
+      : user,
     );
   }, [users, activeCurrentUserId, clerkUser?.imageUrl]);
+  const visibleDirectoryUsers = useMemo(
+    () =>
+      usersWithCurrentClerkImage.filter(
+        (user) =>
+          user.id === activeCurrentUserId || !isObviousTestProfile(user),
+      ),
+    [usersWithCurrentClerkImage, activeCurrentUserId],
+  );
   const isSignedInEffective = Boolean(isSignedIn || hasBrowserSession);
   const needsAccountSync = isSignedInEffective && !hasDbUser;
 
@@ -539,6 +562,20 @@ export function RelationshipMap({
   useEffect(() => {
     setResolvedCurrentUserId(currentUserId);
   }, [currentUserId]);
+
+  useEffect(() => {
+    setClientPrivateConnectionCount(privatePlaceholders.length);
+  }, [privatePlaceholders.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setIsOnboardingDismissed(
+      window.localStorage.getItem("meshy-map-onboarding-dismissed") === "true",
+    );
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -707,6 +744,44 @@ export function RelationshipMap({
     [allRelationships],
   );
 
+  const personalConnectionCount =
+    approvedUserConnections.length +
+    clientPrivateConnectionCount +
+    clientCreatedConnectionCount;
+  const nextMilestone =
+    [5, 10, 25].find((milestone) => personalConnectionCount < milestone) ??
+    25;
+  const previousMilestone =
+    nextMilestone === 5 ? 0 : nextMilestone === 10 ? 5 : 10;
+  const milestoneLabel =
+    nextMilestone === 5
+      ? "extended network"
+      : nextMilestone === 10
+        ? "deeper network view"
+        : "full exploration";
+  const connectionsToMilestone = Math.max(
+    0,
+    nextMilestone - personalConnectionCount,
+  );
+  const milestoneProgress =
+    nextMilestone === 25 && personalConnectionCount >= 25
+      ? 100
+      : Math.min(
+          100,
+          Math.max(
+            0,
+            ((personalConnectionCount - previousMilestone) /
+              (nextMilestone - previousMilestone)) *
+              100,
+          ),
+        );
+  const primaryCtaText =
+    personalConnectionCount > 0
+      ? "Add another connection"
+      : "Add your first connection";
+  const showOnboardingOverlay =
+    personalConnectionCount <= 2 && !isOnboardingDismissed;
+
   const limitedExtendedNodeIds = useMemo(() => {
     if (!activeCurrentUserId) {
       return {
@@ -787,7 +862,7 @@ export function RelationshipMap({
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
     if (chartLayer === "private" && activeCurrentUserId) {
-      return usersWithCurrentClerkImage.filter((user) =>
+      return visibleDirectoryUsers.filter((user) =>
         limitedExtendedNodeIds.nodeIds.has(user.id),
       );
     }
@@ -797,7 +872,7 @@ export function RelationshipMap({
       isVisibleByType(item.type, activeTypes),
     );
 
-    const baseUsers = usersWithCurrentClerkImage;
+    const baseUsers = visibleDirectoryUsers;
     const connectedInGraph = new Set<string>();
     visiblePublicRelationships.forEach((item) => {
       connectedInGraph.add(item.source);
@@ -809,7 +884,7 @@ export function RelationshipMap({
         connectedInGraph.has(user.id) || user.id === activeCurrentUserId,
     );
   }, [
-    usersWithCurrentClerkImage,
+    visibleDirectoryUsers,
     chartLayer,
     activeCurrentUserId,
     limitedExtendedNodeIds,
@@ -844,7 +919,7 @@ export function RelationshipMap({
       return [] as User[];
     }
 
-    return users.filter((user) => {
+    return visibleDirectoryUsers.filter((user) => {
       if (user.id === activeCurrentUserId) {
         return false;
       }
@@ -857,7 +932,7 @@ export function RelationshipMap({
 
       return !alreadyConnected;
     });
-  }, [users, activeCurrentUserId, allRelationships]);
+  }, [visibleDirectoryUsers, activeCurrentUserId, allRelationships]);
 
   const filteredConnectableUsers = useMemo(() => {
     const query = normalizeConnectionSearchValue(connectionQuery);
@@ -1094,16 +1169,6 @@ export function RelationshipMap({
     [filteredRelationships],
   );
 
-  const graphConnectionCount = graphRelationships.length;
-  const progressionMessage =
-    graphConnectionCount === 0
-      ? "Start building your network"
-      : graphConnectionCount <= 2
-        ? "Nice start"
-        : graphConnectionCount <= 4
-          ? "Your network is forming"
-          : "Now it’s getting interesting";
-
   const mappedEdges: Edge[] = useMemo(() => {
     const nodeById = new Map(mappedNodes.map((node) => [node.id, node]));
 
@@ -1123,7 +1188,7 @@ export function RelationshipMap({
         targetHandle: sourceIsLeft ? "target-left" : "target-right",
         type: "bezier",
         label: item.type,
-        animated: true,
+        animated: false,
         style: {
           stroke: relationColors[item.type] ?? "#94a3b8",
           strokeWidth: 2.4,
@@ -1221,6 +1286,10 @@ export function RelationshipMap({
 
       locallyMutatedIds.current.add(relationship.id);
       setAllRelationships((prev) => [...prev, relationship]);
+      if (parseRelationshipNote(relationship.note).status !== "active") {
+        setClientCreatedConnectionCount((count) => count + 1);
+      }
+      dismissOnboarding();
       setSelectedId(relationship.target);
       triggerConnectionFeedback(relationship.id, sourceId, relationship.target);
     } catch (error) {
@@ -1541,38 +1610,140 @@ export function RelationshipMap({
     });
   }, [allRelationships, activeCurrentUserId]);
 
+  function scrollToAddConnection() {
+    setChartLayer("private");
+    setShowSecondaryActions(true);
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        document
+          .getElementById("add-connection-panel")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    }
+  }
+
+  function dismissOnboarding() {
+    setIsOnboardingDismissed(true);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("meshy-map-onboarding-dismissed", "true");
+    }
+  }
+
+  function handlePrivateConnectionAdded() {
+    setClientPrivateConnectionCount((count) => count + 1);
+    dismissOnboarding();
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-[var(--border-soft)] bg-white/70 p-2 dark:bg-black/30">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setChartLayer("private")}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              chartLayer === "private"
-                ? "bg-[var(--accent)] text-white"
-                : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
-            }`}
-          >
-            Private Chart
-          </button>
-          <button
-            type="button"
-            onClick={() => setChartLayer("public")}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              chartLayer === "public"
-                ? "bg-[var(--accent)] text-white"
-                : "text-black/70 hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10"
-            }`}
-          >
-            Public Chart
-          </button>
+    <div className="space-y-5">
+      <section className="paper-card overflow-hidden rounded-2xl">
+        <div className="grid gap-5 p-5 md:grid-cols-[1.35fr_0.65fr] md:p-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
+              Add one person. Reveal their world.
+            </p>
+            <h1 className="mt-2 text-4xl font-semibold leading-tight md:text-5xl">
+              Build your network
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm text-black/68 dark:text-white/70">
+              Add one person to start revealing connections around you. Every
+              connection unlocks more of the network.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="button"
+                onClick={scrollToAddConnection}
+                className="rounded-xl bg-[var(--accent)] px-6 py-4 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95"
+              >
+                {primaryCtaText}
+              </button>
+              <p className="text-sm font-medium text-black/65 dark:text-white/68">
+                Start your network and reveal hidden connections
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
+            <p className="text-sm font-semibold">
+              {personalConnectionCount === 0
+                ? "Your map is ready"
+                : `${personalConnectionCount} connection${personalConnectionCount === 1 ? "" : "s"} added`}
+            </p>
+            <p className="mt-2 text-xs text-black/62 dark:text-white/64">
+              The more you add, the more you uncover.
+            </p>
+            <p className="mt-4 text-[11px] text-black/58 dark:text-white/58">
+              All connections are user-created and only become public after both
+              parties verify.
+            </p>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-black/60 dark:text-white/60">
-          Direct connections are always visible to you. Extended exploration
-          shows up to 25 confirmed connections for free.
-        </p>
-      </div>
+      </section>
+
+      {showOnboardingOverlay ? (
+        <section className="rounded-2xl border border-[var(--accent)]/35 bg-[var(--accent)]/10 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-bold">Start here</p>
+              <div className="mt-2 grid gap-2 text-xs text-black/68 dark:text-white/72 sm:grid-cols-3">
+                <p className="rounded-lg bg-white/55 px-3 py-2 dark:bg-black/22">
+                  Click here to add someone
+                </p>
+                <p className="rounded-lg bg-white/55 px-3 py-2 dark:bg-black/22">
+                  Drag from your node to connect people
+                </p>
+                <p className="rounded-lg bg-white/55 px-3 py-2 dark:bg-black/22">
+                  Connections become public only after both users verify
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissOnboarding}
+              className="self-start rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10 md:self-center"
+            >
+              Dismiss
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="rounded-2xl border border-[var(--border-soft)] bg-white/70 p-3 dark:bg-black/30">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex gap-2 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06]">
+            <button
+              type="button"
+              onClick={() => setChartLayer("private")}
+              className={`rounded-lg px-4 py-2 text-left text-sm font-semibold transition ${
+                chartLayer === "private"
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-black/72 hover:bg-black/5 dark:text-white/72 dark:hover:bg-white/10"
+              }`}
+            >
+              🔒 Private
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartLayer("public")}
+              className={`rounded-lg px-4 py-2 text-left text-sm font-semibold transition ${
+                chartLayer === "public"
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-black/72 hover:bg-black/5 dark:text-white/72 dark:hover:bg-white/10"
+              }`}
+            >
+              🌍 Public
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 text-xs text-black/62 dark:text-white/64 sm:flex-row sm:items-center">
+            <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
+              🔒 Private = dashed lines
+            </span>
+            <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
+              🌍 Public = solid lines
+            </span>
+            <span>Private shows your full network. Public only shows verified connections.</span>
+          </div>
+        </div>
+      </section>
 
       {chartLayer === "private" && activeCurrentUserId ? (
         <PrivateChart
@@ -1580,7 +1751,8 @@ export function RelationshipMap({
           baseUrl={baseUrl}
           currentUserId={activeCurrentUserId}
           approvedConnections={approvedUserConnections}
-          users={usersWithCurrentClerkImage}
+          users={visibleDirectoryUsers}
+          onPrivateConnectionAdded={handlePrivateConnectionAdded}
         />
       ) : null}
 
@@ -1638,60 +1810,70 @@ export function RelationshipMap({
       ) : null}
 
       {chartLayer === "public" ? (
-        <div className="grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
+        <div
+          className={`grid gap-4 ${
+            showSecondaryActions ? "lg:grid-cols-[1.5fr_0.9fr]" : ""
+          }`}
+        >
           <section className="paper-card rounded-2xl p-4">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {(Object.keys(relationColors) as RelationshipType[]).map(
-                (type) => {
-                  const active = activeTypes.includes(type);
-                  return (
-                    <button
-                      type="button"
-                      key={type}
-                      onClick={() =>
-                        setActiveTypes((prev) =>
-                          prev.includes(type)
-                            ? prev.filter((item) => item !== type)
-                            : [...prev, type],
-                        )
-                      }
-                      className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
-                      style={{
-                        borderColor: active
-                          ? relationColors[type]
-                          : "var(--border-soft)",
-                        backgroundColor: active
-                          ? `${relationColors[type]}20`
-                          : "transparent",
-                      }}
-                    >
-                      {type}
-                    </button>
-                  );
-                },
-              )}
-            </div>
-            <p className="mb-3 text-xs text-black/65 dark:text-white/70">
-              Use the side form to connect with an existing member, or drag from
-              your node to another member.
-            </p>
-            <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
-              Every public connection shown here was created and verified by
-              both parties.
-            </p>
-            <div className="mb-3 flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-white/90 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-medium">
-                Add someone to begin your network
-              </p>
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
-                  Connections: {graphConnectionCount}
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
+                  Network map
                 </p>
-                <p className="text-[11px] text-white/60">
-                  {progressionMessage}
+                <h2 className="mt-1 text-2xl font-semibold">
+                  Verified connections
+                </h2>
+                <p className="mt-1 text-xs text-black/65 dark:text-white/70">
+                  Nodes are clickable. Clicking opens profile details, and
+                  dragging from your node creates a connection request.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowSecondaryActions((shown) => !shown)}
+                className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
+              >
+                {showSecondaryActions ? "Hide tools" : "Show search and filters"}
+              </button>
             </div>
+            {showSecondaryActions ? (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {(Object.keys(relationColors) as RelationshipType[]).map(
+                  (type) => {
+                    const active = activeTypes.includes(type);
+                    return (
+                      <button
+                        type="button"
+                        key={type}
+                        onClick={() =>
+                          setActiveTypes((prev) =>
+                            prev.includes(type)
+                              ? prev.filter((item) => item !== type)
+                              : [...prev, type],
+                          )
+                        }
+                        className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
+                        style={{
+                          borderColor: active
+                            ? relationColors[type]
+                            : "var(--border-soft)",
+                          backgroundColor: active
+                            ? `${relationColors[type]}20`
+                            : "transparent",
+                        }}
+                      >
+                        {type}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            ) : null}
+            <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
+              All connections are user-created and only become public after both
+              parties verify.
+            </p>
             {hasDbUser ? null : (
               <p className="mb-3 text-xs text-black/65 dark:text-white/70">
                 {isResolvingCurrentUserId
@@ -1716,6 +1898,12 @@ export function RelationshipMap({
                 <span className="map-bg-dot map-bg-dot-3" aria-hidden="true" />
                 <span className="map-bg-dot map-bg-dot-4" aria-hidden="true" />
               </div>
+              {showOnboardingOverlay ? (
+                <div className="pointer-events-none absolute left-4 top-4 z-20 max-w-xs rounded-xl border border-white/12 bg-black/55 px-3 py-2 text-xs text-white/78 backdrop-blur">
+                  Click a node for profile details. Drag from your node to start
+                  a verified connection.
+                </div>
+              ) : null}
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -1735,14 +1923,42 @@ export function RelationshipMap({
               </ReactFlow>
             </div>
 
+            <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">
+                    {connectionsToMilestone === 0
+                      ? "You unlocked full exploration"
+                      : `You have ${personalConnectionCount} connection${personalConnectionCount === 1 ? "" : "s"} - ${connectionsToMilestone} more to unlock ${milestoneLabel}`}
+                  </p>
+                  <p className="mt-1 text-xs text-black/62 dark:text-white/64">
+                    5 unlocks extended network. 10 unlocks deeper network view.
+                    25 unlocks full exploration.
+                  </p>
+                </div>
+                <div className="min-w-40">
+                  <div className="h-2 rounded-full bg-black/10 dark:bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-[var(--accent)] transition-all"
+                      style={{ width: `${milestoneProgress}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-right text-[11px] text-black/55 dark:text-white/55">
+                    {personalConnectionCount} → {nextMilestone}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {activeCurrentUserId ? (
-              <div
+              <details
                 id="pending-verification"
                 className="mt-4 rounded-xl border border-[var(--border-soft)] p-3"
               >
-                <h4 className="text-sm font-semibold uppercase tracking-wide">
+                <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide">
                   Pending Verification
-                </h4>
+                  {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}
+                </summary>
                 {pendingRequests.length === 0 ? (
                   <p className="mt-2 text-xs text-black/65 dark:text-white/70">
                     No pending verifications.
@@ -1888,10 +2104,11 @@ export function RelationshipMap({
                     </div>
                   </>
                 )}
-              </div>
+              </details>
             ) : null}
           </section>
 
+          {showSecondaryActions ? (
           <aside className="paper-card rounded-2xl p-5">
             <div className="rounded-xl border border-[var(--border-soft)] p-3">
               <h4 className="text-sm font-semibold uppercase tracking-wide">
@@ -2394,6 +2611,7 @@ export function RelationshipMap({
               </div>
             ) : null}
           </aside>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -118,6 +118,7 @@ interface Props {
   currentUserId: string | null;
   approvedConnections?: Relationship[];
   users?: User[];
+  onPrivateConnectionAdded?: () => void;
 }
 
 interface ExistingUserSuggestion {
@@ -143,6 +144,7 @@ export function PrivateChart({
   currentUserId,
   approvedConnections = [],
   users = [],
+  onPrivateConnectionAdded,
 }: Props) {
   const [placeholders, setPlaceholders] =
     useState<PlaceholderPerson[]>(initialPlaceholders);
@@ -782,6 +784,7 @@ export function PrivateChart({
       const nextPrivateCount = placeholders.length + 1;
 
       setPlaceholders((prev) => [createdPlaceholder, ...prev]);
+      onPrivateConnectionAdded?.();
       if (nextPrivateCount === 2 || nextPrivateCount === 3) {
         highlightConnection(`private-${createdPlaceholder.id}`);
       }
@@ -1150,6 +1153,7 @@ export function PrivateChart({
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
+                  strokeDasharray="7 4"
                   className="private-chart-link-flow"
                   fill="none"
                 />
@@ -1208,7 +1212,6 @@ export function PrivateChart({
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
-                  strokeDasharray="4 3"
                   className="private-chart-link-flow"
                   fill="none"
                 />
@@ -1267,7 +1270,7 @@ export function PrivateChart({
                   stroke={edgeColor}
                   strokeWidth={1.5}
                   strokeOpacity={0.65}
-                  strokeDasharray="2 4"
+                  strokeDasharray="7 4"
                   className="private-chart-link-flow"
                   fill="none"
                 />
@@ -1601,13 +1604,13 @@ export function PrivateChart({
       </div>
 
       {/* Add-connection form */}
-      <div className="paper-card rounded-2xl p-5">
+      <div id="add-connection-panel" className="paper-card rounded-2xl p-5">
         <h3 className="text-sm font-bold uppercase tracking-wider">
-          Add to your private chart (step 1)
+          Add your first connection
         </h3>
         <p className="mt-2 text-xs text-black/65 dark:text-white/65">
-          New entries start as private placeholders (dashed line). They become
-          part of the confirmed network after invite + verification.
+          Add one person. Reveal their world. New entries start as private
+          placeholders and become public only after invite + verification.
         </p>
         <form className="mt-3 space-y-3" onSubmit={handleAdd}>
           <input

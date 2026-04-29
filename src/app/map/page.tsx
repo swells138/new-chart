@@ -1,7 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { RelationshipMap } from "@/components/map/relationship-map";
-import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
 import { getAllRelationships, getAllUsers, getPrivateConnectionsByUser, getRelationshipsByUser } from "@/lib/prisma-queries";
 
@@ -133,14 +132,7 @@ export default async function MapPage() {
       : "http://localhost:3000");
 
   return (
-    <div className="space-y-4">
-      <SectionHeader
-        title="Your Network"
-        subtitle="Manage direct connections, verify pending matches, and explore the confirmed network around you."
-      />
-      <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.03] px-4 py-3 text-xs text-black/70 dark:bg-white/[0.04] dark:text-white/70">
-        Disclaimer: all connections were created and verified by both parties.
-      </div>
+    <div>
       <RelationshipMap
         users={users}
         relationships={relationships}
