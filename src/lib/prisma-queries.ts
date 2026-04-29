@@ -6,7 +6,13 @@
  */
 
 import { prisma } from "./prisma";
-import type { User, Post, Relationship, PlaceholderPerson, RelationshipType } from "@/types/models";
+import type {
+  User,
+  Post,
+  Relationship,
+  PlaceholderPerson,
+  RelationshipType,
+} from "@/types/models";
 import {
   buildClaimMetaNote,
   composeClaimMeta,
@@ -18,6 +24,8 @@ import {
 const baseUserSelect = {
   id: true,
   name: true,
+  firstName: true,
+  lastName: true,
   handle: true,
   pronouns: true,
   bio: true,
@@ -26,6 +34,7 @@ const baseUserSelect = {
   location: true,
   links: true,
   featured: true,
+  profileImage: true,
 } as const;
 
 const basePlaceholderSelect = {
@@ -41,10 +50,12 @@ const basePlaceholderSelect = {
   createdAt: true,
 } as const;
 
-
 function formatRelativeTime(timestamp: Date) {
   const differenceInMs = Date.now() - timestamp.getTime();
-  const differenceInHours = Math.max(1, Math.round(differenceInMs / (1000 * 60 * 60)));
+  const differenceInHours = Math.max(
+    1,
+    Math.round(differenceInMs / (1000 * 60 * 60)),
+  );
 
   if (differenceInHours < 24) {
     return `${differenceInHours}h ago`;
@@ -57,6 +68,8 @@ function formatRelativeTime(timestamp: Date) {
 function normalizeUser(user: {
   id: string;
   name: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   handle: string | null;
   pronouns: string | null;
   bio: string | null;
@@ -65,6 +78,7 @@ function normalizeUser(user: {
   location: string | null;
   links: unknown;
   featured: boolean;
+  profileImage?: string | null;
 }): User {
   const links =
     user.links && typeof user.links === "object" && !Array.isArray(user.links)
@@ -73,7 +87,13 @@ function normalizeUser(user: {
 
   return {
     id: user.id,
-    name: user.name ?? "Unnamed member",
+    name:
+      user.name ??
+      (user.firstName || user.lastName
+        ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
+        : "Unnamed member"),
+    firstName: user.firstName ?? undefined,
+    lastName: user.lastName ?? undefined,
     handle: user.handle ?? "pending-handle",
     pronouns: user.pronouns ?? "",
     bio: user.bio ?? "No bio yet.",
@@ -82,6 +102,7 @@ function normalizeUser(user: {
     location: user.location ?? "Unknown",
     links,
     featured: user.featured,
+    profileImage: user.profileImage ?? null,
   };
 }
 
@@ -267,7 +288,7 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: string,
-  data: Partial<Omit<User, "id" | "clerkId">>
+  data: Partial<Omit<User, "id" | "clerkId">>,
 ): Promise<User> {
   const user = await prisma.user.update({
     where: { id },
@@ -335,15 +356,13 @@ export async function deletePost(id: string): Promise<void> {
 
 // ===== RELATIONSHIPS =====
 
-
 /** Returns all of a user's relationships (pending + approved, public + private). */
-export async function getRelationshipsByUser(userId: string): Promise<Relationship[]> {
+export async function getRelationshipsByUser(
+  userId: string,
+): Promise<Relationship[]> {
   const relationships = await prisma.relationship.findMany({
     where: {
-      OR: [
-        { user1Id: userId },
-        { user2Id: userId },
-      ],
+      OR: [{ user1Id: userId }, { user2Id: userId }],
     },
   });
 
@@ -391,7 +410,9 @@ export async function getRelationshipsByUser(userId: string): Promise<Relationsh
 }
 
 /** Returns a user's placeholder nodes that are still awaiting signup or claim. */
-export async function getPrivateConnectionsByUser(userId: string): Promise<PlaceholderPerson[]> {
+export async function getPrivateConnectionsByUser(
+  userId: string,
+): Promise<PlaceholderPerson[]> {
   let placeholders: PlaceholderRecord[] = [];
 
   try {
@@ -445,7 +466,9 @@ export async function getPrivateConnectionsByUser(userId: string): Promise<Place
   }));
 }
 
-export async function getApprovedConnectionUserIds(userId: string): Promise<string[]> {
+export async function getApprovedConnectionUserIds(
+  userId: string,
+): Promise<string[]> {
   const relationships = await prisma.relationship.findMany({
     where: {
       OR: [{ user1Id: userId }, { user2Id: userId }],
@@ -486,7 +509,10 @@ export async function createRelationship(data: {
   return normalizeRelationship(relationship);
 }
 
-export async function deleteRelationship(user1Id: string, user2Id: string): Promise<void> {
+export async function deleteRelationship(
+  user1Id: string,
+  user2Id: string,
+): Promise<void> {
   await prisma.relationship.deleteMany({
     where: {
       OR: [
@@ -500,14 +526,11 @@ export async function deleteRelationship(user1Id: string, user2Id: string): Prom
 // ===== MESSAGES =====
 
 export async function getMessages(
-  userId: string
+  userId: string,
 ): Promise<Awaited<ReturnType<typeof prisma.message.findMany>>> {
   const messages = await prisma.message.findMany({
     where: {
-      OR: [
-        { senderId: userId },
-        { recipientId: userId },
-      ],
+      OR: [{ senderId: userId }, { recipientId: userId }],
     },
     orderBy: { createdAt: "desc" },
     include: {

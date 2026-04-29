@@ -14,6 +14,8 @@ export type RelationshipType =
 export interface User {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   handle: string;
   pronouns: string;
   bio: string;
@@ -25,6 +27,7 @@ export interface User {
     social?: string;
   };
   featured: boolean;
+  profileImage?: string | null;
 }
 
 export interface Post {

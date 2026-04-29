@@ -15,6 +15,8 @@ model User {
   id              String    @id @default(cuid()) // App user ID
   clerkId         String    @unique            // Clerk user ID
   name            String?
+  firstName       String?   // New: user's first name
+  lastName        String?   // New: user's last name
   handle          String?   @unique
   email           String?   @unique
   phoneNumber     String?   @unique

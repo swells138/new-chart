@@ -9,6 +9,8 @@ const profileSafeSelect = {
   id: true,
   clerkId: true,
   name: true,
+  firstName: true,
+  lastName: true,
   handle: true,
   pronouns: true,
   bio: true,
@@ -18,13 +20,14 @@ const profileSafeSelect = {
   links: true,
   profileImage: true,
   email: true,
+  phoneNumber: true,
 } as const;
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-      process.env.CLERK_PUBLISHABLE_KEY
+    process.env.CLERK_PUBLISHABLE_KEY,
   );
 
 const ALLOWED_PRONOUNS = new Set([
@@ -42,6 +45,9 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,30}$/;
 const profilePatchSchema = z
   .object({
     name: z.string().trim().max(120).optional(),
+    firstName: z.string().trim().max(120).optional(),
+    lastName: z.string().trim().max(120).optional(),
+    profileImage: z.string().trim().max(1000).optional(),
     handle: z.string().trim().max(120).optional(),
     pronouns: z.string().trim().max(50).optional(),
     bio: z.string().trim().max(1000).optional(),
@@ -63,7 +69,8 @@ function normalizeLinks(input: unknown): { website?: string; social?: string } {
   }
 
   const record = input as Record<string, unknown>;
-  const website = typeof record.website === "string" ? record.website.trim() : "";
+  const website =
+    typeof record.website === "string" ? record.website.trim() : "";
   const social = typeof record.social === "string" ? record.social.trim() : "";
 
   return {
@@ -80,6 +87,8 @@ function shapeProfile(user: {
   id: string;
   clerkId: string;
   name: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   handle: string | null;
   pronouns: string | null;
   bio: string | null;
@@ -96,6 +105,8 @@ function shapeProfile(user: {
     clerkId: user.clerkId,
     email: user.email,
     name: user.name ?? "",
+    firstName: user.firstName ?? "",
+    lastName: user.lastName ?? "",
     handle: user.handle ?? "",
     pronouns: user.pronouns ?? "",
     bio: user.bio ?? "",
@@ -110,7 +121,10 @@ function shapeProfile(user: {
 
 export async function GET(request: Request) {
   if (!hasClerkKeys) {
-    return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
+    return NextResponse.json(
+      { error: "Auth is not configured." },
+      { status: 503 },
+    );
   }
 
   const userId = await resolveClerkUserId(request);
@@ -123,13 +137,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ profile: shapeProfile(user) });
   } catch (error) {
     console.error("Failed to load profile", error);
-    return NextResponse.json({ error: "Failed to load profile." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load profile." },
+      { status: 500 },
+    );
   }
 }
 
 export async function PATCH(request: Request) {
   if (!hasClerkKeys) {
-    return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
+    return NextResponse.json(
+      { error: "Auth is not configured." },
+      { status: 503 },
+    );
   }
 
   const userId = await resolveClerkUserId(request);
@@ -153,7 +173,7 @@ export async function PATCH(request: Request) {
         headers: {
           "Retry-After": String(rateLimit.retryAfterSeconds),
         },
-      }
+      },
     );
   }
 
@@ -166,14 +186,35 @@ export async function PATCH(request: Request) {
 
   const parsed = profilePatchSchema.safeParse(payload);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid profile payload." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid profile payload." },
+      { status: 400 },
+    );
   }
 
-  const { name, pronouns, bio, location, relationshipStatus, interests, links, handle } =
-    parsed.data;
+  const {
+    name,
+    firstName,
+    lastName,
+    profileImage,
+    pronouns,
+    bio,
+    location,
+    relationshipStatus,
+    interests,
+    links,
+    handle,
+  } = parsed.data;
 
-  if (pronouns !== undefined && pronouns.length > 0 && !ALLOWED_PRONOUNS.has(pronouns)) {
-    return NextResponse.json({ error: "Please select a valid pronouns option." }, { status: 400 });
+  if (
+    pronouns !== undefined &&
+    pronouns.length > 0 &&
+    !ALLOWED_PRONOUNS.has(pronouns)
+  ) {
+    return NextResponse.json(
+      { error: "Please select a valid pronouns option." },
+      { status: 400 },
+    );
   }
 
   try {
@@ -184,11 +225,17 @@ export async function PATCH(request: Request) {
       const normalizedHandle = handle.trim();
 
       if (!normalizedHandle) {
-        return NextResponse.json({ error: "Username is required." }, { status: 400 });
+        return NextResponse.json(
+          { error: "Username is required." },
+          { status: 400 },
+        );
       }
 
       if (currentUser.handle) {
-        return NextResponse.json({ error: "Username cannot be changed." }, { status: 400 });
+        return NextResponse.json(
+          { error: "Username cannot be changed." },
+          { status: 400 },
+        );
       }
 
       if (!USERNAME_PATTERN.test(normalizedHandle)) {
@@ -197,7 +244,7 @@ export async function PATCH(request: Request) {
             error:
               "Username must be 3-30 characters and only include letters, numbers, dots, underscores, or dashes.",
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -210,7 +257,10 @@ export async function PATCH(request: Request) {
       });
 
       if (existingHandle) {
-        return NextResponse.json({ error: "Username is already taken." }, { status: 409 });
+        return NextResponse.json(
+          { error: "Username is already taken." },
+          { status: 409 },
+        );
       }
 
       handleUpdate.handle = normalizedHandle;
@@ -221,6 +271,11 @@ export async function PATCH(request: Request) {
       data: {
         ...handleUpdate,
         ...(name !== undefined ? { name: name || null } : {}),
+        ...(firstName !== undefined ? { firstName: firstName || null } : {}),
+        ...(lastName !== undefined ? { lastName: lastName || null } : {}),
+        ...(profileImage !== undefined
+          ? { profileImage: profileImage || null }
+          : {}),
         ...(pronouns !== undefined ? { pronouns: pronouns || null } : {}),
         ...(bio !== undefined ? { bio: bio || null } : {}),
         ...(location !== undefined ? { location: location || null } : {}),
@@ -236,6 +291,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ profile: shapeProfile(updated) });
   } catch (error) {
     console.error("Failed to update profile", error);
-    return NextResponse.json({ error: "Failed to update profile." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update profile." },
+      { status: 500 },
+    );
   }
 }

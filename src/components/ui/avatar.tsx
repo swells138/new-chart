@@ -18,19 +18,37 @@ function initials(name: string) {
 }
 
 export function Avatar({
-  name,
+  name = "Member",
+  src,
   className,
 }: {
-  name: string;
+  name?: string;
+  src?: string | null;
   className?: string;
 }) {
-  const index = name.charCodeAt(0) % palettes.length;
+  const index =
+    (name && name.length > 0 ? name.charCodeAt(0) : 0) % palettes.length;
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={clsx(
+          "inline-block h-12 w-12 rounded-full object-cover",
+          className,
+        )}
+        aria-label={`${name} avatar`}
+      />
+    );
+  }
+
   return (
     <div
       className={clsx(
         "flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white",
         palettes[index],
-        className
+        className,
       )}
       aria-label={`${name} avatar`}
     >
