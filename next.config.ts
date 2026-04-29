@@ -6,9 +6,7 @@ const clerkSources = [
   "https://clerk.meshylinks.com",
 ].join(" ");
 
-const captchaSources = [
-  "https://challenges.cloudflare.com",
-].join(" ");
+const captchaSources = ["https://challenges.cloudflare.com"].join(" ");
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -30,6 +28,13 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
+    // Avoid applying the strict CSP in development because React's dev mode
+    // relies on eval() for debugging features and Turbopack/Next dev expects
+    // eval to be allowed. Only return the CSP headers in production.
+    if (process.env.NODE_ENV !== "production") {
+      return [];
+    }
+
     return [
       {
         source: "/:path*",
