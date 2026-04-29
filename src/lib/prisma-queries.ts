@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "./prisma";
+import type { Prisma } from "@prisma/client";
 import type {
   User,
   Post,
@@ -35,7 +36,20 @@ const baseUserSelect = {
   links: true,
   featured: true,
   profileImage: true,
-} as const;
+} as const satisfies Prisma.UserSelect;
+
+const legacyUserSelect = {
+  id: true,
+  name: true,
+  handle: true,
+  pronouns: true,
+  bio: true,
+  interests: true,
+  relationshipStatus: true,
+  location: true,
+  links: true,
+  featured: true,
+} as const satisfies Prisma.UserSelect;
 
 const basePlaceholderSelect = {
   id: true,
@@ -178,6 +192,16 @@ type RelationshipPairRecord = {
   user2Id: string;
 };
 
+type NormalizableUser = Parameters<typeof normalizeUser>[0];
+type UserFindManyFallbackArgs = Omit<
+  Prisma.UserFindManyArgs,
+  "include" | "omit" | "select"
+>;
+type UserFindUniqueFallbackArgs = Omit<
+  Prisma.UserFindUniqueArgs,
+  "include" | "omit" | "select"
+>;
+
 function isColumnMissingError(error: unknown) {
   return (
     typeof error === "object" &&
@@ -187,16 +211,56 @@ function isColumnMissingError(error: unknown) {
   );
 }
 
+async function findManyUsersWithProfileFallback(
+  args: UserFindManyFallbackArgs = {},
+): Promise<NormalizableUser[]> {
+  try {
+    return await prisma.user.findMany({
+      ...args,
+      select: baseUserSelect,
+    });
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+
+    return prisma.user.findMany({
+      ...args,
+      select: legacyUserSelect,
+    });
+  }
+}
+
+async function findUniqueUserWithProfileFallback(
+  args: UserFindUniqueFallbackArgs,
+): Promise<NormalizableUser | null> {
+  try {
+    return await prisma.user.findUnique({
+      ...args,
+      select: baseUserSelect,
+    });
+  } catch (error) {
+    if (!isColumnMissingError(error)) {
+      throw error;
+    }
+
+    return prisma.user.findUnique({
+      ...args,
+      select: legacyUserSelect,
+    });
+  }
+}
+
 export async function getMemberDirectoryData(): Promise<{
   users: User[];
   posts: Post[];
   relationships: Relationship[];
 }> {
-  const [users, posts, relationships] = await Promise.all([
-    prisma.user.findMany({
-      orderBy: [{ featured: "desc" }, { createdAt: "asc" }],
-      select: baseUserSelect,
-    }),
+  const usersRaw = await findManyUsersWithProfileFallback({
+    orderBy: [{ featured: "desc" }, { createdAt: "asc" }],
+  });
+
+  const [posts, relationships] = await Promise.all([
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
     prisma.relationship.findMany({
       where: {
@@ -206,7 +270,7 @@ export async function getMemberDirectoryData(): Promise<{
   ]);
 
   return {
-    users: users.map(normalizeUser),
+    users: usersRaw.map(normalizeUser),
     posts: posts.map(normalizePost),
     relationships: relationships.map(normalizeRelationship),
   };
@@ -225,15 +289,14 @@ export async function getAllRelationships(): Promise<Relationship[]> {
 // ===== USERS =====
 
 export async function getAllUsers(): Promise<User[]> {
-  const users = await prisma.user.findMany({
+  const users = await findManyUsersWithProfileFallback({
     orderBy: { createdAt: "desc" },
-    select: baseUserSelect,
   });
   return users.map(normalizeUser);
 }
 
 export async function getUsersByLocation(location: string): Promise<User[]> {
-  const users = await prisma.user.findMany({
+  const users = await findManyUsersWithProfileFallback({
     where: {
       location: {
         equals: location,
@@ -241,31 +304,27 @@ export async function getUsersByLocation(location: string): Promise<User[]> {
       },
     },
     orderBy: { createdAt: "desc" },
-    select: baseUserSelect,
   });
   return users.map(normalizeUser);
 }
 
 export async function getUserById(id: string): Promise<User | null> {
-  const user = await prisma.user.findUnique({
+  const user = await findUniqueUserWithProfileFallback({
     where: { id },
-    select: baseUserSelect,
   });
   return user ? normalizeUser(user) : null;
 }
 
 export async function getUserByHandle(handle: string): Promise<User | null> {
-  const user = await prisma.user.findUnique({
+  const user = await findUniqueUserWithProfileFallback({
     where: { handle },
-    select: baseUserSelect,
   });
   return user ? normalizeUser(user) : null;
 }
 
 export async function getUserByClerkId(clerkId: string): Promise<User | null> {
-  const user = await prisma.user.findUnique({
+  const user = await findUniqueUserWithProfileFallback({
     where: { clerkId },
-    select: baseUserSelect,
   });
   return user ? normalizeUser(user) : null;
 }
