@@ -13,6 +13,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -369,6 +370,7 @@ export function RelationshipMap({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user: clerkUser } = useUser();
   const [chartLayer, setChartLayer] = useState<"private" | "public">("public");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "Talking",
@@ -467,6 +469,18 @@ export function RelationshipMap({
 
   const activeCurrentUserId = resolvedCurrentUserId ?? currentUserId;
   const hasDbUser = Boolean(activeCurrentUserId);
+  const usersWithCurrentClerkImage = useMemo(() => {
+    const clerkImageUrl = clerkUser?.imageUrl;
+    if (!activeCurrentUserId || !clerkImageUrl) {
+      return users;
+    }
+
+    return users.map((user) =>
+      user.id === activeCurrentUserId
+        ? { ...user, profileImage: clerkImageUrl }
+        : user,
+    );
+  }, [users, activeCurrentUserId, clerkUser?.imageUrl]);
   const isSignedInEffective = Boolean(isSignedIn || hasBrowserSession);
   const needsAccountSync = isSignedInEffective && !hasDbUser;
 
@@ -753,7 +767,7 @@ export function RelationshipMap({
   // Determine which users to display based on view mode
   const displayedUsers = useMemo(() => {
     if (chartLayer === "private" && activeCurrentUserId) {
-      return users.filter((user) =>
+      return usersWithCurrentClerkImage.filter((user) =>
         limitedExtendedNodeIds.nodeIds.has(user.id),
       );
     }
@@ -763,7 +777,7 @@ export function RelationshipMap({
       isVisibleByType(item.type, activeTypes),
     );
 
-    const baseUsers = users;
+    const baseUsers = usersWithCurrentClerkImage;
     const connectedInGraph = new Set<string>();
     visiblePublicRelationships.forEach((item) => {
       connectedInGraph.add(item.source);
@@ -775,7 +789,7 @@ export function RelationshipMap({
         connectedInGraph.has(user.id) || user.id === activeCurrentUserId,
     );
   }, [
-    users,
+    usersWithCurrentClerkImage,
     chartLayer,
     activeCurrentUserId,
     limitedExtendedNodeIds,
@@ -1546,7 +1560,7 @@ export function RelationshipMap({
           baseUrl={baseUrl}
           currentUserId={activeCurrentUserId}
           approvedConnections={approvedUserConnections}
-          users={users}
+          users={usersWithCurrentClerkImage}
         />
       ) : null}
 
