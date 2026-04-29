@@ -154,6 +154,15 @@ export default async function ProfilePage() {
         subtitle="Update your public details and review your connections."
       />
 
+      {pendingConfirmations.length > 0 ? (
+        <ConfirmClaimsPanel
+          initialConfirmations={pendingConfirmations}
+          currentUserId={user.id}
+        />
+      ) : null}
+
+      <ClaimConnectionsPanel initialCandidates={claimCandidates} mode="settings" />
+
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <ProfileForm initialProfile={initialProfile} />
 
@@ -165,15 +174,6 @@ export default async function ProfilePage() {
           />
         </aside>
       </div>
-
-      {pendingConfirmations.length > 0 ? (
-        <ConfirmClaimsPanel
-          initialConfirmations={pendingConfirmations}
-          currentUserId={user.id}
-        />
-      ) : null}
-
-      <ClaimConnectionsPanel initialCandidates={claimCandidates} mode="settings" />
     </div>
   );
 }
