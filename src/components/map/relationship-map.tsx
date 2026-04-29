@@ -1734,6 +1734,162 @@ export function RelationshipMap({
                 <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
               </ReactFlow>
             </div>
+
+            {activeCurrentUserId ? (
+              <div
+                id="pending-verification"
+                className="mt-4 rounded-xl border border-[var(--border-soft)] p-3"
+              >
+                <h4 className="text-sm font-semibold uppercase tracking-wide">
+                  Pending Verification
+                </h4>
+                {pendingRequests.length === 0 ? (
+                  <p className="mt-2 text-xs text-black/65 dark:text-white/70">
+                    No pending verifications.
+                  </p>
+                ) : (
+                  <>
+                    {connectionError ? (
+                      <p className="mt-2 text-xs text-red-700 dark:text-red-400">
+                        {connectionError}
+                      </p>
+                    ) : null}
+                    <div className="mt-3 space-y-2">
+                      {pendingRequests.map((item) => {
+                        const parsed = parseRelationshipNote(item.note);
+                        const otherUserId =
+                          item.source === activeCurrentUserId
+                            ? item.target
+                            : item.source;
+                        const otherUser = users.find(
+                          (user) => user.id === otherUserId,
+                        );
+                        const isClaimedUserTurn =
+                          parsed.status === "pending_claim" &&
+                          parsed.claimedByUserId === activeCurrentUserId;
+                        const isCreatorTurn =
+                          parsed.status === "pending_creator_confirmation" &&
+                          parsed.creatorId === activeCurrentUserId;
+                        const waitingForOtherUser =
+                          parsed.status === "pending_claim"
+                            ? parsed.claimedByUserId !== activeCurrentUserId
+                            : parsed.creatorId !== activeCurrentUserId;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-lg border border-[var(--border-soft)] p-2.5"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Avatar
+                                name={otherUser?.name ?? "Member"}
+                                src={otherUser?.profileImage ?? undefined}
+                                className="h-9 w-9"
+                              />
+                              <div>
+                                <p className="text-sm font-semibold">
+                                  {otherUser?.name ?? "Member"}
+                                </p>
+                                <p className="text-[11px] text-black/65 dark:text-white/70">
+                                  @{otherUser?.handle ?? "member"}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-xs uppercase tracking-wide text-[var(--accent)]">
+                              {item.type}
+                            </p>
+                            <p className="mt-1 text-[11px] text-black/65 dark:text-white/70">
+                              {isClaimedUserTurn
+                                ? "Confirm this is your profile for this connection."
+                                : isCreatorTurn
+                                  ? "Is this the correct person you intended to connect with?"
+                                  : waitingForOtherUser
+                                    ? "Waiting for the other person to verify."
+                                    : "Pending review."}
+                            </p>
+                            {parsed.status === "pending_creator_confirmation" &&
+                            parsed.expiresAt ? (
+                              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                                Expires: {formatUtcDateTime(parsed.expiresAt)}
+                              </p>
+                            ) : null}
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {isClaimedUserTurn ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    respondToConnection(item.id, "approve")
+                                  }
+                                  disabled={isRespondingId === item.id}
+                                  className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                >
+                                  Verify - this is me
+                                </button>
+                              ) : null}
+                              {isCreatorTurn ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    respondToConnection(
+                                      item.id,
+                                      "confirmCreator",
+                                    )
+                                  }
+                                  disabled={isRespondingId === item.id}
+                                  className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
+                                >
+                                  Yes, that&apos;s them - make public
+                                </button>
+                              ) : null}
+                              {waitingForOtherUser ? (
+                                <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-black/60 dark:text-white/60">
+                                  Waiting for{" "}
+                                  {otherUser?.name ?? "the other person"}
+                                </span>
+                              ) : null}
+                              {isClaimedUserTurn || isCreatorTurn ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    respondToConnection(item.id, "reject")
+                                  }
+                                  disabled={isRespondingId === item.id}
+                                  className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
+                                >
+                                  Reject
+                                </button>
+                              ) : null}
+                              {isClaimedUserTurn || isCreatorTurn ? (
+                                <button
+                                  type="button"
+                                  onClick={() => disputeConnection(item.id)}
+                                  disabled={isRespondingId === item.id}
+                                  className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-70 dark:text-red-300"
+                                >
+                                  Report / Dispute
+                                </button>
+                              ) : null}
+                            </div>
+                            {isClaimedUserTurn ? (
+                              <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
+                                This confirms your identity only. The connection
+                                stays hidden until the creator confirms.
+                              </p>
+                            ) : null}
+                            {isCreatorTurn ? (
+                              <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                                Confirming publishes this connection. Reject
+                                keeps it hidden.
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
           </section>
 
           <aside className="paper-card rounded-2xl p-5">
@@ -1895,162 +2051,6 @@ export function RelationshipMap({
                 </p>
               )}
             </div>
-
-            {activeCurrentUserId ? (
-              <div
-                id="pending-verification"
-                className="mt-4 rounded-xl border border-[var(--border-soft)] p-3"
-              >
-                <h4 className="text-sm font-semibold uppercase tracking-wide">
-                  Pending Verification
-                </h4>
-                {pendingRequests.length === 0 ? (
-                  <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-                    No pending verifications.
-                  </p>
-                ) : (
-                  <>
-                    {connectionError ? (
-                      <p className="mt-2 text-xs text-red-700 dark:text-red-400">
-                        {connectionError}
-                      </p>
-                    ) : null}
-                    <div className="mt-3 space-y-2">
-                      {pendingRequests.map((item) => {
-                        const parsed = parseRelationshipNote(item.note);
-                        const otherUserId =
-                          item.source === activeCurrentUserId
-                            ? item.target
-                            : item.source;
-                        const otherUser = users.find(
-                          (user) => user.id === otherUserId,
-                        );
-                        const isClaimedUserTurn =
-                          parsed.status === "pending_claim" &&
-                          parsed.claimedByUserId === activeCurrentUserId;
-                        const isCreatorTurn =
-                          parsed.status === "pending_creator_confirmation" &&
-                          parsed.creatorId === activeCurrentUserId;
-                        const waitingForOtherUser =
-                          parsed.status === "pending_claim"
-                            ? parsed.claimedByUserId !== activeCurrentUserId
-                            : parsed.creatorId !== activeCurrentUserId;
-
-                        return (
-                          <div
-                            key={item.id}
-                            className="rounded-lg border border-[var(--border-soft)] p-2.5"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Avatar
-                                name={otherUser?.name ?? "Member"}
-                                src={otherUser?.profileImage ?? undefined}
-                                className="h-9 w-9"
-                              />
-                              <div>
-                                <p className="text-sm font-semibold">
-                                  {otherUser?.name ?? "Member"}
-                                </p>
-                                <p className="text-[11px] text-black/65 dark:text-white/70">
-                                  @{otherUser?.handle ?? "member"}
-                                </p>
-                              </div>
-                            </div>
-                            <p className="text-xs uppercase tracking-wide text-[var(--accent)]">
-                              {item.type}
-                            </p>
-                            <p className="mt-1 text-[11px] text-black/65 dark:text-white/70">
-                              {isClaimedUserTurn
-                                ? "Confirm this is your profile for this connection."
-                                : isCreatorTurn
-                                  ? "Is this the correct person you intended to connect with?"
-                                  : waitingForOtherUser
-                                    ? "Waiting for the other person to verify."
-                                    : "Pending review."}
-                            </p>
-                            {parsed.status === "pending_creator_confirmation" &&
-                            parsed.expiresAt ? (
-                              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                                Expires: {formatUtcDateTime(parsed.expiresAt)}
-                              </p>
-                            ) : null}
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {isClaimedUserTurn ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    respondToConnection(item.id, "approve")
-                                  }
-                                  disabled={isRespondingId === item.id}
-                                  className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                                >
-                                  Verify — this is me
-                                </button>
-                              ) : null}
-                              {isCreatorTurn ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    respondToConnection(
-                                      item.id,
-                                      "confirmCreator",
-                                    )
-                                  }
-                                  disabled={isRespondingId === item.id}
-                                  className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                                >
-                                  Yes, that&apos;s them — make public
-                                </button>
-                              ) : null}
-                              {waitingForOtherUser ? (
-                                <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-black/60 dark:text-white/60">
-                                  Waiting for{" "}
-                                  {otherUser?.name ?? "the other person"}
-                                </span>
-                              ) : null}
-                              {isClaimedUserTurn || isCreatorTurn ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    respondToConnection(item.id, "reject")
-                                  }
-                                  disabled={isRespondingId === item.id}
-                                  className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                                >
-                                  Reject
-                                </button>
-                              ) : null}
-                              {isClaimedUserTurn || isCreatorTurn ? (
-                                <button
-                                  type="button"
-                                  onClick={() => disputeConnection(item.id)}
-                                  disabled={isRespondingId === item.id}
-                                  className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-70 dark:text-red-300"
-                                >
-                                  Report / Dispute
-                                </button>
-                              ) : null}
-                            </div>
-                            {isClaimedUserTurn ? (
-                              <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
-                                This confirms your identity only. The connection
-                                stays hidden until the creator confirms.
-                              </p>
-                            ) : null}
-                            {isCreatorTurn ? (
-                              <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                                Confirming publishes this connection. Reject
-                                keeps it hidden.
-                              </p>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : null}
 
             {activeCurrentUserId ? (
               <div id="node-management" className="mt-4">
