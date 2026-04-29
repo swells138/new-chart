@@ -233,6 +233,26 @@ function isVisibleByType(type: string, active: RelationshipType[]) {
   return active.includes(type as RelationshipType);
 }
 
+function normalizeConnectionSearchValue(value: string | null | undefined) {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "");
+}
+
+function getConnectionSearchTokens(user: User) {
+  const handle = normalizeConnectionSearchValue(user.handle);
+
+  return [
+    user.name,
+    user.firstName,
+    user.lastName,
+    user.handle,
+    handle ? `@${handle}` : "",
+    user.location,
+  ].map(normalizeConnectionSearchValue);
+}
+
 interface Props {
   users: User[];
   relationships: Relationship[];
@@ -840,37 +860,37 @@ export function RelationshipMap({
   }, [users, activeCurrentUserId, allRelationships]);
 
   const filteredConnectableUsers = useMemo(() => {
-    const query = connectionQuery.trim().toLowerCase();
+    const query = normalizeConnectionSearchValue(connectionQuery);
     if (!query) {
       return connectableUsers;
     }
 
-    return connectableUsers.filter(
-      (user) =>
-        user.name.toLowerCase().includes(query) ||
-        user.handle.toLowerCase().includes(query) ||
-        user.location.toLowerCase().includes(query),
+    return connectableUsers.filter((user) =>
+      getConnectionSearchTokens(user).some((token) => token.includes(query)),
     );
   }, [connectableUsers, connectionQuery]);
 
-  const selectedConnectionTarget = useMemo(
+  const selectedFilteredConnectionTarget = useMemo(
     () =>
-      connectableUsers.find((user) => user.id === connectionTargetId) ?? null,
-    [connectableUsers, connectionTargetId],
+      filteredConnectableUsers.find((user) => user.id === connectionTargetId) ??
+      null,
+    [filteredConnectableUsers, connectionTargetId],
   );
 
   useEffect(() => {
-    if (connectableUsers.length === 0) {
+    if (filteredConnectableUsers.length === 0) {
       setConnectionTargetId("");
       return;
     }
 
-    if (connectableUsers.some((user) => user.id === connectionTargetId)) {
+    if (
+      filteredConnectableUsers.some((user) => user.id === connectionTargetId)
+    ) {
       return;
     }
 
-    setConnectionTargetId(connectableUsers[0].id);
-  }, [connectableUsers, connectionTargetId]);
+    setConnectionTargetId(filteredConnectableUsers[0].id);
+  }, [filteredConnectableUsers, connectionTargetId]);
 
   // Determine which relationships to display
   const displayedRelationships = useMemo(
@@ -1730,7 +1750,7 @@ export function RelationshipMap({
                   onSubmit={(event) => {
                     event.preventDefault();
                     const targetId =
-                      selectedConnectionTarget?.id ??
+                      selectedFilteredConnectionTarget?.id ??
                       filteredConnectableUsers[0]?.id ??
                       "";
                     void createConnection(targetId);
@@ -1740,7 +1760,7 @@ export function RelationshipMap({
                     type="search"
                     value={connectionQuery}
                     onChange={(event) => setConnectionQuery(event.target.value)}
-                    placeholder="Search by name, @handle, or location"
+                    placeholder="Search by name, @username, or location"
                     className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2 text-sm outline-none"
                     disabled={connectableUsers.length === 0 || isConnecting}
                   />
@@ -1803,8 +1823,8 @@ export function RelationshipMap({
                     </div>
                   )}
                   <p className="text-xs text-black/65 dark:text-white/70">
-                    {selectedConnectionTarget
-                      ? `Selected: ${selectedConnectionTarget.name} (@${selectedConnectionTarget.handle})`
+                    {selectedFilteredConnectionTarget
+                      ? `Selected: ${selectedFilteredConnectionTarget.name} (@${selectedFilteredConnectionTarget.handle})`
                       : "Choose a member from the results above."}
                   </p>
                   <select
@@ -1826,7 +1846,7 @@ export function RelationshipMap({
                   <button
                     type="submit"
                     disabled={
-                      (!selectedConnectionTarget &&
+                      (!selectedFilteredConnectionTarget &&
                         filteredConnectableUsers.length === 0) ||
                       isConnecting ||
                       connectableUsers.length === 0
