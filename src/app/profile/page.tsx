@@ -6,11 +6,18 @@ import {
   ProfileConnectionsList,
   type ProfileConnectionItem,
 } from "@/components/profile/profile-connections-list";
-import { ProfileForm, type ProfileFormData } from "@/components/profile/profile-form";
+import {
+  ProfileForm,
+  type ProfileFormData,
+} from "@/components/profile/profile-form";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getClaimCandidatesForUser, getPendingCreatorConfirmations } from "@/lib/network-claims";
+import {
+  getClaimCandidatesForUser,
+  getPendingCreatorConfirmations,
+} from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
+import GoProButton from "@/components/profile/go-pro-button";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +27,12 @@ const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-      process.env.CLERK_PUBLISHABLE_KEY
+    process.env.CLERK_PUBLISHABLE_KEY,
   );
 
-function getClerkNameCandidates(clerk: Awaited<ReturnType<typeof currentUser>>) {
+function getClerkNameCandidates(
+  clerk: Awaited<ReturnType<typeof currentUser>>,
+) {
   if (!clerk) {
     return [];
   }
@@ -102,7 +111,8 @@ export default async function ProfilePage() {
   if (!hasClerkKeys) {
     return (
       <div className="mx-auto max-w-xl rounded-2xl border border-[var(--border-soft)] bg-white/70 p-6 text-sm dark:bg-black/20">
-        Auth is not configured yet. Add Clerk environment variables to enable profile management.
+        Auth is not configured yet. Add Clerk environment variables to enable
+        profile management.
       </div>
     );
   }
@@ -135,16 +145,28 @@ export default async function ProfilePage() {
   ]);
 
   const connections: ProfileConnectionItem[] = [
-    ...user.relationships.map((relationship: { id: string; type: string; user2: ProfileConnectionItem["person"] }) => ({
-      id: relationship.id,
-      type: relationship.type,
-      person: relationship.user2,
-    })),
-    ...user.reverseRelationships.map((relationship: { id: string; type: string; user1: ProfileConnectionItem["person"] }) => ({
-      id: relationship.id,
-      type: relationship.type,
-      person: relationship.user1,
-    })),
+    ...user.relationships.map(
+      (relationship: {
+        id: string;
+        type: string;
+        user2: ProfileConnectionItem["person"];
+      }) => ({
+        id: relationship.id,
+        type: relationship.type,
+        person: relationship.user2,
+      }),
+    ),
+    ...user.reverseRelationships.map(
+      (relationship: {
+        id: string;
+        type: string;
+        user1: ProfileConnectionItem["person"];
+      }) => ({
+        id: relationship.id,
+        type: relationship.type,
+        person: relationship.user1,
+      }),
+    ),
   ];
 
   return (
@@ -161,17 +183,31 @@ export default async function ProfilePage() {
         />
       ) : null}
 
-      <ClaimConnectionsPanel initialCandidates={claimCandidates} mode="settings" />
+      <ClaimConnectionsPanel
+        initialCandidates={claimCandidates}
+        mode="settings"
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <ProfileForm initialProfile={initialProfile} />
 
         <aside className="paper-card rounded-2xl p-5">
           <h3 className="text-xl font-semibold">Your Connections</h3>
+          {user.featured ? (
+            <div className="mt-2">
+              <span className="inline-block rounded-full bg-[var(--accent)]/10 px-3 py-1 text-[var(--accent)] font-semibold">
+                Pro
+              </span>
+            </div>
+          ) : null}
           <ProfileConnectionsList
             initialConnections={connections}
             currentUserId={user.id}
           />
+
+          <div className="mt-6">
+            {!user.featured ? <GoProButton dbUserId={user.id} /> : null}
+          </div>
         </aside>
       </div>
     </div>

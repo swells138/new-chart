@@ -27,9 +27,13 @@ model User {
   ignoredClaimPlaceholderIds String[] @default([])
   relationshipStatus String?
   featured        Boolean   @default(false)
+  // Stripe fields
+  stripeCustomerId String?  @unique
+  stripeSubscriptionId String?
+  isPro           Boolean   @default(false)
   profileImage    String?   // Profile picture URL
   links           Json?     // { website?: string; social?: string }
-  
+
   // Relations
   posts           Post[]
   events          Event[]
@@ -41,7 +45,7 @@ model User {
   eventAttendees  EventAttendee[]
   ownedPlaceholders  PlaceholderPerson[] @relation("PlaceholderOwner")
   claimedPlaceholders PlaceholderPerson[] @relation("PlaceholderLinked")
-  
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

@@ -98,7 +98,7 @@ function PersonNode({
   data,
   selected,
 }: {
-  data: PersonNodeData;
+  data: PersonNodeData & { isPro?: boolean };
   selected?: boolean;
 }) {
   const initial = (data.label?.[0] ?? "?").toUpperCase();
@@ -119,48 +119,66 @@ function PersonNode({
       />
       <div style={{ textAlign: "center", width: 86 }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <div
-            className={data.isBouncing ? "map-node-bounce" : undefined}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: data.color,
-              boxShadow: data.isPulsing
-                ? `0 6px 18px ${data.color}22`
-                : `0 2px 6px rgba(2,6,23,0.18)`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto",
-              border: selected
-                ? `2px solid ${data.color}`
-                : "1px solid rgba(255,255,255,0.06)",
-              transition: "transform 0.18s ease, box-shadow 0.18s ease",
-              transform: selected
-                ? "translateY(-1px) scale(1.04)"
-                : "translateY(0) scale(1)",
-            }}
-          >
-            {data.profileImage ? (
-              <Avatar
-                name={data.label}
-                src={data.profileImage}
-                className="h-full w-full"
-              />
-            ) : (
-              <span
-                style={{
-                  color: "white",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  fontFamily: "system-ui",
-                  userSelect: "none",
-                }}
-              >
-                {initial}
-              </span>
-            )}
+          <div style={{ position: "relative", display: "inline-block" }}>
+            {data.isPro ? (
+              <div className="pro-halo" aria-hidden style={{ zIndex: 0 }} />
+            ) : null}
+
+            <div
+              className={data.isBouncing ? "map-node-bounce" : undefined}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: data.color,
+                boxShadow: data.isPulsing
+                  ? `0 6px 18px ${data.color}22`
+                  : `0 2px 6px rgba(2,6,23,0.18)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto",
+                border: selected
+                  ? `2px solid ${data.color}`
+                  : "1px solid rgba(255,255,255,0.06)",
+                transition: "transform 0.18s ease, box-shadow 0.18s ease",
+                transform: selected
+                  ? "translateY(-1px) scale(1.04)"
+                  : "translateY(0) scale(1)",
+                position: "relative",
+                zIndex: 2,
+                overflow: "hidden",
+              }}
+            >
+              {data.profileImage ? (
+                <Avatar
+                  name={data.label}
+                  src={data.profileImage}
+                  className="h-full w-full"
+                />
+              ) : (
+                <span
+                  style={{
+                    color: "white",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    fontFamily: "system-ui",
+                    userSelect: "none",
+                  }}
+                >
+                  {initial}
+                </span>
+              )}
+            </div>
+
+            {data.isPro ? (
+              <div className="pro-sparkles" aria-hidden>
+                <span className="sparkle s1" />
+                <span className="sparkle s2" />
+                <span className="sparkle s3" />
+                <span className="sparkle s4" />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1071,6 +1089,7 @@ export function RelationshipMap({
           isBouncing: bouncingNodeId === user.id,
           isConnected: degree > 0,
           degree,
+          isPro: Boolean(user.featured),
         },
         position: { x: pos.x, y: pos.y },
         style: { background: "transparent", border: "none", padding: 0 },
@@ -2098,506 +2117,6 @@ export function RelationshipMap({
                                 keeps it hidden.
                               </p>
                             ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </details>
-            ) : null}
-          </section>
-
-          {showSecondaryActions ? (
-          <aside className="paper-card rounded-2xl p-5">
-            <div className="rounded-xl border border-[var(--border-soft)] p-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide">
-                Grow Your Network
-              </h4>
-              <p className="mt-1 text-xs text-black/65 dark:text-white/70">
-                Every person you add reveals more connections.
-              </p>
-              {activeCurrentUserId ? (
-                <form
-                  className="mt-3 space-y-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const targetId =
-                      selectedFilteredConnectionTarget?.id ??
-                      filteredConnectableUsers[0]?.id ??
-                      "";
-                    void createConnection(targetId);
-                  }}
-                >
-                  <input
-                    type="search"
-                    value={connectionQuery}
-                    onChange={(event) => setConnectionQuery(event.target.value)}
-                    placeholder="Search by name, @username, or location"
-                    className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-3 py-2 text-sm outline-none"
-                    disabled={connectableUsers.length === 0 || isConnecting}
-                  />
-                  <div className="rounded-lg border border-[var(--border-soft)] bg-black/[0.02] p-2 dark:bg-white/[0.04]">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
-                      Suggestions
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {[
-                        "Add your best friend",
-                        "Add your partner",
-                        "Add someone you used to date",
-                      ].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() =>
-                            setConnectionQuery(
-                              suggestion.replace(/^Add\s+/i, ""),
-                            )
-                          }
-                          className="rounded-full border border-[var(--border-soft)] px-2.5 py-1 text-[11px] text-black/75 transition hover:bg-black/5 dark:text-white/75 dark:hover:bg-white/10"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {connectableUsers.length === 0 ? (
-                    <p className="text-xs text-black/60 dark:text-white/70">
-                      No available members to connect with.
-                    </p>
-                  ) : (
-                    <div className="max-h-32 overflow-y-auto rounded-lg border border-[var(--border-soft)] p-1">
-                      {filteredConnectableUsers.slice(0, 8).map((user) => {
-                        const isSelected = user.id === connectionTargetId;
-                        return (
-                          <button
-                            type="button"
-                            key={user.id}
-                            onClick={() => setConnectionTargetId(user.id)}
-                            className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition ${
-                              isSelected
-                                ? "bg-[var(--accent)]/15 text-[var(--accent)]"
-                                : "hover:bg-black/5 dark:hover:bg-white/10"
-                            }`}
-                          >
-                            <span>{user.name}</span>
-                            <span className="text-xs text-black/60 dark:text-white/70">
-                              @{user.handle}
-                            </span>
-                          </button>
-                        );
-                      })}
-                      {filteredConnectableUsers.length === 0 ? (
-                        <p className="px-2 py-1 text-xs text-black/60 dark:text-white/70">
-                          No matches found.
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                  <p className="text-xs text-black/65 dark:text-white/70">
-                    {selectedFilteredConnectionTarget
-                      ? `Selected: ${selectedFilteredConnectionTarget.name} (@${selectedFilteredConnectionTarget.handle})`
-                      : "Choose a member from the results above."}
-                  </p>
-                  <select
-                    value={connectionType}
-                    onChange={(event) =>
-                      setConnectionType(event.target.value as RelationshipType)
-                    }
-                    className="w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-2 text-sm outline-none"
-                    disabled={isConnecting}
-                  >
-                    {(Object.keys(relationColors) as RelationshipType[]).map(
-                      (type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={
-                      (!selectedFilteredConnectionTarget &&
-                        filteredConnectableUsers.length === 0) ||
-                      isConnecting ||
-                      connectableUsers.length === 0
-                    }
-                    className="w-full rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {isConnecting ? "Creating..." : "Create connection"}
-                  </button>
-                  <p className="text-[11px] text-black/65 dark:text-white/70">
-                    By creating this connection, you confirm this information is
-                    accurate to the best of your knowledge.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!activeCurrentUserId) {
-                        setConnectionError(
-                          "Sign in to manage and edit your node changes.",
-                        );
-                        return;
-                      }
-                      setSelectedId(activeCurrentUserId);
-                      if (typeof window !== "undefined") {
-                        window.setTimeout(() => {
-                          document
-                            .getElementById("node-management")
-                            ?.scrollIntoView({
-                              behavior: "smooth",
-                              block: "start",
-                            });
-                        }, 0);
-                      }
-                    }}
-                    className="block w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-center text-sm font-semibold text-black/75 transition hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/10"
-                  >
-                    Manage Connections
-                  </button>
-                </form>
-              ) : (
-                <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-                  {isResolvingCurrentUserId || !hasAttemptedUserBootstrap
-                    ? "Checking your account status..."
-                    : needsAccountSync
-                      ? "Signed in. Finalizing account sync..."
-                      : "Sign in to create and manage your connections."}
-                </p>
-              )}
-            </div>
-
-            {activeCurrentUserId ? (
-              <div id="node-management" className="mt-4">
-                {selectedUser ? (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        name={selectedUser.name}
-                        src={selectedUser.profileImage ?? undefined}
-                        className="h-14 w-14"
-                      />
-                      <div>
-                        <h3 className="text-xl font-semibold">
-                          {selectedUser.name}
-                        </h3>
-                        <p className="text-sm text-black/65 dark:text-white/75">
-                          @{selectedUser.handle}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-sm text-black/80 dark:text-white/85">
-                      {selectedUser.bio}
-                    </p>
-                    <p className="mt-2 text-xs text-black/65 dark:text-white/70">
-                      Status: {selectedUser.relationshipStatus}
-                    </p>
-                    {activeCurrentUserId &&
-                    selectedUser.id !== activeCurrentUserId ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          reportNode(selectedUser.id, selectedUser.name)
-                        }
-                        disabled={reportingUserId === selectedUser.id}
-                        className="mt-3 rounded-full border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:text-red-300 dark:hover:bg-red-950/30"
-                      >
-                        {reportingUserId === selectedUser.id
-                          ? "Reporting..."
-                          : "Report node"}
-                      </button>
-                    ) : null}
-
-                    <div className="mt-5 space-y-2">
-                      <h4 className="text-sm font-semibold uppercase tracking-wide">
-                        {selectedUser.id === activeCurrentUserId
-                          ? "Your Direct Connections"
-                          : `${selectedUser.name}'s Public Connections`}
-                      </h4>
-                      {selectedUser.id !== activeCurrentUserId ? (
-                        <p className="text-xs text-black/65 dark:text-white/70">
-                          You are viewing this member&apos;s visible public
-                          connections.
-                        </p>
-                      ) : null}
-                      {isConnecting ? (
-                        <p className="text-xs text-black/65 dark:text-white/70">
-                          Saving new connection...
-                        </p>
-                      ) : null}
-                      {selectedConnections.length === 0 ? (
-                        <p className="text-xs text-black/65 dark:text-white/70">
-                          {selectedUser.id === activeCurrentUserId
-                            ? "You do not have any public direct connections yet."
-                            : `${selectedUser.name} does not have any visible public direct connections.`}
-                        </p>
-                      ) : null}
-                      {selectedConnections.map((item) => {
-                        const targetId =
-                          item.source === selectedUser.id
-                            ? item.target
-                            : item.source;
-                        const target = users.find(
-                          (user) => user.id === targetId,
-                        );
-                        const parsed = parseRelationshipNote(item.note);
-                        const canEdit = Boolean(
-                          activeCurrentUserId &&
-                          selectedUser.id === activeCurrentUserId &&
-                          parsed.status === "active" &&
-                          (item.source === activeCurrentUserId ||
-                            item.target === activeCurrentUserId),
-                        );
-                        const isEditing = editingRelationshipId === item.id;
-
-                        return (
-                          <div
-                            key={item.id}
-                            className="rounded-xl border border-[var(--border-soft)] p-3"
-                          >
-                            <p className="font-semibold">{target?.name}</p>
-                            {isEditing ? (
-                              <>
-                                <select
-                                  value={editingType}
-                                  onChange={(event) =>
-                                    setEditingType(
-                                      event.target.value as RelationshipType,
-                                    )
-                                  }
-                                  className="mt-1 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs uppercase tracking-wide outline-none"
-                                >
-                                  {(
-                                    Object.keys(
-                                      relationColors,
-                                    ) as RelationshipType[]
-                                  ).map((type) => (
-                                    <option key={type} value={type}>
-                                      {type}
-                                    </option>
-                                  ))}
-                                </select>
-                                <textarea
-                                  value={editingNote}
-                                  onChange={(event) =>
-                                    setEditingNote(event.target.value)
-                                  }
-                                  rows={2}
-                                  className="mt-2 w-full rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-xs outline-none"
-                                  placeholder="Add a note"
-                                />
-                                <div className="mt-2 flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      saveRelationshipEdit(item.id)
-                                    }
-                                    disabled={isSavingEdit || isDeletingEdit}
-                                    className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                                  >
-                                    {isSavingEdit ? "Saving..." : "Save"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      deleteRelationshipEdit(item.id)
-                                    }
-                                    disabled={isSavingEdit || isDeletingEdit}
-                                    className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-600 disabled:opacity-70 dark:text-red-300"
-                                  >
-                                    {isDeletingEdit ? "Deleting..." : "Delete"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={cancelEditing}
-                                    disabled={isSavingEdit || isDeletingEdit}
-                                    className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-xs uppercase tracking-wide text-[var(--accent)]">
-                                  {item.type}
-                                </p>
-                                <p className="mt-1 text-xs text-black/65 dark:text-white/75">
-                                  {parsed.note}
-                                </p>
-                                {parsed.status === "pending_claim" ||
-                                parsed.status ===
-                                  "pending_creator_confirmation" ? (
-                                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                                    Pending verification
-                                  </p>
-                                ) : null}
-                                {parsed.status === "expired" ? (
-                                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                    Claim expired
-                                  </p>
-                                ) : null}
-                                {parsed.status === "rejected" ? (
-                                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
-                                    Claim rejected
-                                  </p>
-                                ) : null}
-                                {parsed.status === "disputed" ? (
-                                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
-                                    Claim disputed
-                                  </p>
-                                ) : null}
-                                {canEdit ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => startEditing(item)}
-                                    className="mt-2 rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold"
-                                  >
-                                    Edit connection
-                                  </button>
-                                ) : null}
-                                {activeCurrentUserId ? (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {item.source === activeCurrentUserId ||
-                                    item.target === activeCurrentUserId ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          deleteRelationshipEdit(item.id)
-                                        }
-                                        disabled={
-                                          isDeletingEdit || isSavingEdit
-                                        }
-                                        className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-60 dark:text-red-300"
-                                      >
-                                        {isDeletingEdit
-                                          ? "Removing..."
-                                          : "Remove connection"}
-                                      </button>
-                                    ) : null}
-                                    <Link
-                                      href={`/report?link=${encodeURIComponent(`/map?connectionId=${item.id}`)}&reason=${encodeURIComponent("Please review this connection.")}`}
-                                      className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
-                                    >
-                                      Report connection
-                                    </Link>
-                                  </div>
-                                ) : null}
-                                {parsed.status === "active" &&
-                                activeCurrentUserId ? (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    <span className="rounded-full bg-green-100 px-3 py-1 text-[11px] font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                      Confirmed in network
-                                    </span>
-                                  </div>
-                                ) : null}
-                                {activeCurrentUserId &&
-                                (parsed.status === "pending_claim" ||
-                                  parsed.status ===
-                                    "pending_creator_confirmation") ? (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {selectedUser.id === activeCurrentUserId &&
-                                    parsed.status === "pending_claim" &&
-                                    parsed.claimedByUserId ===
-                                      activeCurrentUserId ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          respondToConnection(
-                                            item.id,
-                                            "approve",
-                                          )
-                                        }
-                                        disabled={isRespondingId === item.id}
-                                        className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                                      >
-                                        Verify claim
-                                      </button>
-                                    ) : null}
-                                    {selectedUser.id === activeCurrentUserId &&
-                                    parsed.status ===
-                                      "pending_creator_confirmation" &&
-                                    parsed.creatorId === activeCurrentUserId ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          respondToConnection(
-                                            item.id,
-                                            "confirmCreator",
-                                          )
-                                        }
-                                        disabled={isRespondingId === item.id}
-                                        className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-70"
-                                      >
-                                        Confirm &amp; make public
-                                      </button>
-                                    ) : null}
-                                    {selectedUser.id === activeCurrentUserId &&
-                                    parsed.status ===
-                                      "pending_creator_confirmation" &&
-                                    parsed.claimedByUserId ===
-                                      activeCurrentUserId ? (
-                                      <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-black/60 dark:text-white/60">
-                                        Waiting for creator to confirm
-                                      </span>
-                                    ) : null}
-                                    {selectedUser.id === activeCurrentUserId &&
-                                    ((parsed.status === "pending_claim" &&
-                                      (parsed.claimedByUserId ===
-                                        activeCurrentUserId ||
-                                        parsed.creatorId ===
-                                          activeCurrentUserId)) ||
-                                      (parsed.status ===
-                                        "pending_creator_confirmation" &&
-                                        parsed.creatorId ===
-                                          activeCurrentUserId)) ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          respondToConnection(item.id, "reject")
-                                        }
-                                        disabled={isRespondingId === item.id}
-                                        className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs font-semibold disabled:opacity-70"
-                                      >
-                                        Reject
-                                      </button>
-                                    ) : null}
-                                    {selectedUser.id === activeCurrentUserId ? (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          disputeConnection(item.id)
-                                        }
-                                        disabled={isRespondingId === item.id}
-                                        className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-700 disabled:opacity-70 dark:text-red-300"
-                                      >
-                                        Report / Dispute
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                                {selectedUser.id === activeCurrentUserId &&
-                                parsed.status === "pending_claim" &&
-                                parsed.claimedByUserId ===
-                                  activeCurrentUserId ? (
-                                  <p className="mt-2 text-[11px] text-black/70 dark:text-white/75">
-                                    Verifying keeps it private until the creator
-                                    confirms.
-                                  </p>
-                                ) : null}
-                                {selectedUser.id === activeCurrentUserId &&
-                                parsed.status ===
-                                  "pending_creator_confirmation" &&
-                                parsed.creatorId === activeCurrentUserId ? (
-                                  <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                                    Confirming makes this connection public.
-                                    Reject keeps it hidden.
-                                  </p>
-                                ) : null}
-                              </>
-                            )}
                           </div>
                         );
                       })}
