@@ -138,6 +138,8 @@ interface PublicConnectCandidate {
   relationshipType: RelationshipType;
 }
 
+type WorkflowTab = "add" | "connect" | "pending";
+
 export function PrivateChart({
   initialPlaceholders,
   baseUrl,
@@ -403,6 +405,12 @@ export function PrivateChart({
   const [addNote, setAddNote] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [addHint, setAddHint] = useState<string | null>(null);
+  const [addSuccessMessage, setAddSuccessMessage] = useState<string | null>(
+    null,
+  );
+  const [activeWorkflowTab, setActiveWorkflowTab] = useState<WorkflowTab>(() =>
+    initialPlaceholders.length === 0 ? "add" : "connect",
+  );
   const [publicConnectCandidates, setPublicConnectCandidates] = useState<
     Record<string, PublicConnectCandidate>
   >({});
@@ -756,6 +764,7 @@ export function PrivateChart({
     setIsAdding(true);
     setAddError(null);
     setAddHint(null);
+    setAddSuccessMessage(null);
 
     try {
       const res = await authFetch("/api/private-connections", {
@@ -809,6 +818,7 @@ export function PrivateChart({
       setAddEmail("");
       setAddPhoneNumber("");
       setAddNote("");
+      setAddSuccessMessage("Added privately. Send an invite when you’re ready.");
     } catch {
       setAddError("Could not add that connection right now.");
     } finally {
@@ -1603,8 +1613,559 @@ export function PrivateChart({
         </div>
       </div>
 
+      <section id="add-connection-panel" className="paper-card rounded-2xl p-4 sm:p-5">
+        <div className="flex flex-col gap-3 border-b border-[var(--border-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Build your private chart</h2>
+            <p className="mt-1 text-xs text-black/60 dark:text-white/60">
+              Private until both people verify.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06]">
+            {[
+              { id: "add" as const, label: "Add Person" },
+              { id: "connect" as const, label: "Connect People" },
+              { id: "pending" as const, label: "Pending / Private Nodes" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveWorkflowTab(tab.id)}
+                className={`rounded-lg px-2.5 py-2 text-xs font-semibold transition sm:px-3 ${
+                  activeWorkflowTab === tab.id
+                    ? "bg-[var(--accent)] text-white"
+                    : "text-black/65 hover:bg-black/5 dark:text-white/68 dark:hover:bg-white/10"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeWorkflowTab === "add" ? (
+          <div className="pt-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider">
+              Add someone to your chart
+            </h3>
+            <p className="mt-1 text-xs text-black/65 dark:text-white/65">
+              Start private. They only become public after invite + verification.
+            </p>
+            <form className="mt-4 space-y-3" onSubmit={handleAdd}>
+              <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                    Name
+                  </span>
+                  <input
+                    type="text"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    placeholder="Who are you adding?"
+                    maxLength={80}
+                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                    disabled={isAdding}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                    Relationship type
+                  </span>
+                  <select
+                    value={addType}
+                    onChange={(e) => setAddType(e.target.value as RelationshipType)}
+                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                    disabled={isAdding}
+                  >
+                    {ALL_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 dark:bg-white/[0.04]">
+                <summary className="cursor-pointer text-xs font-semibold text-black/65 dark:text-white/68">
+                  Optional details
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <input
+                      type="email"
+                      value={addEmail}
+                      onChange={(e) => setAddEmail(e.target.value)}
+                      placeholder="Email"
+                      maxLength={200}
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                      disabled={isAdding}
+                    />
+                    <input
+                      type="text"
+                      value={addPhoneNumber}
+                      onChange={(e) => setAddPhoneNumber(e.target.value)}
+                      placeholder="Phone"
+                      maxLength={40}
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                      disabled={isAdding}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={addNote}
+                    onChange={(e) => setAddNote(e.target.value)}
+                    placeholder="Note"
+                    maxLength={500}
+                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                    disabled={isAdding}
+                  />
+                  <label className="flex items-start gap-2 text-xs text-black/70 dark:text-white/75">
+                    <input
+                      type="checkbox"
+                      checked={addOfferToNameMatch}
+                      onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
+                      className="mt-0.5 h-4 w-4"
+                      disabled={isAdding}
+                    />
+                    <span>Offer as a claim suggestion to matching signups.</span>
+                  </label>
+                </div>
+              </details>
+
+              {addError ? (
+                <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
+              ) : null}
+              {addHint ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  {addHint}
+                </p>
+              ) : null}
+              {addSuccessMessage ? (
+                <p className="rounded-lg border border-green-600/20 bg-green-600/10 px-3 py-2 text-xs font-semibold text-green-700 dark:text-green-300">
+                  {addSuccessMessage}
+                </p>
+              ) : null}
+              <button
+                type="submit"
+                disabled={isAdding || !addName.trim()}
+                className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60 sm:w-auto sm:px-5"
+              >
+                {isAdding ? "Adding..." : "Add to private chart"}
+              </button>
+            </form>
+          </div>
+        ) : null}
+
+        {activeWorkflowTab === "connect" ? (
+          <div className="pt-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider">
+              Connect people in your private chart
+            </h3>
+            <p className="mt-1 text-xs text-black/65 dark:text-white/65">
+              Map relationships between people you’ve added. These stay private unless verified.
+            </p>
+            {webNodeOptions.length < 2 ? (
+              <div className="mt-4 rounded-xl border border-dashed border-[var(--border-soft)] px-4 py-6 text-center">
+                <p className="text-sm font-semibold">Add two people first</p>
+                <p className="mt-1 text-xs text-black/60 dark:text-white/62">
+                  Once there are two nodes, you can connect them here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveWorkflowTab("add")}
+                  className="mt-3 rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  Add Person
+                </button>
+              </div>
+            ) : (
+              <form className="mt-4 space-y-3" onSubmit={handleCreateAnyWebEdge}>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                      Person A
+                    </span>
+                    <select
+                      value={sourceNodeKey}
+                      onChange={(e) => setSourceNodeKey(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                      disabled={isSavingAnyWebEdge}
+                    >
+                      {webNodeOptions.map((node) => (
+                        <option key={`src-guided-${node.key}`} value={node.key}>
+                          {node.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                      Person B
+                    </span>
+                    <select
+                      value={targetNodeKey}
+                      onChange={(e) => setTargetNodeKey(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
+                      disabled={isSavingAnyWebEdge}
+                    >
+                      {webNodeOptions.map((node) => (
+                        <option key={`tgt-guided-${node.key}`} value={node.key}>
+                          {node.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                    Relationship type
+                  </span>
+                  <select
+                    value={webRelationshipType}
+                    onChange={(e) =>
+                      setWebRelationshipType(e.target.value as RelationshipType)
+                    }
+                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none md:max-w-xs"
+                    disabled={isSavingAnyWebEdge}
+                  >
+                    {ALL_TYPES.map((t) => (
+                      <option key={`guided-web-${t}`} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 dark:bg-white/[0.04]">
+                  <summary className="cursor-pointer text-xs font-semibold text-black/65 dark:text-white/68">
+                    Optional note
+                  </summary>
+                  <input
+                    type="text"
+                    value={webNote}
+                    onChange={(e) => setWebNote(e.target.value)}
+                    maxLength={500}
+                    placeholder="Add context"
+                    className="mt-3 w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                    disabled={isSavingAnyWebEdge}
+                  />
+                </details>
+                <button
+                  type="submit"
+                  disabled={
+                    isSavingAnyWebEdge ||
+                    !sourceNodeKey ||
+                    !targetNodeKey ||
+                    sourceNodeKey === targetNodeKey
+                  }
+                  className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60 sm:w-auto sm:px-5"
+                >
+                  {isSavingAnyWebEdge ? "Creating..." : "Create private connection"}
+                </button>
+              </form>
+            )}
+          </div>
+        ) : null}
+
+        {activeWorkflowTab === "pending" ? (
+          <div className="space-y-3 pt-4">
+            <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
+              <summary className="cursor-pointer text-sm font-semibold">
+                Private connections ({combinedWebEdges.length})
+              </summary>
+              {combinedWebEdges.length === 0 ? (
+                <p className="mt-3 text-xs text-black/60 dark:text-white/62">
+                  No private people-to-people connections yet.
+                </p>
+              ) : (
+                <div className="mt-3 grid gap-2">
+                  {combinedWebEdges.map((edge) => (
+                    <div
+                      key={`guided-${edge.id}`}
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border-soft)] bg-white/45 px-3 py-2 text-xs dark:bg-black/20"
+                    >
+                      <span className="font-semibold">
+                        {edge.sourceName} ↔ {edge.targetName}
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        style={{
+                          backgroundColor: `${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}22`,
+                          color: TYPE_COLORS[edge.relationshipType] ?? "#9ca3af",
+                          border: `1px solid ${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}44`,
+                        }}
+                      >
+                        {edge.relationshipType}
+                      </span>
+                      <span className="text-[11px] text-black/55 dark:text-white/55">
+                        Private connection
+                      </span>
+                      <details className="ml-auto">
+                        <summary className="cursor-pointer rounded-full border border-[var(--border-soft)] px-2 py-0.5 text-[11px] font-semibold text-black/60 dark:text-white/60">
+                          Actions
+                        </summary>
+                        <div className="absolute z-20 mt-1 rounded-lg border border-[var(--border-soft)] bg-[var(--card)] p-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAnyWebEdge(edge)}
+                            disabled={deletingAnyWebEdgeId === edge.id}
+                            className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
+                          >
+                            {deletingAnyWebEdgeId === edge.id ? "Removing..." : "Remove"}
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </details>
+
+            <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
+              <summary className="cursor-pointer text-sm font-semibold">
+                Waiting for signup ({placeholders.length})
+              </summary>
+              {placeholders.length === 0 ? (
+                <p className="mt-3 text-xs text-black/60 dark:text-white/62">
+                  Added people will appear here until they verify.
+                </p>
+              ) : (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {placeholders.map((p) => {
+                    const color = TYPE_COLORS[p.relationshipType] ?? "#888";
+                    const isWorking = workingId === p.id;
+                    const isEditing = editingId === p.id;
+                    const isCopied = copiedId === p.id;
+                    const inviteLink = p.inviteToken
+                      ? `${baseUrl}/invite/${p.inviteToken}`
+                      : null;
+                    const isOwned =
+                      currentUserId !== null && p.ownerId === currentUserId;
+                    const publicConnectCandidate =
+                      publicConnectCandidates[p.id] ?? null;
+                    const isPublicConnecting =
+                      publicConnectingPlaceholderId === p.id;
+                    const isReporting = reportingId === p.id;
+
+                    return (
+                      <div
+                        key={`guided-placeholder-${p.id}`}
+                        className="rounded-xl border border-white/10 bg-[#0f0819] p-3 text-white"
+                        style={{ boxShadow: `0 0 0 1px ${color}18 inset` }}
+                      >
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              maxLength={80}
+                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-sm text-white outline-none placeholder:text-white/30"
+                            />
+                            <select
+                              value={editType}
+                              onChange={(e) =>
+                                setEditType(e.target.value as RelationshipType)
+                              }
+                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none"
+                            >
+                              {ALL_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="email"
+                              value={editEmail}
+                              onChange={(e) => setEditEmail(e.target.value)}
+                              maxLength={200}
+                              placeholder="Email"
+                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                            />
+                            <input
+                              type="text"
+                              value={editPhoneNumber}
+                              onChange={(e) => setEditPhoneNumber(e.target.value)}
+                              maxLength={40}
+                              placeholder="Phone"
+                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                            />
+                            <input
+                              type="text"
+                              value={editNote}
+                              onChange={(e) => setEditNote(e.target.value)}
+                              maxLength={500}
+                              placeholder="Note"
+                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
+                            />
+                            <label className="flex items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[11px] text-white/80">
+                              <input
+                                type="checkbox"
+                                checked={editOfferToNameMatch}
+                                onChange={(e) =>
+                                  setEditOfferToNameMatch(e.target.checked)
+                                }
+                                className="mt-0.5 h-3.5 w-3.5"
+                              />
+                              <span>Claim suggestions on</span>
+                            </label>
+                            {editError ? (
+                              <p className="text-xs text-red-400">{editError}</p>
+                            ) : null}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEdit(p.id)}
+                                disabled={isSaving}
+                                className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                              >
+                                {isSaving ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId(null)}
+                                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold">
+                                  {p.name}
+                                </p>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                  <span
+                                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                    style={{
+                                      backgroundColor: `${color}24`,
+                                      color,
+                                      border: `1px solid ${color}44`,
+                                    }}
+                                  >
+                                    {p.relationshipType}
+                                  </span>
+                                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
+                                    Claim suggestions: {p.offerToNameMatch ? "On" : "Off"}
+                                  </span>
+                                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
+                                    Status: Waiting for signup
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {inviteLink ? (
+                              <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                <p className="min-w-0 flex-1 truncate text-[10px] text-white/42">
+                                  {inviteLink}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => copyInviteLink(p)}
+                                  className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
+                                >
+                                  {isCopied ? "Copied!" : "Copy"}
+                                </button>
+                              </div>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              {isOwned &&
+                              p.claimStatus !== "claimed" &&
+                              p.claimStatus !== "denied" &&
+                              !p.inviteToken ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateInvite(p.id)}
+                                  disabled={isWorking}
+                                  className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                                >
+                                  Generate invite
+                                </button>
+                              ) : null}
+                              {publicConnectCandidate &&
+                              p.claimStatus !== "claimed" &&
+                              p.claimStatus !== "denied" ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleConnectPublicly(publicConnectCandidate)
+                                  }
+                                  disabled={
+                                    isWorking ||
+                                    isPublicConnecting ||
+                                    !currentUserId
+                                  }
+                                  className="rounded-full border border-[var(--accent)]/40 px-3 py-1 text-[11px] font-semibold text-[var(--accent)] disabled:opacity-60"
+                                >
+                                  {isPublicConnecting ? "Sending..." : "Connect publicly"}
+                                </button>
+                              ) : null}
+                              <details>
+                                <summary className="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/58">
+                                  More
+                                </summary>
+                                <div className="absolute z-20 mt-1 rounded-lg border border-white/10 bg-[#160d28] p-1 shadow-lg">
+                                  {isOwned ? (
+                                    <>
+                                      {p.inviteToken &&
+                                      p.claimStatus !== "claimed" &&
+                                      p.claimStatus !== "denied" ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRevokeInvite(p.id)}
+                                          disabled={isWorking}
+                                          className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-white/70 hover:bg-white/10 disabled:opacity-60"
+                                        >
+                                          Revoke link
+                                        </button>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        onClick={() => startEdit(p)}
+                                        disabled={isWorking}
+                                        className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-white/70 hover:bg-white/10 disabled:opacity-60"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(p.id)}
+                                        disabled={isWorking}
+                                        className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+                                      >
+                                        {isWorking ? "Removing..." : "Remove"}
+                                      </button>
+                                    </>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReport(p)}
+                                    disabled={isReporting}
+                                    className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-amber-300 hover:bg-amber-500/10 disabled:opacity-60"
+                                  >
+                                    {isReporting ? "Reporting..." : "Report"}
+                                  </button>
+                                </div>
+                              </details>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </details>
+          </div>
+        ) : null}
+      </section>
+
       {/* Add-connection form */}
-      <div id="add-connection-panel" className="paper-card rounded-2xl p-5">
+      <div id="legacy-add-connection-panel" className="hidden">
         <h3 className="text-sm font-bold uppercase tracking-wider">
           Add your first connection
         </h3>
@@ -1830,7 +2391,8 @@ export function PrivateChart({
         </p>
       ) : null}
 
-      {/* Placeholder cards grid */}
+      {/* Legacy placeholder cards grid */}
+      <div className="hidden">
       {placeholders.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 p-10 text-center"
@@ -2169,6 +2731,7 @@ export function PrivateChart({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
