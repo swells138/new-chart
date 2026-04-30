@@ -10,6 +10,18 @@ const hasClerkKeys =
   );
 
 const AGE_COOKIE_NAME = "age_verified";
+const HIDDEN_ROUTES = new Set(["/feed", "/members"]);
+
+function handleHiddenRoutes(request: NextRequest) {
+  if (!HIDDEN_ROUTES.has(request.nextUrl.pathname)) {
+    return null;
+  }
+
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = "/map";
+  redirectUrl.search = "";
+  return NextResponse.redirect(redirectUrl);
+}
 
 function shouldBypassAgeGate(pathname: string) {
   return (
@@ -41,6 +53,11 @@ function handleAgeGate(request: NextRequest) {
 }
 
 const proxyWithAuth = clerkMiddleware((_, request) => {
+  const hiddenRouteResponse = handleHiddenRoutes(request);
+  if (hiddenRouteResponse) {
+    return hiddenRouteResponse;
+  }
+
   const ageGateResponse = handleAgeGate(request);
   if (ageGateResponse) {
     return ageGateResponse;
@@ -52,6 +69,11 @@ const proxyWithAuth = clerkMiddleware((_, request) => {
 export default hasClerkKeys
   ? proxyWithAuth
   : function proxyFallback(request: NextRequest) {
+      const hiddenRouteResponse = handleHiddenRoutes(request);
+      if (hiddenRouteResponse) {
+        return hiddenRouteResponse;
+      }
+
       const ageGateResponse = handleAgeGate(request);
       if (ageGateResponse) {
         return ageGateResponse;
