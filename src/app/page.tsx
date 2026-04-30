@@ -1,14 +1,6 @@
-import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { MemberCard } from "@/components/cards/member-card";
-import { SectionHeader } from "@/components/ui/section-header";
 import { DemoGraph } from "@/components/home/demo-graph";
 import { GuestChartBuilder } from "@/components/home/guest-chart-builder";
-import {
-  getApprovedConnectionUserIds,
-  getAllRelationships,
-  getAllUsers,
-} from "@/lib/prisma-queries";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -16,17 +8,6 @@ export const dynamic = "force-dynamic";
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
-const connectionLabels: Record<string, string> = {
-  Exes: "are exes",
-  Married: "got married",
-  "Sneaky Link": "are in a sneaky link",
-  Friends: "became friends",
-  Lovers: "are lovers",
-  "One Night Stand": "had a one night stand",
-  complicated: "have a complicated connection",
-  FWB: "are friends with benefits",
-};
 
 const EDGE_LEGEND = [
   { label: "Dating",       color: "#f472b6" },
@@ -51,35 +32,6 @@ export default async function Home() {
     }
   }
 
-  const [users, relationships] = await Promise.all([
-    getAllUsers(),
-    getAllRelationships(),
-  ]);
-
-  const connectedIds = currentUserDbId
-    ? await getApprovedConnectionUserIds(currentUserDbId)
-    : [];
-  const connectedSet = new Set(connectedIds);
-
-  const membersOrdered = [...users].sort((a, b) => {
-    const aConnected = connectedSet.has(a.id) ? 1 : 0;
-    const bConnected = connectedSet.has(b.id) ? 1 : 0;
-    if (aConnected !== bConnected) return bConnected - aConnected;
-    return Number(b.featured) - Number(a.featured);
-  });
-
-  const relationshipsOrdered = [...relationships].sort((a, b) => {
-    const aConnected =
-      connectedSet.has(a.source) || connectedSet.has(a.target) ? 1 : 0;
-    const bConnected =
-      connectedSet.has(b.source) || connectedSet.has(b.target) ? 1 : 0;
-    if (aConnected !== bConnected) return bConnected - aConnected;
-    return 0;
-  });
-
-  const featuredMembers = membersOrdered.slice(0, 3);
-  const featuredConnections = relationshipsOrdered.slice(0, 3);
-  const userById = new Map(users.map((user) => [user.id, user]));
   const isSignedIn = Boolean(currentUserDbId);
 
   return (
@@ -175,64 +127,6 @@ export default async function Home() {
 
       {/* ─── GUEST CHART BUILDER ──────────────────────────────── */}
       {!isSignedIn ? <GuestChartBuilder /> : null}
-
-      {/* ─── FEATURED MEMBERS ─────────────────────────────────── */}
-      <section className="space-y-4">
-        <SectionHeader
-          title="Featured Members"
-          subtitle="A rotating spotlight from this week's most active profiles."
-        />
-        <div className="grid gap-4 md:grid-cols-3">
-          {featuredMembers.map((member) => (
-            <MemberCard key={member.id} user={member} />
-          ))}
-        </div>
-        <div className="text-center">
-          <Link
-            href="/members"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)] transition hover:underline"
-          >
-            Browse all members →
-          </Link>
-        </div>
-      </section>
-
-      {/* ─── RECENT CONNECTIONS ───────────────────────────────── */}
-      <section className="space-y-4">
-        <SectionHeader
-          title="Latest from the Feed"
-          subtitle="Fresh connection activity from across the network."
-        />
-        {featuredConnections.map((connection) => {
-          const source = userById.get(connection.source);
-          const target = userById.get(connection.target);
-          if (!source || !target) return null;
-
-          return (
-            <article
-              key={connection.id}
-              className="paper-card rounded-2xl p-5 transition hover:-translate-y-0.5"
-            >
-              <p className="text-sm font-semibold">
-                {source.name}{" "}
-                <span className="font-normal text-black/60 dark:text-white/65">&amp;</span>{" "}
-                {target.name}
-              </p>
-              <p className="mt-1 text-sm text-black/70 dark:text-white/80">
-                {connectionLabels[connection.type] ?? "connected"}
-              </p>
-            </article>
-          );
-        })}
-        <div className="text-center">
-          <Link
-            href="/feed"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)] transition hover:underline"
-          >
-            View full feed →
-          </Link>
-        </div>
-      </section>
 
     </div>
   );
