@@ -2127,10 +2127,9 @@ export function RelationshipMap({
                     Select a node to preview member details.
                   </p>
                 )}
-              </div>
+              </details>
             ) : null}
-          </aside>
-          ) : null}
+          </section>
         </div>
       ) : null}
     </div>

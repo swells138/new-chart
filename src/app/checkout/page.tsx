@@ -19,7 +19,7 @@ export default async function CheckoutPage() {
 
   const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.product_ID;
 
-  let priceData = {
+  const priceData = {
     id: priceId,
     display: "Pro",
     amount: null as number | null,
@@ -29,12 +29,19 @@ export default async function CheckoutPage() {
 
   if (priceId) {
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: "2022-11-15" });
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+        apiVersion: "2022-11-15",
+      });
       const price = await stripe.prices.retrieve(priceId as string);
       priceData.amount = (price.unit_amount ?? null) as number | null;
       priceData.currency = price.currency ?? null;
-      priceData.interval = (price.recurring as Stripe.Price.Recurring | null)?.interval ?? null;
-      priceData.display = price.product ? (typeof price.product === "string" ? "Pro" : (price.product as any).name ?? "Pro") : "Pro";
+      priceData.interval =
+        (price.recurring as Stripe.Price.Recurring | null)?.interval ?? null;
+      priceData.display = price.product
+        ? typeof price.product === "string"
+          ? "Pro"
+          : ((price.product as any).name ?? "Pro")
+        : "Pro";
     } catch (e) {
       // ignore - we'll show a simple fallback
       console.warn("Failed to fetch price details", e);
@@ -44,7 +51,9 @@ export default async function CheckoutPage() {
   return (
     <div className="mx-auto max-w-xl p-6">
       <h1 className="text-2xl font-semibold mb-4">Upgrade to Pro</h1>
-      <p className="mb-6">Unlock Pro features and get a prettier profile on the chart.</p>
+      <p className="mb-6">
+        Unlock Pro features and get a prettier profile on the chart.
+      </p>
       <CheckoutClient dbUserId={dbUser.id} priceInfo={priceData} />
     </div>
   );
