@@ -20,7 +20,7 @@ export default async function CheckoutPage() {
   const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.product_ID;
 
   const priceData = {
-    id: priceId,
+    id: priceId ?? null,
     display: "Pro",
     amount: null as number | null,
     currency: null as string | null,
