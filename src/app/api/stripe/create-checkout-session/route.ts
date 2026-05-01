@@ -15,10 +15,13 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:3000";
 
-    const priceId = process.env.STRIPE_PRICE_ID_PRO;
+    const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.product_ID;
     if (!priceId) {
       return NextResponse.json(
-        { error: "Missing STRIPE_PRICE_ID_PRO environment variable" },
+        {
+          error:
+            "Missing STRIPE_PRICE_ID_PRO or product_ID environment variable",
+        },
         { status: 500 },
       );
     }
