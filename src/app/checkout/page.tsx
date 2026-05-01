@@ -29,9 +29,7 @@ export default async function CheckoutPage() {
 
   if (priceId) {
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-        apiVersion: "2022-11-15",
-      });
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
       const price = await stripe.prices.retrieve(priceId as string);
       priceData.amount = (price.unit_amount ?? null) as number | null;
       priceData.currency = price.currency ?? null;
