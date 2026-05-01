@@ -252,10 +252,7 @@ function isVisibleByType(type: string, active: RelationshipType[]) {
 }
 
 function normalizeConnectionSearchValue(value: string | null | undefined) {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/^@+/, "");
+  return (value ?? "").trim().toLowerCase().replace(/^@+/, "");
 }
 
 function getConnectionSearchTokens(user: User) {
@@ -531,7 +528,7 @@ export function RelationshipMap({
     return users.map((user) =>
       user.id === activeCurrentUserId
         ? { ...user, profileImage: clerkImageUrl }
-      : user,
+        : user,
     );
   }, [users, activeCurrentUserId, clerkUser?.imageUrl]);
   const visibleDirectoryUsers = useMemo(
@@ -767,8 +764,7 @@ export function RelationshipMap({
     clientPrivateConnectionCount +
     clientCreatedConnectionCount;
   const nextMilestone =
-    [5, 10, 25].find((milestone) => personalConnectionCount < milestone) ??
-    25;
+    [5, 10, 25].find((milestone) => personalConnectionCount < milestone) ?? 25;
   const previousMilestone =
     nextMilestone === 5 ? 0 : nextMilestone === 10 ? 5 : 10;
   const milestoneLabel =
@@ -1759,7 +1755,10 @@ export function RelationshipMap({
             <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
               🌍 Public = solid lines
             </span>
-            <span>Private shows your full network. Public only shows verified connections.</span>
+            <span>
+              Private shows your full network. Public only shows verified
+              connections.
+            </span>
           </div>
         </div>
       </section>
@@ -1853,7 +1852,9 @@ export function RelationshipMap({
                 onClick={() => setShowSecondaryActions((shown) => !shown)}
                 className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
               >
-                {showSecondaryActions ? "Hide tools" : "Show search and filters"}
+                {showSecondaryActions
+                  ? "Hide tools"
+                  : "Show search and filters"}
               </button>
             </div>
             {showSecondaryActions ? (
@@ -1976,7 +1977,9 @@ export function RelationshipMap({
               >
                 <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide">
                   Pending Verification
-                  {pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ""}
+                  {pendingRequests.length > 0
+                    ? ` (${pendingRequests.length})`
+                    : ""}
                 </summary>
                 {pendingRequests.length === 0 ? (
                   <p className="mt-2 text-xs text-black/65 dark:text-white/70">
@@ -2122,10 +2125,6 @@ export function RelationshipMap({
                       })}
                     </div>
                   </>
-                ) : (
-                  <p className="text-sm">
-                    Select a node to preview member details.
-                  </p>
                 )}
               </details>
             ) : null}
