@@ -3,9 +3,7 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 
 // Install stripe package: npm install stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2022-11-15",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 // IMPORTANT: set STRIPE_WEBHOOK_SECRET in Vercel to your webhook signing secret
 export async function POST(req: Request) {
