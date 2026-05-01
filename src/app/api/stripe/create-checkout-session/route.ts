@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-// Make sure you've installed the Stripe package: npm install stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
-
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -13,16 +10,47 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "http://localhost:3000";
 
-    const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.Product_ID;
+    // Validate secret key presence before constructing Stripe client
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    if (!secretKey) {
+      console.error("Missing STRIPE_SECRET_KEY environment variable");
+      return NextResponse.json(
+        { error: "Missing STRIPE_SECRET_KEY environment variable" },
+        { status: 500 },
+      );
+    }
+
+    // Support multiple env var names for the price id (backwards compatibility)
+    const priceId =
+      process.env.STRIPE_PRICE_ID_PRO ||
+      process.env.STRIPE_PRICE_ID ||
+      process.env.NEXT_PUBLIC_STRIPE_PRICE_ID ||
+      process.env.Product_ID;
+
     if (!priceId) {
+      console.error(
+        "Missing Stripe price id. Ensure STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID (or Product_ID) is set.",
+        {
+          STRIPE_PRICE_ID_PRO: !!process.env.STRIPE_PRICE_ID_PRO,
+          STRIPE_PRICE_ID: !!process.env.STRIPE_PRICE_ID,
+          NEXT_PUBLIC_STRIPE_PRICE_ID:
+            !!process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
+          Product_ID: !!process.env.Product_ID,
+        },
+      );
+
       return NextResponse.json(
         {
           error:
-            "Missing STRIPE_PRICE_ID_PRO or product_ID environment variable",
+            "Missing STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID (or Product_ID) environment variable",
         },
         { status: 500 },
       );
     }
+
+    // Create Stripe client after validating secret
+    // Instantiate Stripe without specifying apiVersion so it uses the SDK's default
+    const stripe = new Stripe(secretKey);
 
     // Allow the client to pass the local DB user id so it can be associated with the checkout session.
     const dbUserId = typeof body.userId === "string" ? body.userId : undefined;
