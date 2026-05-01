@@ -17,7 +17,7 @@ export default async function CheckoutPage() {
   // Ensure DB user exists and get their id
   const dbUser = await ensureDbUserByClerkId(userId, "New member");
 
-  const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.product_ID;
+  const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.Product_ID;
 
   const priceData = {
     id: priceId ?? null,
