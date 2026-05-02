@@ -47,12 +47,10 @@ export default async function CheckoutPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl p-6">
-      <h1 className="text-2xl font-semibold mb-4">Upgrade to Pro</h1>
-      <p className="mb-6">
-        Unlock Pro features and get a prettier profile on the chart.
-      </p>
-      <CheckoutClient dbUserId={dbUser.id} priceInfo={priceData} />
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-[#06040a] to-[#0f0819] p-6">
+      <div className="w-full max-w-md rounded-2xl border border-white/8 bg-white/4 backdrop-blur-lg p-8 shadow-[0_18px_40px_rgba(0,0,0,0.6)]">
+        <CheckoutClient dbUserId={dbUser.id} priceInfo={priceData} />
+      </div>
     </div>
   );
 }
