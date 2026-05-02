@@ -432,6 +432,10 @@ export function RelationshipMap({
   const [selectedId, setSelectedId] = useState<string | null>(
     users[0]?.id ?? null,
   );
+  // When a user dismisses the unlock modal with "Not now" we store the
+  // dismissed user id so the auto-select effect doesn't immediately re-open
+  // the same profile. Cleared when the user explicitly selects a node.
+  const [dismissedUserId, setDismissedUserId] = useState<string | null>(null);
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionQuery, setConnectionQuery] = useState<string>("");
   const [connectionType, setConnectionType] =
@@ -920,8 +924,12 @@ export function RelationshipMap({
       (activeCurrentUserId &&
         displayedUsers.find((user) => user.id === activeCurrentUserId)?.id) ??
       displayedUsers[0].id;
+    // If the defaultSelected matches a recently dismissed id, don't auto-select
+    if (dismissedUserId && defaultSelected === dismissedUserId) {
+      return;
+    }
     setSelectedId(defaultSelected);
-  }, [displayedUsers, selectedId, activeCurrentUserId]);
+  }, [displayedUsers, selectedId, activeCurrentUserId, dismissedUserId]);
 
   const displayedUserIds = useMemo(
     () => new Set(displayedUsers.map((user) => user.id)),
@@ -1943,7 +1951,11 @@ export function RelationshipMap({
                 edges={edges}
                 nodeTypes={nodeTypes}
                 fitView={chartLayer === "public"}
-                onNodeClick={(_, node) => setSelectedId(node.id)}
+                onNodeClick={(_, node) => {
+                  // Clear any dismissed id when the user explicitly picks a node
+                  setDismissedUserId(null);
+                  setSelectedId(node.id);
+                }}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -2018,7 +2030,12 @@ export function RelationshipMap({
 
                       <button
                         type="button"
-                        onClick={() => setSelectedId(null)}
+                        onClick={() => {
+                          // Remember the dismissed id so the auto-select logic
+                          // won't immediately re-open this same profile.
+                          setDismissedUserId(selectedId);
+                          setSelectedId(null);
+                        }}
                         className="rounded-lg px-4 py-3 text-sm font-semibold text-white/80 border border-white/10 hover:bg-white/3"
                       >
                         Not now
