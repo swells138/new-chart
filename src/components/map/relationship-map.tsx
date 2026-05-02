@@ -1614,6 +1614,50 @@ export function RelationshipMap({
     (item) => item.source === selectedId || item.target === selectedId,
   );
 
+  // Compute whether the selected user is directly connected to the active user
+  const isDirectlyConnected = useMemo(() => {
+    if (!activeCurrentUserId || !selectedId) return false;
+    return approvedRelationships.some(
+      (r) =>
+        (r.source === activeCurrentUserId && r.target === selectedId) ||
+        (r.target === activeCurrentUserId && r.source === selectedId),
+    );
+  }, [approvedRelationships, activeCurrentUserId, selectedId]);
+
+  // Compute degree of separation (shortest path length in number of edges) using BFS
+  // Returns null when no path exists or when insufficient inputs
+  const selectedDegree = useMemo(() => {
+    if (!activeCurrentUserId || !selectedId) return null;
+    if (activeCurrentUserId === selectedId) return 0;
+
+    const adj = new Map<string, Set<string>>();
+    approvedRelationships.forEach((r) => {
+      if (!adj.has(r.source)) adj.set(r.source, new Set());
+      if (!adj.has(r.target)) adj.set(r.target, new Set());
+      adj.get(r.source)!.add(r.target);
+      adj.get(r.target)!.add(r.source);
+    });
+
+    const visited = new Set<string>();
+    const queue: Array<{ id: string; dist: number }> = [
+      { id: activeCurrentUserId, dist: 0 },
+    ];
+    visited.add(activeCurrentUserId);
+
+    while (queue.length > 0) {
+      const { id, dist } = queue.shift()!;
+      const neighbors = adj.get(id) ?? new Set();
+      for (const n of neighbors) {
+        if (visited.has(n)) continue;
+        if (n === selectedId) return dist + 1;
+        visited.add(n);
+        queue.push({ id: n, dist: dist + 1 });
+      }
+    }
+
+    return null;
+  }, [approvedRelationships, activeCurrentUserId, selectedId]);
+
   // Unlock overlay visibility state for subtle fade+scale animation
   const [unlockOverlayVisible, setUnlockOverlayVisible] = useState(false);
 
@@ -1648,6 +1692,23 @@ export function RelationshipMap({
   }, [allRelationships, activeCurrentUserId]);
 
   function scrollToAddConnection() {
+    // Require a signed-in DB user before revealing the private add form.
+    if (!activeCurrentUserId) {
+      // If the browser session is signed in but the DB record is still syncing,
+      // surface a helpful message instead of navigating away.
+      if (needsAccountSync) {
+        setConnectionError(
+          "Finishing your account setup. Please reload in a moment.",
+        );
+        return;
+      }
+
+      // Not signed in: send user to signup flow.
+      router.push("/signup");
+      return;
+    }
+
+    // User is signed in and has a DB record: show the private chart and scroll to the add panel.
     setChartLayer("private");
     setShowSecondaryActions(true);
     if (typeof window !== "undefined") {
@@ -1974,75 +2035,139 @@ export function RelationshipMap({
                   {/* Dark backdrop */}
                   <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-200" />
 
-                  {/* Blurred preview of hidden info (behind modal) */}
-                  <div className="absolute z-35 w-full max-w-md -translate-y-20 rounded-xl p-4 text-sm text-white/80">
-                    <div className="rounded-lg bg-white/6 p-3 text-white/60 filter blur-sm">
-                      <p className="mb-2 text-xs font-semibold">Preview</p>
-                      <div className="space-y-1">
-                        {selectedConnections.slice(0, 4).map((c) => {
-                          const otherId =
-                            c.source === selectedId ? c.target : c.source;
-                          const other = users.find((u) => u.id === otherId);
-                          return (
-                            <div key={c.id} className="flex items-center gap-2">
-                              <span className="h-2.5 w-2.5 rounded-full bg-white/60" />
-                              <span className="truncate text-xs">
-                                {other?.name ?? "Member"}
-                              </span>
-                              <span className="ml-auto text-[11px] text-white/40">
-                                {c.type}
-                              </span>
-                            </div>
-                          );
-                        })}
+                  {/* If we're showing a teaser for a non-direct connection, do NOT reveal any path info.
+                      Hide the blurred preview and only surface a small teaser showing degree of separation. */}
+                  {selectedUser &&
+                  activeCurrentUserId &&
+                  !isDirectlyConnected ? (
+                    // CONNECTION PATH TEASER (no path details revealed)
+                    <>
+                      {/* Centered modal with fade+scale */}
+                      <div
+                        className={`relative z-40 w-full max-w-md rounded-2xl bg-[#0f0819]/95 border border-white/8 p-6 text-white shadow-2xl transform transition-all duration-180 ease-out ${
+                          unlockOverlayVisible
+                            ? "opacity-100 scale-100"
+                            : "opacity-0 scale-95"
+                        }`}
+                        role="dialog"
+                        aria-modal="true"
+                      >
+                        <p className="text-lg font-semibold truncate">
+                          {selectedDegree !== null
+                            ? `You're ${selectedDegree} connection${selectedDegree === 1 ? "" : "s"} away from ${selectedUser.name}`
+                            : `You're not connected to ${selectedUser.name}`}
+                        </p>
+
+                        <p className="mt-2 text-sm text-white/70">
+                          See exactly how you're connected
+                        </p>
+
+                        <p className="mt-2 text-[11px] text-white/70">
+                          Includes full path, mutual connections, and
+                          relationship context
+                        </p>
+
+                        <div className="mt-5 flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => router.push("/checkout")}
+                            className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
+                          >
+                            Unlock the path with Pro
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Remember the dismissed id so the auto-select logic
+                              // won't immediately re-open this same profile.
+                              setDismissedUserId(selectedId);
+                              setSelectedId(null);
+                            }}
+                            className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
+                          >
+                            Not now
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    </>
+                  ) : (
+                    // FALLBACK: keep the existing blurred preview + modal for other cases
+                    <>
+                      {/* Blurred preview of hidden info (behind modal) */}
+                      <div className="absolute z-35 w-full max-w-md -translate-y-20 rounded-xl p-4 text-sm text-white/80">
+                        <div className="rounded-lg bg-white/6 p-3 text-white/60 filter blur-sm">
+                          <p className="mb-2 text-xs font-semibold">Preview</p>
+                          <div className="space-y-1">
+                            {selectedConnections.slice(0, 4).map((c) => {
+                              const otherId =
+                                c.source === selectedId ? c.target : c.source;
+                              const other = users.find((u) => u.id === otherId);
+                              return (
+                                <div
+                                  key={c.id}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span className="h-2.5 w-2.5 rounded-full bg-white/60" />
+                                  <span className="truncate text-xs">
+                                    {other?.name ?? "Member"}
+                                  </span>
+                                  <span className="ml-auto text-[11px] text-white/40">
+                                    {c.type}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Centered modal with fade+scale */}
-                  <div
-                    className={`relative z-40 w-full max-w-md rounded-2xl bg-[#0f0819]/95 border border-white/8 p-6 text-white shadow-2xl transform transition-all duration-180 ease-out ${
-                      unlockOverlayVisible
-                        ? "opacity-100 scale-100"
-                        : "opacity-0 scale-95"
-                    }`}
-                    role="dialog"
-                    aria-modal="true"
-                  >
-                    <p className="text-lg font-semibold truncate">
-                      See how you're connected to {selectedUser.name}
-                    </p>
-
-                    <ul className="mt-2 space-y-1 text-sm text-white/70">
-                      <li>• Full connection path</li>
-                      <li>• Hidden mutual connections</li>
-                      <li>• Relationship context</li>
-                    </ul>
-
-                    <div className="mt-5 flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() => router.push("/checkout")}
-                        className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
+                      {/* Centered modal with fade+scale */}
+                      <div
+                        className={`relative z-40 w-full max-w-md rounded-2xl bg-[#0f0819]/95 border border-white/8 p-6 text-white shadow-2xl transform transition-all duration-180 ease-out ${
+                          unlockOverlayVisible
+                            ? "opacity-100 scale-100"
+                            : "opacity-0 scale-95"
+                        }`}
+                        role="dialog"
+                        aria-modal="true"
                       >
-                        Unlock with Pro
-                      </button>
+                        <p className="text-lg font-semibold truncate">
+                          See how you're connected to {selectedUser?.name}
+                        </p>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Remember the dismissed id so the auto-select logic
-                          // won't immediately re-open this same profile.
-                          setDismissedUserId(selectedId);
-                          setSelectedId(null);
-                        }}
-                        // Reduced visual emphasis: lighter text and normal weight
-                        className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
-                      >
-                        Not now
-                      </button>
-                    </div>
-                  </div>
+                        <ul className="mt-2 space-y-1 text-sm text-white/70">
+                          <li>• Full connection path</li>
+                          <li>• Hidden mutual connections</li>
+                          <li>• Relationship context</li>
+                        </ul>
+
+                        <div className="mt-5 flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => router.push("/checkout")}
+                            className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
+                          >
+                            Unlock with Pro
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Remember the dismissed id so the auto-select logic
+                              // won't immediately re-open this same profile.
+                              setDismissedUserId(selectedId);
+                              setSelectedId(null);
+                            }}
+                            // Reduced visual emphasis: lighter text and normal weight
+                            className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
+                          >
+                            Not now
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -2074,7 +2199,8 @@ export function RelationshipMap({
 
                     {/* Fraction text */}
                     <div className="min-w-[96px] text-right text-sm font-medium text-black/70 dark:text-white/70">
-                      {personalConnectionCount} / {nextMilestone} connections
+                      {personalConnectionCount} / {nextMilestone}{" "}
+                      connections{" "}
                     </div>
                   </div>
 
