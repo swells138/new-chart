@@ -1605,6 +1605,20 @@ export function RelationshipMap({
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId,
   );
+
+  // Unlock overlay visibility state for subtle fade+scale animation
+  const [unlockOverlayVisible, setUnlockOverlayVisible] = useState(false);
+
+  useEffect(() => {
+    if (selectedUser && !selectedUser.featured) {
+      // trigger a micro-tick so CSS transition from 0 -> 100% animates
+      setUnlockOverlayVisible(false);
+      const t = window.setTimeout(() => setUnlockOverlayVisible(true), 10);
+      return () => window.clearTimeout(t);
+    }
+    setUnlockOverlayVisible(false);
+  }, [selectedUser]);
+
   const pendingRequests = useMemo(() => {
     if (!activeCurrentUserId) {
       return [] as Relationship[];
@@ -1941,6 +1955,78 @@ export function RelationshipMap({
                 <Controls showInteractive={false} />
                 <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
               </ReactFlow>
+
+              {/* Unlock overlay for non-Pro profiles */}
+              {selectedUser && !selectedUser.featured ? (
+                <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-auto">
+                  {/* Dark backdrop */}
+                  <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-200" />
+
+                  {/* Blurred preview of hidden info (behind modal) */}
+                  <div className="absolute z-35 w-full max-w-md -translate-y-20 rounded-xl p-4 text-sm text-white/80">
+                    <div className="rounded-lg bg-white/6 p-3 text-white/60 filter blur-sm">
+                      <p className="mb-2 text-xs font-semibold">Preview</p>
+                      <div className="space-y-1">
+                        {selectedConnections.slice(0, 4).map((c) => {
+                          const otherId =
+                            c.source === selectedId ? c.target : c.source;
+                          const other = users.find((u) => u.id === otherId);
+                          return (
+                            <div key={c.id} className="flex items-center gap-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-white/60" />
+                              <span className="truncate text-xs">
+                                {other?.name ?? "Member"}
+                              </span>
+                              <span className="ml-auto text-[11px] text-white/40">
+                                {c.type}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Centered modal with fade+scale */}
+                  <div
+                    className={`relative z-40 w-full max-w-md rounded-2xl bg-[#0f0819]/95 border border-white/8 p-6 text-white shadow-2xl transform transition-all duration-180 ease-out ${
+                      unlockOverlayVisible
+                        ? "opacity-100 scale-100"
+                        : "opacity-0 scale-95"
+                    }`}
+                    role="dialog"
+                    aria-modal="true"
+                  >
+                    <p className="text-lg font-semibold truncate">
+                      {selectedUser.name}
+                    </p>
+                    <p className="mt-2 text-sm text-white/70">
+                      Unlock this profile
+                    </p>
+                    <p className="mt-1 text-sm text-white/60">
+                      See full connection path
+                    </p>
+
+                    <div className="mt-5 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => router.push("/checkout")}
+                        className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
+                      >
+                        Upgrade to Pro
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(null)}
+                        className="rounded-lg px-4 py-3 text-sm font-semibold text-white/80 border border-white/10 hover:bg-white/3"
+                      >
+                        Not now
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
