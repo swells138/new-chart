@@ -50,25 +50,32 @@ export default async function Home() {
 
         <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center justify-center lg:min-h-[56vh]">
           <h1 className="text-balance text-4xl leading-tight font-bold text-white sm:text-6xl lg:text-7xl">
-            You’re closer to people than you think
+            See how everyone is secretly connected
           </h1>
           <p className="mt-6 max-w-2xl text-base text-white/70 sm:text-lg">
-            Add one person and start revealing the hidden network around you.
+            Map your relationships, uncover hidden overlaps, and find out how
+            many degrees away you really are from anyone.
           </p>
-          <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
             <a
               href={isSignedIn ? "/map" : "#start"}
-              className="inline-flex min-w-44 items-center justify-center rounded-full bg-[#ff8f84] px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:-translate-y-0.5 hover:brightness-95"
+              className="inline-flex min-w-44 items-center justify-center rounded-full bg-[#ff8f84] px-10 py-4 text-base font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:-translate-y-0.5 hover:brightness-95"
             >
               Start your network
             </a>
             <a
               href="#demo"
-              className="inline-flex min-w-44 items-center justify-center rounded-full border border-white/25 bg-white/10 px-8 py-3.5 text-base font-semibold text-white/90 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15"
+              className="inline-flex min-w-44 items-center justify-center rounded-full border border-white/25 bg-white/5 px-8 py-3 text-base font-semibold text-white/80 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/12"
             >
               View demo
             </a>
           </div>
+
+          <ul className="mt-4 space-y-2 text-sm text-white/70">
+            <li>• Find connection paths</li>
+            <li>• See who overlaps in your network</li>
+            <li>• Discover hidden relationships</li>
+          </ul>
 
           <p className="mt-6 text-sm text-white/60">
             Curiosity-first. Your connections stay private until both people

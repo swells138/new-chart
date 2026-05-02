@@ -77,7 +77,7 @@ function renderNotificationContent(content: string): ReactNode {
         className="underline decoration-[var(--accent)] underline-offset-2 hover:opacity-80"
       >
         {href}
-      </a>
+      </a>,
     );
 
     lastIndex = hrefStart + href.length;
@@ -102,7 +102,13 @@ export default async function InboxPage() {
   }
 
   let connectedSet = new Set<string>();
-  let dbNotifications: { id: string; content: string; read: boolean; createdAt: Date; senderName: string | null }[] = [];
+  let dbNotifications: {
+    id: string;
+    content: string;
+    read: boolean;
+    createdAt: Date;
+    senderName: string | null;
+  }[] = [];
 
   if (hasClerkKeys) {
     const { userId } = await auth();
@@ -158,6 +164,70 @@ export default async function InboxPage() {
 
   const displayedThreads = dynamicThreads.length > 0 ? dynamicThreads : threads;
 
+  // Categorize notifications into prioritized buckets for clearer UX
+  function summarizeNotification(n: {
+    id: string;
+    content: string;
+    read: boolean;
+    createdAt: Date;
+    senderName: string | null;
+  }) {
+    const text = (n.content || "").toLowerCase();
+    const sender = n.senderName ?? "Member";
+
+    // Default summary
+    let title = sender;
+    let subtitle: ReactNode = renderNotificationContent(n.content);
+    let category: "action" | "pending" | "activity" = "activity";
+
+    if (
+      /confirm|verify|finali|approve|reject|respond|action required|claim|pending_claim|pending_creator_confirmation|confirmcreator/.test(
+        text,
+      )
+    ) {
+      category = "action";
+      if (/confirm|accepted|approved|confirmed/.test(text)) {
+        title = `${sender} confirmed your connection`;
+        subtitle = "Review and finalize";
+      } else if (/claim|pending|verify|confirm|approve|respond/.test(text)) {
+        title = `${sender} needs confirmation`;
+        subtitle = "Review and respond";
+      }
+    } else if (/pending|waiting|expires|expired|review/.test(text)) {
+      category = "pending";
+      title = `${sender} pending review`;
+      subtitle = "Review and finalize";
+    } else if (/added|connected|connection|created|joined/.test(text)) {
+      category = "activity";
+      title = `${sender} added a connection`;
+      subtitle = "View connection";
+    } else if (/message|note|comment|replied/.test(text)) {
+      category = "activity";
+      title = `${sender} sent a message`;
+      subtitle =
+        n.content.length > 120 ? `${n.content.slice(0, 120)}…` : n.content;
+    } else {
+      // fallback: short preview
+      title = sender;
+      subtitle =
+        n.content.length > 120 ? `${n.content.slice(0, 120)}…` : n.content;
+    }
+
+    return {
+      id: n.id,
+      category,
+      title,
+      subtitle,
+      time: timeAgo(n.createdAt),
+      read: n.read,
+    };
+  }
+
+  const summarized = dbNotifications.map(summarizeNotification);
+  const actionRequired = summarized.filter((s) => s.category === "action");
+  const pendingReview = summarized.filter((s) => s.category === "pending");
+  const activity = summarized.filter((s) => s.category === "activity");
+
   return (
     <div className="space-y-4">
       <SectionHeader
@@ -179,11 +249,15 @@ export default async function InboxPage() {
                   <Avatar name={thread.name} className="h-10 w-10 text-xs" />
                   <div>
                     <p className="font-semibold">{thread.name}</p>
-                    <p className="text-sm text-black/70 dark:text-white/75">{thread.preview}</p>
+                    <p className="text-sm text-black/70 dark:text-white/75">
+                      {thread.preview}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-black/65 dark:text-white/75">{thread.time}</p>
+                  <p className="text-xs text-black/65 dark:text-white/75">
+                    {thread.time}
+                  </p>
                   {thread.unread ? (
                     <span className="mt-1 inline-block rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">
                       new
@@ -197,36 +271,125 @@ export default async function InboxPage() {
 
         <aside className="paper-card rounded-2xl p-5">
           <h3 className="text-lg font-semibold">Notifications</h3>
-          {dbNotifications.length > 0 ? (
-            <ul className="mt-3 space-y-2 text-sm">
-              {dbNotifications.map((n) => (
-                <li
-                  key={n.id}
-                  className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
-                >
-                  <span className="flex-1">
-                    {n.senderName ? (
-                      <span className="font-medium">{n.senderName}: </span>
-                    ) : null}
-                    {renderNotificationContent(n.content)}
-                  </span>
-                  <span className="shrink-0 text-xs text-black/50 dark:text-white/50">
-                    {timeAgo(n.createdAt)}
-                  </span>
-                  {!n.read ? (
-                    <span className="shrink-0 inline-block rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white leading-none self-center">
-                      new
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm text-black/50 dark:text-white/50">No notifications yet.</p>
-          )}
+
+          {/* Action Required */}
+          <div className="mt-4">
+            <h4 className="text-sm font-semibold">Action Required</h4>
+            <p className="mt-1 text-xs text-black/60 dark:text-white/60">
+              Items that need your attention
+            </p>
+            <div className="mt-3 space-y-2">
+              {actionRequired.length > 0 ? (
+                actionRequired.map((n) => (
+                  <div
+                    key={n.id}
+                    className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{n.title}</p>
+                      <p className="mt-1 text-sm text-black/70 dark:text-white/70">
+                        {n.subtitle}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-black/50 dark:text-white/50">
+                        {n.time}
+                      </p>
+                      {!n.read ? (
+                        <span className="mt-1 inline-block rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">
+                          new
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-black/50 dark:text-white/50">
+                  No action required.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Pending Review */}
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold">Pending Review</h4>
+            <p className="mt-1 text-xs text-black/60 dark:text-white/60">
+              Awaiting confirmation or verification
+            </p>
+            <div className="mt-3 space-y-2">
+              {pendingReview.length > 0 ? (
+                pendingReview.map((n) => (
+                  <div
+                    key={n.id}
+                    className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{n.title}</p>
+                      <p className="mt-1 text-sm text-black/70 dark:text-white/70">
+                        {n.subtitle}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-black/50 dark:text-white/50">
+                        {n.time}
+                      </p>
+                      {!n.read ? (
+                        <span className="mt-1 inline-block rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">
+                          new
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-black/50 dark:text-white/50">
+                  No items pending review.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Activity */}
+          <div className="mt-6">
+            <h4 className="text-sm font-semibold">Activity</h4>
+            <p className="mt-1 text-xs text-black/60 dark:text-white/60">
+              Recent updates and messages
+            </p>
+            <div className="mt-3 space-y-2">
+              {activity.length > 0 ? (
+                activity.map((n) => (
+                  <div
+                    key={n.id}
+                    className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{n.title}</p>
+                      <p className="mt-1 text-sm text-black/70 dark:text-white/70">
+                        {n.subtitle}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-black/50 dark:text-white/50">
+                        {n.time}
+                      </p>
+                      {!n.read ? (
+                        <span className="mt-1 inline-block rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] text-white">
+                          new
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-black/50 dark:text-white/50">
+                  No recent activity.
+                </p>
+              )}
+            </div>
+          </div>
         </aside>
       </div>
     </div>
   );
 }
-

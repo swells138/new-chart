@@ -2010,14 +2010,14 @@ export function RelationshipMap({
                     aria-modal="true"
                   >
                     <p className="text-lg font-semibold truncate">
-                      {selectedUser.name}
+                      See how you're connected to {selectedUser.name}
                     </p>
-                    <p className="mt-2 text-sm text-white/70">
-                      Unlock this profile
-                    </p>
-                    <p className="mt-1 text-sm text-white/60">
-                      See full connection path
-                    </p>
+
+                    <ul className="mt-2 space-y-1 text-sm text-white/70">
+                      <li>• Full connection path</li>
+                      <li>• Hidden mutual connections</li>
+                      <li>• Relationship context</li>
+                    </ul>
 
                     <div className="mt-5 flex gap-3">
                       <button
@@ -2025,7 +2025,7 @@ export function RelationshipMap({
                         onClick={() => router.push("/checkout")}
                         className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
                       >
-                        Upgrade to Pro
+                        Unlock with Pro
                       </button>
 
                       <button
@@ -2036,7 +2036,8 @@ export function RelationshipMap({
                           setDismissedUserId(selectedId);
                           setSelectedId(null);
                         }}
-                        className="rounded-lg px-4 py-3 text-sm font-semibold text-white/80 border border-white/10 hover:bg-white/3"
+                        // Reduced visual emphasis: lighter text and normal weight
+                        className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
                       >
                         Not now
                       </button>
@@ -2059,15 +2060,27 @@ export function RelationshipMap({
                     25 unlocks full exploration.
                   </p>
                 </div>
-                <div className="min-w-40">
-                  <div className="h-2 rounded-full bg-black/10 dark:bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-[var(--accent)] transition-all"
-                      style={{ width: `${milestoneProgress}%` }}
-                    />
+                <div className="min-w-40 flex-1 sm:flex-none">
+                  <div className="flex items-center gap-3">
+                    {/* Visual progress bar */}
+                    <div className="flex-1">
+                      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-[var(--accent)] transition-all"
+                          style={{ width: `${milestoneProgress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Fraction text */}
+                    <div className="min-w-[96px] text-right text-sm font-medium text-black/70 dark:text-white/70">
+                      {personalConnectionCount} / {nextMilestone} connections
+                    </div>
                   </div>
-                  <p className="mt-1 text-right text-[11px] text-black/55 dark:text-white/55">
-                    {personalConnectionCount} → {nextMilestone}
+
+                  {/* Unlock label beneath the bar (dynamic based on milestone) */}
+                  <p className="mt-2 text-[11px] text-black/55 dark:text-white/55">
+                    Unlock {milestoneLabel}
                   </p>
                 </div>
               </div>
