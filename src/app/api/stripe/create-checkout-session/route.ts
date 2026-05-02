@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
+export async function GET() {
+  // Help callers who accidentally hit this route with GET
+  return NextResponse.json(
+    {
+      error:
+        "Method GET not allowed. POST a JSON body to create a checkout session.",
+    },
+    { status: 405 },
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -66,9 +77,20 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
+    // Log full error server-side for debugging
     console.error("Stripe checkout error", err);
+
+    // In non-production return the error message in the JSON response to help debugging.
+    const nonProd = process.env.NODE_ENV !== "production";
+    const errorMessage =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object"
+          ? JSON.stringify(err)
+          : String(err);
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: nonProd ? errorMessage : "Internal server error" },
       { status: 500 },
     );
   }
