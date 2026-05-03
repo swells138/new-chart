@@ -90,12 +90,12 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
   const isSignup = mode === "signup";
 
   return (
-    <section className="paper-card rounded-2xl p-5">
+    <section className="paper-card rounded-2xl p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-xl font-semibold">Claim Connections</h3>
+          <h3 className="text-xl font-semibold">Claim connections</h3>
           <p className="mt-1 text-sm text-black/65 dark:text-white/70">
-            We only suggest possible matches. Nothing is merged unless you confirm it.
+            We found possible matches.
           </p>
         </div>
         {isSignup ? (
@@ -111,13 +111,11 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
       {error ? <p className="mt-4 text-sm text-red-700 dark:text-red-400">{error}</p> : null}
 
       {candidates.length === 0 ? (
-        <div className="mt-5 rounded-xl border border-[var(--border-soft)] p-4 text-sm text-black/65 dark:text-white/70">
-          {isSignup
-            ? "No likely placeholder matches showed up yet. If someone adds you later, you can still claim those connections from your profile settings."
-            : "No claimable placeholder matches are available right now."}
+        <div className="mt-4 rounded-xl border border-[var(--border-soft)] p-3 text-sm text-black/65 dark:text-white/70">
+          No matches right now.
         </div>
       ) : (
-        <div className="mt-5 space-y-3">
+        <div className="mt-4 space-y-3">
           {candidates.map((candidate) => (
             <article
               key={candidate.placeholderId}
@@ -172,7 +170,7 @@ export function ClaimConnectionsPanel({ initialCandidates, mode }: Props) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {claimed.has(candidate.placeholderId) ? (
                   <p className="text-sm text-black/65 dark:text-white/60">
-                    Claimed! Waiting for {candidate.ownerName} to confirm before it becomes public.
+                    Claimed. Waiting for {candidate.ownerName}.
                   </p>
                 ) : (
                   <>

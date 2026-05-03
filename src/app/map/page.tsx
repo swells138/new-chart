@@ -186,23 +186,21 @@ export default async function MapPage() {
     "http://localhost:3000";
 
   return (
-    <div className="space-y-4">
-      {currentUserDbId ? (
+    <RelationshipMap
+      users={users}
+      relationships={relationships}
+      currentUserId={currentUserDbId}
+      isSignedIn={sessionSignedIn}
+      currentUserIsPro={currentUserIsPro}
+      userConnections={userConnections}
+      privatePlaceholders={privatePlaceholders}
+      baseUrl={baseUrl}
+      afterGraph={currentUserDbId ? (
         <ClaimConnectionsPanel
           initialCandidates={claimCandidates}
           mode="settings"
         />
       ) : null}
-      <RelationshipMap
-        users={users}
-        relationships={relationships}
-        currentUserId={currentUserDbId}
-        isSignedIn={sessionSignedIn}
-        currentUserIsPro={currentUserIsPro}
-        userConnections={userConnections}
-        privatePlaceholders={privatePlaceholders}
-        baseUrl={baseUrl}
-      />
-    </div>
+    />
   );
 }

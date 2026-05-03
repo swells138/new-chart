@@ -14,8 +14,16 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
+import { Info } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
   PlaceholderPerson,
   Relationship,
@@ -368,6 +376,7 @@ interface Props {
   userConnections?: Relationship[];
   privatePlaceholders?: PlaceholderPerson[];
   baseUrl?: string;
+  afterGraph?: ReactNode;
 }
 
 type ApprovalStatus =
@@ -495,6 +504,7 @@ export function RelationshipMap({
   userConnections,
   privatePlaceholders = [],
   baseUrl = "",
+  afterGraph,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -901,36 +911,6 @@ export function RelationshipMap({
     approvedUserConnections.length +
     clientPrivateConnectionCount +
     clientCreatedConnectionCount;
-  const nextMilestone =
-    [5, 10, 25].find((milestone) => personalConnectionCount < milestone) ?? 25;
-  const previousMilestone =
-    nextMilestone === 5 ? 0 : nextMilestone === 10 ? 5 : 10;
-  const milestoneLabel =
-    nextMilestone === 5
-      ? "extended network"
-      : nextMilestone === 10
-        ? "deeper network view"
-        : "full exploration";
-  const connectionsToMilestone = Math.max(
-    0,
-    nextMilestone - personalConnectionCount,
-  );
-  const milestoneProgress =
-    nextMilestone === 25 && personalConnectionCount >= 25
-      ? 100
-      : Math.min(
-          100,
-          Math.max(
-            0,
-            ((personalConnectionCount - previousMilestone) /
-              (nextMilestone - previousMilestone)) *
-              100,
-          ),
-        );
-  const primaryCtaText =
-    personalConnectionCount > 0
-      ? "Add another connection"
-      : "Add your first connection";
   const showOnboardingOverlay =
     personalConnectionCount === 0 && !isOnboardingDismissed;
 
@@ -1969,61 +1949,44 @@ export function RelationshipMap({
   }
 
   return (
-    <div className="space-y-5">
-      <section className="paper-card overflow-hidden rounded-2xl">
-        <div className="grid gap-5 p-5 md:grid-cols-[1.35fr_0.65fr] md:p-6">
+    <div className="space-y-8">
+      <section className="paper-card rounded-2xl p-4 md:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
-              Add one person. Reveal their world.
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold leading-tight md:text-5xl">
+            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
               Build your network
             </h1>
-            <p className="mt-3 max-w-2xl text-sm text-black/68 dark:text-white/70">
-              Add one person to start revealing connections around you. Every
-              connection unlocks more of the network.
+            <p className="mt-1 text-sm text-black/68 dark:text-white/70">
+              Add someone to reveal connections.
             </p>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={scrollToAddConnection}
-                className={`rounded-xl bg-[var(--accent)] px-6 py-4 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95 ${
-                  showOnboardingOverlay
-                    ? "animate-pulse ring-4 ring-[var(--accent)]/25"
-                    : ""
-                }`}
-              >
-                {primaryCtaText}
-              </button>
-              <p className="text-sm font-medium text-black/65 dark:text-white/68">
-                Start your network and reveal hidden connections
-              </p>
-            </div>
+            <p className="mt-3 text-xs font-semibold text-black/52 dark:text-white/55">
+              {personalConnectionCount} connection
+              {personalConnectionCount === 1 ? "" : "s"} added
+            </p>
           </div>
-          <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
-            <p className="text-sm font-semibold">
-              {personalConnectionCount === 0
-                ? "Your map is ready"
-                : `${personalConnectionCount} connection${personalConnectionCount === 1 ? "" : "s"} added`}
-            </p>
-            <p className="mt-2 text-xs text-black/62 dark:text-white/64">
-              The more you add, the more you uncover.
-            </p>
-            <p className="mt-4 text-[11px] text-black/58 dark:text-white/58">
-              All connections are user-created and only become public after both
-              parties verify.
-            </p>
+          <div className="flex sm:justify-end">
+            <button
+              type="button"
+              onClick={scrollToAddConnection}
+              className={`rounded-xl bg-[var(--accent)] px-6 py-3 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95 ${
+                showOnboardingOverlay
+                  ? "animate-pulse ring-4 ring-[var(--accent)]/25"
+                  : ""
+              }`}
+            >
+              Add person
+            </button>
           </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border-soft)] bg-white/70 p-3 dark:bg-black/30">
+      <section className="rounded-2xl border border-[var(--border-soft)] bg-white/55 p-2 dark:bg-black/20">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-full gap-2 rounded-2xl bg-black/[0.035] p-1.5 dark:bg-white/[0.06] sm:w-auto">
+          <div className="flex w-full gap-2 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06] sm:w-auto">
             <button
               type="button"
               onClick={() => setChartLayer("private")}
-              className={`min-h-12 flex-1 rounded-xl px-6 py-3 text-left text-base font-bold transition sm:min-w-36 sm:flex-none ${
+              className={`min-h-10 flex-1 rounded-lg px-5 py-2 text-sm font-bold transition sm:min-w-32 sm:flex-none ${
                 chartLayer === "private"
                   ? "bg-[var(--accent)] text-white"
                   : "text-black/72 hover:bg-black/5 dark:text-white/72 dark:hover:bg-white/10"
@@ -2034,7 +1997,7 @@ export function RelationshipMap({
             <button
               type="button"
               onClick={() => setChartLayer("public")}
-              className={`min-h-12 flex-1 rounded-xl px-6 py-3 text-left text-base font-bold transition sm:min-w-36 sm:flex-none ${
+              className={`min-h-10 flex-1 rounded-lg px-5 py-2 text-sm font-bold transition sm:min-w-32 sm:flex-none ${
                 chartLayer === "public"
                   ? "bg-[var(--accent)] text-white"
                   : "text-black/72 hover:bg-black/5 dark:text-white/72 dark:hover:bg-white/10"
@@ -2042,18 +2005,6 @@ export function RelationshipMap({
             >
               Public
             </button>
-          </div>
-          <div className="flex flex-col gap-2 text-xs text-black/62 dark:text-white/64 sm:flex-row sm:flex-wrap sm:items-center">
-            <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
-              🔒 Private = dashed lines (unverified)
-            </span>
-            <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
-              🌍 Public = solid lines (verified)
-            </span>
-            <span>
-              Private shows your full network. Public only shows verified
-              connections.
-            </span>
           </div>
         </div>
       </section>
@@ -2079,12 +2030,12 @@ export function RelationshipMap({
           <p className="text-sm font-semibold text-white">
             {needsAccountSync
               ? "Setting up your network"
-              : "Sign in to save your direct connections"}
+              : "Sign in to add people"}
           </p>
           <p className="mt-1 text-xs text-white/60">
             {needsAccountSync
-              ? "Your account is authenticated. We are syncing your profile data now."
-              : "You can add people, manage placeholders, and verify connections once you have an account."}
+              ? "Syncing your profile now."
+              : "Create an account to save connections."}
           </p>
           {needsAccountSync ? (
             <div className="mt-4 flex justify-center">
@@ -2131,16 +2082,7 @@ export function RelationshipMap({
           <section className="paper-card rounded-2xl p-4">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
-                  🌍 Public Chart
-                </p>
-                <h2 className="mt-1 text-2xl font-semibold">
-                  Verified connections
-                </h2>
-                <p className="mt-1 text-xs text-black/65 dark:text-white/70">
-                  Only verified connections (confirmed by both users) are
-                  visible to others.
-                </p>
+                <h2 className="text-2xl font-semibold">Network graph</h2>
               </div>
               <button
                 type="button"
@@ -2152,10 +2094,6 @@ export function RelationshipMap({
                   : "Show search and filters"}
               </button>
             </div>
-            <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
-              🔒 Private = dashed lines (unverified) · 🌍 Public = solid lines
-              (verified)
-            </p>
             {hasDbUser ? null : (
               <p className="mb-3 text-xs text-black/65 dark:text-white/70">
                 {isResolvingCurrentUserId
@@ -2171,7 +2109,7 @@ export function RelationshipMap({
               </p>
             ) : null}
             <div
-              className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)]"
+              className="relative h-[620px] overflow-hidden rounded-2xl border border-[var(--border-soft)]"
               style={{ background: "#0f0819" }}
             >
               <div className="pointer-events-none absolute inset-0 z-0">
@@ -2182,9 +2120,9 @@ export function RelationshipMap({
               </div>
               {showOnboardingOverlay ? (
                 <div className="absolute left-4 top-4 z-20 max-w-[260px] rounded-xl border border-white/15 bg-black/70 p-4 text-white shadow-xl shadow-black/20 backdrop-blur">
-                  <p className="text-sm font-bold">Start your network</p>
+                  <p className="text-sm font-bold">Add person</p>
                   <p className="mt-1 text-xs leading-5 text-white/72">
-                    Add your first connection to begin revealing your network.
+                    Start with one connection.
                   </p>
                   <button
                     type="button"
@@ -2439,53 +2377,6 @@ export function RelationshipMap({
                 </div>
               </div>
             ) : null}
-
-            <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold">
-                    {connectionsToMilestone === 0
-                      ? "You unlocked full exploration"
-                      : `You have ${personalConnectionCount} connection${personalConnectionCount === 1 ? "" : "s"} - ${connectionsToMilestone} more to unlock ${milestoneLabel}`}
-                  </p>
-                  <p className="mt-1 text-xs text-black/62 dark:text-white/64">
-                    Free accounts can view your direct connections and 15
-                    second-degree nodes. Pro unlocks the rest.
-                  </p>
-                  {!hasPro && networkAccess.lockedCount > 0 ? (
-                    <p className="mt-1 text-xs font-medium text-[var(--accent)]">
-                      {networkAccess.lockedCount} more node
-                      {networkAccess.lockedCount === 1 ? "" : "s"} blurred
-                      behind Pro.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="min-w-40 flex-1 sm:flex-none">
-                  <div className="flex items-center gap-3">
-                    {/* Visual progress bar */}
-                    <div className="flex-1">
-                      <div className="h-2 rounded-full bg-black/10 dark:bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-[var(--accent)] transition-all"
-                          style={{ width: `${milestoneProgress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Fraction text */}
-                    <div className="min-w-[96px] text-right text-sm font-medium text-black/70 dark:text-white/70">
-                      {personalConnectionCount} / {nextMilestone}{" "}
-                      connections{" "}
-                    </div>
-                  </div>
-
-                  {/* Unlock label beneath the bar (dynamic based on milestone) */}
-                  <p className="mt-2 text-[11px] text-black/55 dark:text-white/55">
-                    Unlock {milestoneLabel}
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {activeCurrentUserId ? (
               <details
@@ -2781,6 +2672,22 @@ export function RelationshipMap({
           ) : null}
         </div>
       ) : null}
+      {afterGraph ? <div>{afterGraph}</div> : null}
+      <section className="flex flex-wrap items-center gap-2 text-xs text-black/58 dark:text-white/58">
+        <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
+          🔒 Private — only you
+        </span>
+        <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
+          🌍 Public — verified
+        </span>
+        <span
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border-soft)]"
+          title="Private connections stay on your chart. Public connections are visible after verification."
+          aria-label="Private and public connection details"
+        >
+          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+      </section>
     </div>
   );
 }
