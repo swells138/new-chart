@@ -1,4 +1,5 @@
-import { SignIn } from "@clerk/nextjs";
+import { Suspense } from "react";
+import { LoginRedirectGate } from "@/components/auth/login-redirect-gate";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -15,7 +16,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex justify-center py-8">
-      <SignIn path="/login" routing="path" fallbackRedirectUrl="/map" />
+      <Suspense>
+        <LoginRedirectGate />
+      </Suspense>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { SignupConsentGate } from "@/components/auth/signup-consent-gate";
 
 const hasClerkKeys =
@@ -16,7 +17,9 @@ export default function SignUpPage() {
 
   return (
     <div className="py-8">
-      <SignupConsentGate />
+      <Suspense>
+        <SignupConsentGate />
+      </Suspense>
     </div>
   );
 }

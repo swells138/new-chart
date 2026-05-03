@@ -83,8 +83,8 @@ export default function InvitePage({ params }: PageProps) {
       };
 
       if (res.status === 401) {
-        // Not signed in — redirect to login with return URL
-        router.push(`/login?redirect=/invite/${token}`);
+        // Not signed in - invite recipients should create an account, then return here.
+        router.push(`/signup?redirect_url=${encodeURIComponent(`/invite/${token}`)}`);
         return;
       }
 

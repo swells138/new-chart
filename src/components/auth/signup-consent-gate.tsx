@@ -2,10 +2,31 @@
 
 import Link from "next/link";
 import { SignUp } from "@clerk/nextjs";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+function getSafeRedirectPath(input: string | null) {
+  if (!input || !input.startsWith("/") || input.startsWith("//")) {
+    return null;
+  }
+
+  return input;
+}
 
 export function SignupConsentGate() {
   const [agreed, setAgreed] = useState(false);
+  const searchParams = useSearchParams();
+
+  const redirectUrl = useMemo(
+    () =>
+      getSafeRedirectPath(
+        searchParams.get("redirect_url") ?? searchParams.get("redirect"),
+      ),
+    [searchParams],
+  );
+  const signInUrl = redirectUrl
+    ? `/login?redirect_url=${encodeURIComponent(redirectUrl)}`
+    : "/login";
 
   return (
     <div className="mx-auto w-full max-w-md space-y-4">
@@ -36,7 +57,13 @@ export function SignupConsentGate() {
 
       {agreed ? (
         <div className="flex justify-center py-2">
-          <SignUp path="/signup" routing="path" fallbackRedirectUrl="/profile" />
+          <SignUp
+            path="/signup"
+            routing="path"
+            forceRedirectUrl={redirectUrl}
+            fallbackRedirectUrl="/profile"
+            signInUrl={signInUrl}
+          />
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-[var(--border-soft)] p-6 text-center text-sm text-black/65 dark:text-white/70">
