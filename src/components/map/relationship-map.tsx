@@ -132,10 +132,6 @@ function PersonNode({
       <div style={{ textAlign: "center", width: 86, opacity: isDimmed ? 0.28 : 1 }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <div style={{ position: "relative", display: "inline-block" }}>
-            {data.isPro ? (
-              <div className="pro-halo" aria-hidden style={{ zIndex: 0 }} />
-            ) : null}
-
             <div
               className={data.isBouncing ? "map-node-bounce" : undefined}
               style={{
@@ -176,15 +172,6 @@ function PersonNode({
                 </span>
               )}
             </div>
-
-            {data.isPro ? (
-              <div className="pro-sparkles" aria-hidden>
-                <span className="sparkle s1" />
-                <span className="sparkle s2" />
-                <span className="sparkle s3" />
-                <span className="sparkle s4" />
-              </div>
-            ) : null}
           </div>
         </div>
 
