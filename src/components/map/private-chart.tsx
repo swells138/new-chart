@@ -11,6 +11,8 @@ import type {
   RelationshipType,
   User,
 } from "@/types/models";
+import type { PrivateDuplicateMatch } from "@/lib/private-duplicate-matches";
+import { chooseExistingPrivatePerson } from "@/lib/private-duplicate-flow";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -408,6 +410,15 @@ export function PrivateChart({
   const [addSuccessMessage, setAddSuccessMessage] = useState<string | null>(
     null,
   );
+  const [duplicateMatches, setDuplicateMatches] = useState<
+    PrivateDuplicateMatch[]
+  >([]);
+  const [duplicateCheckError, setDuplicateCheckError] = useState<string | null>(
+    null,
+  );
+  const [duplicateEmptyMessage, setDuplicateEmptyMessage] = useState<
+    string | null
+  >(null);
   const [activeWorkflowTab, setActiveWorkflowTab] = useState<WorkflowTab>(() =>
     initialPlaceholders.length === 0 ? "add" : "connect",
   );
@@ -417,6 +428,7 @@ export function PrivateChart({
   const [publicConnectingPlaceholderId, setPublicConnectingPlaceholderId] =
     useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
 
   function getAddErrorMessage(status: number, apiMessage?: string) {
     if (apiMessage && apiMessage.trim()) {
@@ -754,30 +766,93 @@ export function PrivateChart({
     }
   }
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
+  function clearDuplicateCheckState() {
+    setDuplicateMatches([]);
+    setDuplicateCheckError(null);
+    setDuplicateEmptyMessage(null);
+  }
+
+  function getAddPayload(name: string) {
+    return {
+      name,
+      offerToNameMatch: addOfferToNameMatch,
+      email: addEmail.trim() || undefined,
+      phoneNumber: addPhoneNumber.trim() || undefined,
+      relationshipType: addType,
+      note: addNote.trim() || undefined,
+    };
+  }
+
+  async function createPrivateConnection(skipDuplicateCheck: boolean) {
     const name = addName.trim();
     if (!name) {
       setAddError("A name is required.");
       return;
     }
+
+    if (!skipDuplicateCheck) {
+      setIsCheckingDuplicates(true);
+      setAddError(null);
+      setAddHint(null);
+      setAddSuccessMessage(null);
+      clearDuplicateCheckState();
+
+      try {
+        const res = await authFetch("/api/private-connections/similar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            email: addEmail.trim() || undefined,
+            phoneNumber: addPhoneNumber.trim() || undefined,
+          }),
+        });
+        const body = (await res.json()) as {
+          matches?: PrivateDuplicateMatch[];
+          error?: string;
+        };
+
+        if (!res.ok) {
+          setDuplicateCheckError(
+            body.error ??
+              "Could not check for similar people. You can still create a new private person.",
+          );
+          return;
+        }
+
+        if (body.matches && body.matches.length > 0) {
+          setDuplicateMatches(body.matches);
+          return;
+        }
+
+        setDuplicateEmptyMessage("No similar private people found.");
+      } catch {
+        setDuplicateCheckError(
+          "Could not check for similar people. You can still create a new private person.",
+        );
+        return;
+      } finally {
+        setIsCheckingDuplicates(false);
+      }
+    }
+
     setIsAdding(true);
     setAddError(null);
-    setAddHint(null);
+    if (skipDuplicateCheck) {
+      setAddHint(null);
+    }
     setAddSuccessMessage(null);
+    setDuplicateMatches([]);
+    setDuplicateCheckError(null);
+    if (skipDuplicateCheck) {
+      setDuplicateEmptyMessage(null);
+    }
 
     try {
       const res = await authFetch("/api/private-connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          offerToNameMatch: addOfferToNameMatch,
-          email: addEmail.trim() || undefined,
-          phoneNumber: addPhoneNumber.trim() || undefined,
-          relationshipType: addType,
-          note: addNote.trim() || undefined,
-        }),
+        body: JSON.stringify(getAddPayload(name)),
       });
       const body = (await res.json()) as {
         placeholder?: PlaceholderPerson;
@@ -818,12 +893,35 @@ export function PrivateChart({
       setAddEmail("");
       setAddPhoneNumber("");
       setAddNote("");
-      setAddSuccessMessage("Added privately. Send an invite when you’re ready.");
+      setAddSuccessMessage(
+        skipDuplicateCheck
+          ? "Added a new private person. Send an invite when you’re ready."
+          : "Added privately. Send an invite when you’re ready.",
+      );
     } catch {
       setAddError("Could not add that connection right now.");
     } finally {
       setIsAdding(false);
     }
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    await createPrivateConnection(false);
+  }
+
+  function handleUseExistingPerson(match: PrivateDuplicateMatch) {
+    const choice = chooseExistingPrivatePerson(match);
+    clearDuplicateCheckState();
+    setAddError(null);
+    setAddHint(null);
+    setAddName("");
+    setAddOfferToNameMatch(true);
+    setAddEmail("");
+    setAddPhoneNumber("");
+    setAddNote("");
+    setAddSuccessMessage(choice.message);
+    highlightConnection(`private-${choice.existingPersonId}`);
   }
 
   async function handleGenerateInvite(id: string) {
@@ -1078,6 +1176,112 @@ export function PrivateChart({
     } finally {
       setReportingId(null);
     }
+  }
+
+  function renderDuplicateCheckPanel() {
+    if (isCheckingDuplicates) {
+      return (
+        <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] px-3 py-3 text-xs font-semibold text-black/65 dark:bg-white/[0.04] dark:text-white/68">
+          Checking your private chart for similar people...
+        </div>
+      );
+    }
+
+    if (duplicateCheckError) {
+      return (
+        <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3">
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+            {duplicateCheckError}
+          </p>
+          <button
+            type="button"
+            onClick={() => void createPrivateConnection(true)}
+            disabled={isAdding}
+            className="rounded-full border border-amber-500/45 px-3 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-200"
+          >
+            {isAdding ? "Creating..." : "Create new person anyway"}
+          </button>
+        </div>
+      );
+    }
+
+    if (duplicateMatches.length === 0) {
+      return duplicateEmptyMessage ? (
+        <p className="text-xs text-black/55 dark:text-white/55">
+          {duplicateEmptyMessage}
+        </p>
+      ) : null;
+    }
+
+    const hasMultipleMatches = duplicateMatches.length > 1;
+
+    return (
+      <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3">
+        <div>
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+            Is this the person you were trying to add?
+          </p>
+          <p className="mt-1 text-xs text-amber-800/85 dark:text-amber-100/78">
+            They may already be on your chart.
+          </p>
+        </div>
+        <div className={hasMultipleMatches ? "grid gap-2 md:grid-cols-2" : "grid gap-2"}>
+          {duplicateMatches.map((match) => {
+            const details = [
+              match.phoneNumber ? `Phone: ${match.phoneNumber}` : null,
+              match.email ? `Email: ${match.email}` : null,
+              match.location ? `Location: ${match.location}` : null,
+              match.handle ? `Handle: @${match.handle}` : null,
+              match.relationshipType ? `Type: ${match.relationshipType}` : null,
+              match.claimStatus ? `Status: ${STATUS_LABELS[match.claimStatus] ?? match.claimStatus}` : null,
+              match.note ? `Note: ${match.note}` : null,
+            ].filter((item): item is string => Boolean(item));
+
+            return (
+              <div
+                key={match.id}
+                className="rounded-xl border border-amber-500/25 bg-white/70 p-3 text-xs dark:bg-black/20"
+              >
+                <p className="font-bold text-black/82 dark:text-white/88">
+                  {match.name}
+                </p>
+                {details.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-black/62 dark:text-white/68">
+                    {details.map((detail) => (
+                      <p key={detail}>{detail}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-black/55 dark:text-white/55">
+                    No extra details are saved for this private person.
+                  </p>
+                )}
+                {match.reasons.length > 0 ? (
+                  <p className="mt-2 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                    {match.reasons.join(", ")}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => handleUseExistingPerson(match)}
+                  className="mt-3 w-full rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-white"
+                >
+                  Use existing person
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => void createPrivateConnection(true)}
+          disabled={isAdding}
+          className="rounded-full border border-amber-500/45 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-100"
+        >
+          {isAdding ? "Creating..." : "Create new person anyway"}
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -1759,11 +1963,14 @@ export function PrivateChart({
                   <input
                     type="text"
                     value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
+                    onChange={(e) => {
+                      setAddName(e.target.value);
+                      clearDuplicateCheckState();
+                    }}
                     placeholder="Who are you adding?"
                     maxLength={80}
                     className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                    disabled={isAdding}
+                    disabled={isAdding || isCheckingDuplicates}
                   />
                 </label>
                 <label className="block">
@@ -1774,7 +1981,7 @@ export function PrivateChart({
                     value={addType}
                     onChange={(e) => setAddType(e.target.value as RelationshipType)}
                     className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                    disabled={isAdding}
+                    disabled={isAdding || isCheckingDuplicates}
                   >
                     {ALL_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -1801,11 +2008,14 @@ export function PrivateChart({
                       <input
                         type="email"
                         value={addEmail}
-                        onChange={(e) => setAddEmail(e.target.value)}
+                        onChange={(e) => {
+                          setAddEmail(e.target.value);
+                          clearDuplicateCheckState();
+                        }}
                         placeholder="Connection's email"
                         maxLength={200}
                         className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                        disabled={isAdding}
+                        disabled={isAdding || isCheckingDuplicates}
                       />
                     </label>
                     <label className="block">
@@ -1815,11 +2025,14 @@ export function PrivateChart({
                       <input
                         type="text"
                         value={addPhoneNumber}
-                        onChange={(e) => setAddPhoneNumber(e.target.value)}
+                        onChange={(e) => {
+                          setAddPhoneNumber(e.target.value);
+                          clearDuplicateCheckState();
+                        }}
                         placeholder="Connection's phone"
                         maxLength={40}
                         className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                        disabled={isAdding}
+                        disabled={isAdding || isCheckingDuplicates}
                       />
                     </label>
                   </div>
@@ -1834,7 +2047,7 @@ export function PrivateChart({
                       placeholder="How you know them, context, or reminder"
                       maxLength={500}
                       className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                      disabled={isAdding}
+                      disabled={isAdding || isCheckingDuplicates}
                     />
                   </label>
                   <label className="flex items-start gap-3 rounded-xl border border-[var(--border-soft)] bg-white/55 p-3 text-sm text-black/72 dark:bg-white/[0.06] dark:text-white/78">
@@ -1843,13 +2056,14 @@ export function PrivateChart({
                       checked={addOfferToNameMatch}
                       onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
                       className="mt-0.5 h-5 w-5"
-                      disabled={isAdding}
+                      disabled={isAdding || isCheckingDuplicates}
                     />
                     <span>Offer as a claim suggestion to matching signups.</span>
                   </label>
                 </div>
               </details>
 
+              {renderDuplicateCheckPanel()}
               {addError ? (
                 <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
               ) : null}
@@ -1865,10 +2079,14 @@ export function PrivateChart({
               ) : null}
               <button
                 type="submit"
-                disabled={isAdding || !addName.trim()}
+                disabled={isAdding || isCheckingDuplicates || !addName.trim()}
                 className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60 sm:w-auto sm:px-5"
               >
-                {isAdding ? "Adding..." : "Add to private chart"}
+                {isCheckingDuplicates
+                  ? "Checking..."
+                  : isAdding
+                    ? "Adding..."
+                    : "Add to private chart"}
               </button>
             </form>
           </div>
@@ -2294,30 +2512,39 @@ export function PrivateChart({
           <input
             type="text"
             value={addName}
-            onChange={(e) => setAddName(e.target.value)}
+            onChange={(e) => {
+              setAddName(e.target.value);
+              clearDuplicateCheckState();
+            }}
             placeholder="Name (required)"
             maxLength={80}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-            disabled={isAdding}
+            disabled={isAdding || isCheckingDuplicates}
           />
           <div className="grid gap-2 md:grid-cols-2">
             <input
               type="email"
               value={addEmail}
-              onChange={(e) => setAddEmail(e.target.value)}
+              onChange={(e) => {
+                setAddEmail(e.target.value);
+                clearDuplicateCheckState();
+              }}
               placeholder="Email (optional)"
               maxLength={200}
               className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-              disabled={isAdding}
+              disabled={isAdding || isCheckingDuplicates}
             />
             <input
               type="text"
               value={addPhoneNumber}
-              onChange={(e) => setAddPhoneNumber(e.target.value)}
+              onChange={(e) => {
+                setAddPhoneNumber(e.target.value);
+                clearDuplicateCheckState();
+              }}
               placeholder="Phone (optional)"
               maxLength={40}
               className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-              disabled={isAdding}
+              disabled={isAdding || isCheckingDuplicates}
             />
           </div>
           <label className="flex items-start gap-2 rounded-xl border border-[var(--border-soft)] px-3 py-2.5 text-xs text-black/70 dark:text-white/75">
@@ -2326,7 +2553,7 @@ export function PrivateChart({
               checked={addOfferToNameMatch}
               onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
               className="mt-0.5 h-4 w-4"
-              disabled={isAdding}
+              disabled={isAdding || isCheckingDuplicates}
             />
             <span>
               Offer this node as a claim suggestion to matching signups (name-based).
@@ -2337,7 +2564,7 @@ export function PrivateChart({
               value={addType}
               onChange={(e) => setAddType(e.target.value as RelationshipType)}
               className="flex-1 rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-              disabled={isAdding}
+              disabled={isAdding || isCheckingDuplicates}
             >
               {ALL_TYPES.map((t) => (
                 <option key={t} value={t}>
@@ -2356,8 +2583,9 @@ export function PrivateChart({
             placeholder="Add a note (optional)"
             maxLength={500}
             className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-            disabled={isAdding}
+            disabled={isAdding || isCheckingDuplicates}
           />
+          {renderDuplicateCheckPanel()}
           {addError ? (
             <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
           ) : null}
@@ -2368,10 +2596,14 @@ export function PrivateChart({
           ) : null}
           <button
             type="submit"
-            disabled={isAdding || !addName.trim()}
+            disabled={isAdding || isCheckingDuplicates || !addName.trim()}
             className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
           >
-            {isAdding ? "Adding..." : "Add private connection"}
+            {isCheckingDuplicates
+              ? "Checking..."
+              : isAdding
+                ? "Adding..."
+                : "Add private connection"}
           </button>
           <p className="text-[11px] text-black/55 dark:text-white/55">
             After adding, use <strong>Generate invite</strong> on their card to
