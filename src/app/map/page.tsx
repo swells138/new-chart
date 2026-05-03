@@ -52,6 +52,7 @@ async function resolveClerkUserId() {
 
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
+  let currentUserIsPro = false;
   const cookieStore = await cookies();
   const headersList = await headers();
   const hasSessionCookie = cookieStore.has("__session");
@@ -68,11 +69,12 @@ export default async function MapPage() {
         const profileImage = clerk?.imageUrl || null;
         const existing = await prisma.user.findUnique({
           where: { clerkId: userId },
-          select: { id: true, profileImage: true },
+          select: { id: true, isPro: true, profileImage: true },
         });
 
         if (existing) {
           currentUserDbId = existing.id;
+          currentUserIsPro = existing.isPro;
           if (profileImage && existing.profileImage !== profileImage) {
             await prisma.user.update({
               where: { id: existing.id },
@@ -88,21 +90,23 @@ export default async function MapPage() {
                 name: fullName || clerk?.username || "New member",
                 profileImage,
               },
-              select: { id: true },
+              select: { id: true, isPro: true },
             });
 
             currentUserDbId = created.id;
+            currentUserIsPro = created.isPro;
           } catch (error) {
             const prismaError = error as { code?: string };
 
             if (prismaError.code === "P2002") {
               const retry = await prisma.user.findUnique({
                 where: { clerkId: userId },
-                select: { id: true },
+                select: { id: true, isPro: true },
               });
 
               if (retry) {
                 currentUserDbId = retry.id;
+                currentUserIsPro = retry.isPro;
               }
             } else {
               throw error;
@@ -156,6 +160,7 @@ export default async function MapPage() {
         relationships={relationships}
         currentUserId={currentUserDbId}
         isSignedIn={sessionSignedIn}
+        currentUserIsPro={currentUserIsPro}
         userConnections={userConnections}
         privatePlaceholders={privatePlaceholders}
         baseUrl={baseUrl}

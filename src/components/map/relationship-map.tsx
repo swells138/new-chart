@@ -40,6 +40,8 @@ const NODE_PALETTE = [
   "#9b8cff",
 ];
 
+const FREE_EXTENDED_NODE_LIMIT = 15;
+
 function hashColor(id: string): string {
   let h = 0;
   for (let i = 0; i < id.length; i++)
@@ -91,6 +93,7 @@ type PersonNodeData = {
   isPulsing?: boolean;
   isBouncing?: boolean;
   isConnected?: boolean;
+  isLocked?: boolean;
   degree?: number;
 };
 
@@ -105,6 +108,7 @@ function PersonNode({
   const displayName = data.label.split(" ")[0] ?? data.label;
   const isPathNode = Boolean(data.isPathNode);
   const isDimmed = Boolean(data.dimmed);
+  const isLocked = Boolean(data.isLocked);
 
   // base visual adjustments
   const nodeBorder = selected || isPathNode ? `2px solid ${data.color}` : "1px solid rgba(255,255,255,0.06)";
@@ -129,7 +133,13 @@ function PersonNode({
         position={Position.Right}
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
-      <div style={{ textAlign: "center", width: 86, opacity: isDimmed ? 0.28 : 1 }}>
+      <div
+        style={{
+          textAlign: "center",
+          width: 86,
+          opacity: isDimmed ? 0.28 : isLocked ? 0.58 : 1,
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "center" }}>
           <div style={{ position: "relative", display: "inline-block" }}>
             <div
@@ -150,6 +160,7 @@ function PersonNode({
                 position: "relative",
                 zIndex: isPathNode ? 3 : 2,
                 overflow: "hidden",
+                filter: isLocked ? "blur(3px) saturate(0.75)" : undefined,
               }}
             >
               {data.profileImage ? (
@@ -172,6 +183,19 @@ function PersonNode({
                 </span>
               )}
             </div>
+            {isLocked ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: -4,
+                  borderRadius: "50%",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  background: "rgba(8,6,22,0.2)",
+                  backdropFilter: "blur(1px)",
+                  zIndex: 4,
+                }}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -189,14 +213,14 @@ function PersonNode({
         >
           <span
             style={{
-              color: "rgba(255,255,255,0.9)",
+              color: isLocked ? "rgba(255,255,255,0.54)" : "rgba(255,255,255,0.9)",
               fontSize: 11,
               fontWeight: 600,
               fontFamily: "system-ui",
               userSelect: "none",
             }}
           >
-            {displayName}
+            {isLocked ? "Pro" : displayName}
           </span>
         </div>
       </div>
@@ -341,6 +365,7 @@ interface Props {
   relationships: Relationship[];
   currentUserId: string | null;
   isSignedIn?: boolean;
+  currentUserIsPro?: boolean;
   userConnections?: Relationship[];
   privatePlaceholders?: PlaceholderPerson[];
   baseUrl?: string;
@@ -467,6 +492,7 @@ export function RelationshipMap({
   relationships,
   currentUserId,
   isSignedIn = false,
+  currentUserIsPro = false,
   userConnections,
   privatePlaceholders = [],
   baseUrl = "",
@@ -533,7 +559,7 @@ export function RelationshipMap({
   const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(false);
   // Whether the active user has an active Pro subscription. Populated from
   // /api/profile when we resolve the current DB user.
-  const [hasPro, setHasPro] = useState(false);
+  const [hasPro, setHasPro] = useState(currentUserIsPro);
   const feedbackTimeoutRef = useRef<number | null>(null);
 
   function triggerConnectionFeedback(
@@ -660,6 +686,10 @@ export function RelationshipMap({
   useEffect(() => {
     setResolvedCurrentUserId(currentUserId);
   }, [currentUserId]);
+
+  useEffect(() => {
+    setHasPro(currentUserIsPro);
+  }, [currentUserIsPro]);
 
   useEffect(() => {
     setClientPrivateConnectionCount(privatePlaceholders.length);
@@ -891,11 +921,12 @@ export function RelationshipMap({
   const showOnboardingOverlay =
     personalConnectionCount <= 2 && !isOnboardingDismissed;
 
-  const limitedExtendedNodeIds = useMemo(() => {
+  const networkAccess = useMemo(() => {
     if (!activeCurrentUserId) {
       return {
         nodeIds: new Set<string>(),
-        hiddenCount: 0,
+        lockedNodeIds: new Set<string>(),
+        lockedCount: 0,
         totalExtendedCount: 0,
       };
     }
@@ -948,23 +979,25 @@ export function RelationshipMap({
       })
       .map((user) => user.id);
 
-    const visibleExtendedIds = orderedExtendedIds.slice(0, 25);
+    const lockedExtendedIds = hasPro
+      ? []
+      : orderedExtendedIds.slice(FREE_EXTENDED_NODE_LIMIT);
+
     return {
       nodeIds: new Set<string>([
         activeCurrentUserId,
         ...Array.from(directIds),
-        ...visibleExtendedIds,
+        ...orderedExtendedIds,
       ]),
-      hiddenCount: Math.max(
-        0,
-        orderedExtendedIds.length - visibleExtendedIds.length,
-      ),
+      lockedNodeIds: new Set<string>(lockedExtendedIds),
+      lockedCount: lockedExtendedIds.length,
       totalExtendedCount: orderedExtendedIds.length,
     };
   }, [
     approvedRelationships,
     approvedUserConnections,
     activeCurrentUserId,
+    hasPro,
     users,
   ]);
 
@@ -972,7 +1005,7 @@ export function RelationshipMap({
   const displayedUsers = useMemo(() => {
     if (chartLayer === "private" && activeCurrentUserId) {
       return visibleDirectoryUsers.filter((user) =>
-        limitedExtendedNodeIds.nodeIds.has(user.id),
+        networkAccess.nodeIds.has(user.id),
       );
     }
 
@@ -996,7 +1029,7 @@ export function RelationshipMap({
     visibleDirectoryUsers,
     chartLayer,
     activeCurrentUserId,
-    limitedExtendedNodeIds,
+    networkAccess,
     approvedRelationships,
     activeTypes,
   ]);
@@ -1184,6 +1217,7 @@ export function RelationshipMap({
     const items = orderedUsers.map((user, index) => {
       const degree = degreeMap.get(user.id) ?? 0;
       const isPathNode = pathActive && pathNodeIds.has(user.id);
+      const isLocked = networkAccess.lockedNodeIds.has(user.id);
       const pos = getOrganicPosition(
         index,
         orderedUsers.length,
@@ -1204,7 +1238,8 @@ export function RelationshipMap({
           isBouncing: bouncingNodeId === user.id,
           isConnected: degree > 0,
           degree,
-          isPro: Boolean(user.featured),
+          isPro: Boolean(user.isPro || user.featured),
+          isLocked,
           isPathNode,
           dimmed: pathActive && !isPathNode,
         },
@@ -1293,6 +1328,7 @@ export function RelationshipMap({
     filteredRelationships,
     pathActive,
     pathNodeIds,
+    networkAccess,
   ]);
 
   const graphRelationships = useMemo(
@@ -1315,6 +1351,9 @@ export function RelationshipMap({
 
       const isPathEdge = pathActive && pathEdgeIds.has(item.id);
       const isDimmedEdge = pathActive && !pathEdgeIds.has(item.id);
+      const isLockedEdge =
+        networkAccess.lockedNodeIds.has(item.source) ||
+        networkAccess.lockedNodeIds.has(item.target);
 
       const classes: string[] = [];
       if (recentEdgeId === item.id) classes.push("map-edge-reveal");
@@ -1333,16 +1372,20 @@ export function RelationshipMap({
         style: {
           stroke: relationColors[item.type] ?? "#94a3b8",
           strokeWidth: isPathEdge ? 3.6 : 2.4,
-          strokeOpacity: isDimmedEdge ? 0.18 : isPathEdge ? 1 : 0.8,
+          strokeOpacity: isLockedEdge ? 0.18 : isDimmedEdge ? 0.18 : isPathEdge ? 1 : 0.8,
           // subtle glow for path edges (SVG filter fallback may vary by renderer)
-          filter: isPathEdge ? `drop-shadow(0 6px 10px ${(relationColors[item.type] ?? "#94a3b8") + "66"})` : undefined,
+          filter: isLockedEdge
+            ? "blur(3px)"
+            : isPathEdge
+              ? `drop-shadow(0 6px 10px ${(relationColors[item.type] ?? "#94a3b8") + "66"})`
+              : undefined,
         },
         labelStyle: {
           fontSize: 10,
           fill: relationColors[item.type] ?? "#94a3b8",
           fontWeight: 600,
           fontFamily: "system-ui",
-          opacity: isDimmedEdge ? 0.25 : 1,
+          opacity: isLockedEdge ? 0.18 : isDimmedEdge ? 0.25 : 1,
         },
         labelBgStyle: {
           fill: "rgba(8,6,22,0.8)",
@@ -1354,7 +1397,14 @@ export function RelationshipMap({
         labelBgBorderRadius: 999,
       };
     });
-  }, [graphRelationships, mappedNodes, pathActive, pathEdgeIds, recentEdgeId]);
+  }, [
+    graphRelationships,
+    mappedNodes,
+    networkAccess,
+    pathActive,
+    pathEdgeIds,
+    recentEdgeId,
+  ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(mappedEdges);
@@ -1738,7 +1788,10 @@ export function RelationshipMap({
     activeCurrentUserId && selectedId === activeCurrentUserId,
   );
   const shouldShowUnlockOverlay = Boolean(
-    selectedUser && !selectedUser.featured && !selectedIsCurrentUser,
+    selectedUser &&
+      !hasPro &&
+      networkAccess.lockedNodeIds.has(selectedUser.id) &&
+      !selectedIsCurrentUser,
   );
 
   // Compute whether the selected user is directly connected to the active user
@@ -2164,7 +2217,7 @@ export function RelationshipMap({
                 <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
               </ReactFlow>
 
-              {/* Unlock overlay for non-Pro profiles */}
+              {/* Unlock overlay for network nodes beyond the free exploration limit */}
               {shouldShowUnlockOverlay ? (
                 <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-auto">
                   {/* Dark backdrop */}
@@ -2189,12 +2242,12 @@ export function RelationshipMap({
                       >
                         <p className="text-lg font-semibold truncate">
                           {selectedDegree !== null
-                            ? `You're ${selectedDegree} connection${selectedDegree === 1 ? "" : "s"} away from ${selectedUser.name}`
-                            : "No connection path found"}
+                            ? `This node is ${selectedDegree} connection${selectedDegree === 1 ? "" : "s"} away`
+                            : "This part of the chart is locked"}
                         </p>
 
                         <p className="mt-2 text-sm text-white/70">
-                          See exactly how you are connected
+                          Free accounts can explore 15 second-degree nodes. Pro unlocks the rest.
                         </p>
 
                         <div className="mt-5 flex gap-3">
@@ -2251,12 +2304,12 @@ export function RelationshipMap({
                         aria-modal="true"
                       >
                         <p className="text-lg font-semibold truncate">
-                          See how you are connected to {selectedUser?.name}
+                          Unlock the rest of your chart
                         </p>
 
                         <ul className="mt-2 space-y-1 text-sm text-white/70">
-                          <li>• Full connection path</li>
-                          <li>• Hidden mutual connections</li>
+                          <li>• Nodes beyond the first 15</li>
+                          <li>• Full connection paths</li>
                           <li>• Relationship context</li>
                         </ul>
 
@@ -2294,9 +2347,16 @@ export function RelationshipMap({
                       : `You have ${personalConnectionCount} connection${personalConnectionCount === 1 ? "" : "s"} - ${connectionsToMilestone} more to unlock ${milestoneLabel}`}
                   </p>
                   <p className="mt-1 text-xs text-black/62 dark:text-white/64">
-                    5 unlocks extended network. 10 unlocks deeper network view.
-                    25 unlocks full exploration.
+                    Free accounts can view your direct connections and 15
+                    second-degree nodes. Pro unlocks the rest.
                   </p>
+                  {!hasPro && networkAccess.lockedCount > 0 ? (
+                    <p className="mt-1 text-xs font-medium text-[var(--accent)]">
+                      {networkAccess.lockedCount} more node
+                      {networkAccess.lockedCount === 1 ? "" : "s"} blurred
+                      behind Pro.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="min-w-40 flex-1 sm:flex-none">
                   <div className="flex items-center gap-3">

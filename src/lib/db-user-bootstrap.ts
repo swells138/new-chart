@@ -12,6 +12,7 @@ const bootstrapUserSelect = {
   interests: true,
   relationshipStatus: true,
   featured: true,
+  isPro: true,
   profileImage: true,
   links: true,
   createdAt: true,

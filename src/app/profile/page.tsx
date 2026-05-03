@@ -193,7 +193,7 @@ export default async function ProfilePage() {
 
         <aside className="paper-card rounded-2xl p-5">
           <h3 className="text-xl font-semibold">Your Connections</h3>
-          {user.featured ? (
+          {user.isPro ? (
             <div className="mt-2">
               <span className="inline-block rounded-full bg-[var(--accent)]/10 px-3 py-1 text-[var(--accent)] font-semibold">
                 Pro
@@ -206,7 +206,7 @@ export default async function ProfilePage() {
           />
 
           <div className="mt-6">
-            {!user.featured ? <GoProButton dbUserId={user.id} /> : null}
+            {!user.isPro ? <GoProButton dbUserId={user.id} /> : null}
           </div>
         </aside>
       </div>

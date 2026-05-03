@@ -35,6 +35,7 @@ const baseUserSelect = {
   location: true,
   links: true,
   featured: true,
+  isPro: true,
   profileImage: true,
 } as const satisfies Prisma.UserSelect;
 
@@ -92,6 +93,7 @@ function normalizeUser(user: {
   location: string | null;
   links: unknown;
   featured: boolean;
+  isPro?: boolean | null;
   profileImage?: string | null;
 }): User {
   const links =
@@ -115,7 +117,8 @@ function normalizeUser(user: {
     relationshipStatus: user.relationshipStatus ?? "unspecified",
     location: user.location ?? "Unknown",
     links,
-    featured: user.featured,
+    featured: user.featured || Boolean(user.isPro),
+    isPro: Boolean(user.isPro),
     profileImage: user.profileImage ?? null,
   };
 }

@@ -27,6 +27,7 @@ export interface User {
     social?: string;
   };
   featured: boolean;
+  isPro?: boolean;
   profileImage?: string | null;
 }
 
