@@ -45,6 +45,12 @@ model User {
   eventAttendees  EventAttendee[]
   ownedPlaceholders  PlaceholderPerson[] @relation("PlaceholderOwner")
   claimedPlaceholders PlaceholderPerson[] @relation("PlaceholderLinked")
+  privateConnectionEdges PrivateConnectionEdge[] @relation("PrivateConnectionEdgeOwner")
+  privateConfirmedConnectionEdges PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeOwner")
+  privateConfirmedConnectionEdgeSources PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeSource")
+  privateConfirmedConnectionEdgeTargets PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeTarget")
+  privateMixedConnectionEdges PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgeOwner")
+  privateMixedConnectionEdgeUsers PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgeUser")
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -142,10 +148,64 @@ model PlaceholderPerson {
   inviteToken     String?   @unique  // Generated on demand; null means no invite sent yet
   linkedUserId    String?
   linkedUser      User?     @relation("PlaceholderLinked", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  privateConnectionEdgeSources PrivateConnectionEdge[] @relation("PrivateConnectionEdgeSource")
+  privateConnectionEdgeTargets PrivateConnectionEdge[] @relation("PrivateConnectionEdgeTarget")
+  privateMixedConnectionEdges PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgePlaceholder")
   // claimStatus: "unclaimed" | "invited" | "claimed" | "denied"
   claimStatus     String    @default("unclaimed")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model PrivateConnectionEdge {
+  id                  String            @id
+  ownerId             String
+  owner               User              @relation("PrivateConnectionEdgeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  sourcePlaceholderId String
+  sourcePlaceholder   PlaceholderPerson @relation("PrivateConnectionEdgeSource", fields: [sourcePlaceholderId], references: [id], onDelete: Cascade)
+  targetPlaceholderId String
+  targetPlaceholder   PlaceholderPerson @relation("PrivateConnectionEdgeTarget", fields: [targetPlaceholderId], references: [id], onDelete: Cascade)
+  relationshipType    String
+  note                String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([ownerId, sourcePlaceholderId, targetPlaceholderId])
+  @@index([ownerId])
+}
+
+model PrivateConfirmedConnectionEdge {
+  id               String   @id
+  ownerId          String
+  owner            User     @relation("PrivateConfirmedConnectionEdgeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  sourceUserId     String
+  sourceUser       User     @relation("PrivateConfirmedConnectionEdgeSource", fields: [sourceUserId], references: [id], onDelete: Cascade)
+  targetUserId     String
+  targetUser       User     @relation("PrivateConfirmedConnectionEdgeTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  relationshipType String
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([ownerId, sourceUserId, targetUserId])
+  @@index([ownerId])
+}
+
+model PrivateMixedConnectionEdge {
+  id               String            @id
+  ownerId          String
+  owner            User              @relation("PrivateMixedConnectionEdgeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  placeholderId    String
+  placeholder      PlaceholderPerson @relation("PrivateMixedConnectionEdgePlaceholder", fields: [placeholderId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User              @relation("PrivateMixedConnectionEdgeUser", fields: [userId], references: [id], onDelete: Cascade)
+  relationshipType String
+  note             String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([ownerId, placeholderId, userId])
+  @@index([ownerId])
 }
 
 model ModerationReport {

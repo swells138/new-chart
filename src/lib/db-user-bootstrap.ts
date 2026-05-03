@@ -160,6 +160,46 @@ export async function ensureDbUserIdByClerkId(
   name: string = "New member",
   profileImage?: string | null,
 ) {
-  const user = await ensureDbUserByClerkId(clerkId, name, profileImage);
-  return user.id;
+  const existing = await prisma.user.findUnique({
+    where: { clerkId },
+    select: { id: true },
+  });
+
+  if (existing) {
+    return existing.id;
+  }
+
+  try {
+    const created = await prisma.user.create({
+      data: {
+        clerkId,
+        name,
+        ...(profileImage ? { profileImage } : {}),
+      },
+      select: { id: true },
+    });
+
+    return created.id;
+  } catch (error) {
+    if (!isPrismaKnownError(error)) {
+      throw error;
+    }
+
+    if (error.code === "P2022") {
+      await insertLegacyCompatibleUser(clerkId, name);
+    } else if (error.code !== "P2002") {
+      throw error;
+    }
+
+    const retry = await prisma.user.findUnique({
+      where: { clerkId },
+      select: { id: true },
+    });
+
+    if (retry) {
+      return retry.id;
+    }
+
+    throw new Error("Could not provision user profile record.");
+  }
 }

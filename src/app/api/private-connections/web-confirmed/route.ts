@@ -84,8 +84,8 @@ async function ensureConfirmedEdgeTable() {
       "targetUserId" TEXT NOT NULL,
       "relationshipType" TEXT NOT NULL,
       "note" TEXT,
-      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "PrivateConfirmedConnectionEdge_owner_fk"
         FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE CASCADE,
       CONSTRAINT "PrivateConfirmedConnectionEdge_source_fk"
