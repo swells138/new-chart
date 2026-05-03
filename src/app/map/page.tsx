@@ -1,5 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { prisma } from "@/lib/prisma";
 import { getAllRelationships, getAllUsers, getPrivateConnectionsByUser, getRelationshipsByUser } from "@/lib/prisma-queries";
@@ -12,6 +12,25 @@ const hasClerkKeys =
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
       process.env.CLERK_PUBLISHABLE_KEY
   );
+
+function normalizeOrigin(input: string | null | undefined) {
+  if (!input) {
+    return null;
+  }
+
+  const origin = input.startsWith("http") ? input : `https://${input}`;
+  return origin.replace(/\/$/, "");
+}
+
+function getRequestOrigin(headersList: Awaited<ReturnType<typeof headers>>) {
+  const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
+  if (!host) {
+    return null;
+  }
+
+  const protocol = headersList.get("x-forwarded-proto") ?? "https";
+  return `${protocol}://${host}`.replace(/\/$/, "");
+}
 
 async function resolveClerkUserId() {
   try {
@@ -34,6 +53,7 @@ async function resolveClerkUserId() {
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
   const cookieStore = await cookies();
+  const headersList = await headers();
   const hasSessionCookie = cookieStore.has("__session");
   let sessionSignedIn = hasSessionCookie;
 
@@ -124,12 +144,10 @@ export default async function MapPage() {
   }
 
   const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL
-      ? process.env.VERCEL_URL.startsWith("http")
-        ? process.env.VERCEL_URL
-        : `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
+    normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ??
+    getRequestOrigin(headersList) ??
+    normalizeOrigin(process.env.VERCEL_URL) ??
+    "http://localhost:3000";
 
   return (
     <div>
