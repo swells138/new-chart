@@ -53,7 +53,11 @@ export async function POST(req: Request) {
           }
         }
 
-        const updateData: any = {};
+        const updateData: {
+          stripeCustomerId?: string;
+          stripeSubscriptionId?: string;
+          isPro?: boolean;
+        } = {};
         if (customerId) updateData.stripeCustomerId = customerId;
         if (subscriptionId) updateData.stripeSubscriptionId = subscriptionId;
         if (isActive) updateData.isPro = true;
