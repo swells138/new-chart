@@ -15,7 +15,9 @@ async function main() {
     const tablesRes = await client.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;`,
     );
-    const tables: string[] = tablesRes.rows.map((r: any) => r.table_name);
+    const tables: string[] = tablesRes.rows.map(
+      (r: { table_name: string }) => r.table_name,
+    );
     for (const t of tables) {
       try {
         const cntRes = await client.query(
@@ -66,7 +68,7 @@ async function main() {
       .query(
         'SELECT id, name, stripeCustomerId, stripeSubscriptionId, isPro FROM \"User\" LIMIT 10;',
       )
-      .catch(async (e) => {
+      .catch(async () => {
         // try lowercase
         return client.query(
           "SELECT id, name, stripeCustomerId, stripeSubscriptionId, isPro FROM user LIMIT 10;",

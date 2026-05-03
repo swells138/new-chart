@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Stripe from "stripe";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
@@ -35,11 +35,14 @@ export default async function CheckoutPage() {
       priceData.currency = price.currency ?? null;
       priceData.interval =
         (price.recurring as Stripe.Price.Recurring | null)?.interval ?? null;
-      priceData.display = price.product
-        ? typeof price.product === "string"
-          ? "Pro"
-          : ((price.product as any).name ?? "Pro")
-        : "Pro";
+      if (
+        price.product &&
+        typeof price.product !== "string" &&
+        "name" in price.product &&
+        typeof price.product.name === "string"
+      ) {
+        priceData.display = price.product.name;
+      }
     } catch (e) {
       // ignore - we'll show a simple fallback
       console.warn("Failed to fetch price details", e);
