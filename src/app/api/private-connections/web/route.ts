@@ -51,8 +51,12 @@ type PrivateEdgeRecord = {
   targetPlaceholderId: string;
   relationshipType: string;
   note: string | null;
-  createdAt: Date;
+  createdAt: Date | string;
 };
+
+function serializeCreatedAt(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : value;
+}
 
 function normalizeEdge(edge: PrivateEdgeRecord): PrivateConnectionEdge {
   return {
@@ -62,8 +66,24 @@ function normalizeEdge(edge: PrivateEdgeRecord): PrivateConnectionEdge {
     targetPlaceholderId: edge.targetPlaceholderId,
     relationshipType: edge.relationshipType as RelationshipType,
     note: edge.note ?? "",
-    createdAt: edge.createdAt.toISOString(),
+    createdAt: serializeCreatedAt(edge.createdAt),
   };
+}
+
+function isTableUnavailableError(error: unknown) {
+  const err = error as {
+    code?: string;
+    meta?: { code?: string; message?: string };
+    message?: string;
+  };
+  const code = err.meta?.code ?? err.code;
+  const message = `${err.meta?.message ?? ""} ${err.message ?? ""}`;
+
+  return (
+    code === "42P01" ||
+    code === "42501" ||
+    /does not exist|permission denied/i.test(message)
+  );
 }
 
 async function ensurePrivateEdgeTable() {
@@ -129,23 +149,32 @@ export async function GET(request: Request) {
     const authResult = await getAuthenticatedDbUserId(request);
     if (authResult.error) return authResult.error;
 
-    await ensurePrivateEdgeTable();
+    try {
+      await ensurePrivateEdgeTable();
 
-    const rows = await prisma.$queryRaw<PrivateEdgeRecord[]>`
-      SELECT
-        "id",
-        "ownerId",
-        "sourcePlaceholderId",
-        "targetPlaceholderId",
-        "relationshipType",
-        "note",
-        "createdAt"
-      FROM "PrivateConnectionEdge"
-      WHERE "ownerId" = ${authResult.dbUserId}
-      ORDER BY "createdAt" DESC
-    `;
+      const rows = await prisma.$queryRaw<PrivateEdgeRecord[]>`
+        SELECT
+          "id",
+          "ownerId",
+          "sourcePlaceholderId",
+          "targetPlaceholderId",
+          "relationshipType",
+          "note",
+          "createdAt"
+        FROM "PrivateConnectionEdge"
+        WHERE "ownerId" = ${authResult.dbUserId}
+        ORDER BY "createdAt" DESC
+      `;
 
-    return NextResponse.json({ edges: rows.map(normalizeEdge) });
+      return NextResponse.json({ edges: rows.map(normalizeEdge) });
+    } catch (error) {
+      if (isTableUnavailableError(error)) {
+        console.warn("Private web edge table unavailable; returning no edges", error);
+        return NextResponse.json({ edges: [] });
+      }
+
+      throw error;
+    }
   } catch (error) {
     console.error("Failed to list private web edges", error);
     return NextResponse.json(
