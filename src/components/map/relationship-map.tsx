@@ -2067,12 +2067,12 @@ export function RelationshipMap({
               🌍 Public
             </button>
           </div>
-          <div className="flex flex-col gap-2 text-xs text-black/62 dark:text-white/64 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 text-xs text-black/62 dark:text-white/64 sm:flex-row sm:flex-wrap sm:items-center">
             <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
-              🔒 Private = dashed lines
+              🔒 Private = dashed lines (unverified)
             </span>
             <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
-              🌍 Public = solid lines
+              🌍 Public = solid lines (verified)
             </span>
             <span>
               Private shows your full network. Public only shows verified
@@ -2156,14 +2156,14 @@ export function RelationshipMap({
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
-                  Network map
+                  🌍 Public Chart
                 </p>
                 <h2 className="mt-1 text-2xl font-semibold">
                   Verified connections
                 </h2>
                 <p className="mt-1 text-xs text-black/65 dark:text-white/70">
-                  Nodes are clickable. Clicking opens profile details, and
-                  dragging from your node creates a connection request.
+                  Only verified connections (confirmed by both users) are
+                  visible to others.
                 </p>
               </div>
               <button
@@ -2177,8 +2177,8 @@ export function RelationshipMap({
               </button>
             </div>
             <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
-              All connections are user-created and only become public after both
-              parties verify.
+              🔒 Private = dashed lines (unverified) · 🌍 Public = solid lines
+              (verified)
             </p>
             {hasDbUser ? null : (
               <p className="mb-3 text-xs text-black/65 dark:text-white/70">
@@ -2350,6 +2350,110 @@ export function RelationshipMap({
                 </div>
               ) : null}
             </div>
+
+            {selectedUser && !shouldShowUnlockOverlay ? (
+              <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar
+                      name={selectedUser.name}
+                      src={selectedUser.profileImage ?? undefined}
+                      className="h-11 w-11"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold">
+                        {selectedUser.name}
+                      </p>
+                      <p className="truncate text-xs text-black/58 dark:text-white/58">
+                        @{selectedUser.handle}
+                        {selectedUser.location
+                          ? ` · ${selectedUser.location}`
+                          : ""}
+                      </p>
+                      {selectedDegree !== null ? (
+                        <p className="mt-1 text-xs font-medium text-black/65 dark:text-white/65">
+                          {selectedDegree === 0
+                            ? "This is you."
+                            : `${selectedDegree} connection${selectedDegree === 1 ? "" : "s"} away.`}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {!selectedIsCurrentUser ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          reportNode(selectedUser.id, selectedUser.name)
+                        }
+                        disabled={reportingUserId === selectedUser.id}
+                        className="rounded-full border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
+                      >
+                        {reportingUserId === selectedUser.id
+                          ? "Reporting..."
+                          : "Report"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(null)}
+                      className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-black/55 dark:text-white/55">
+                    Visible verified connections
+                  </p>
+                  {selectedConnections.length === 0 ? (
+                    <p className="mt-2 text-xs text-black/62 dark:text-white/64">
+                      No visible verified connections for this node with the
+                      current filters.
+                    </p>
+                  ) : (
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {selectedConnections.map((connection) => {
+                        const otherUserId =
+                          connection.source === selectedUser.id
+                            ? connection.target
+                            : connection.source;
+                        const otherUser = usersById.get(otherUserId);
+                        const color =
+                          relationColors[connection.type] ?? "#94a3b8";
+
+                        return (
+                          <div
+                            key={`selected-${connection.id}`}
+                            className="flex items-center gap-2 rounded-lg border border-[var(--border-soft)] bg-white/50 px-3 py-2 text-xs dark:bg-black/20"
+                          >
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="min-w-0 flex-1 truncate font-semibold">
+                              {otherUser?.name ?? "Member"}
+                            </span>
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                              style={{
+                                backgroundColor: `${color}22`,
+                                color,
+                                border: `1px solid ${color}44`,
+                              }}
+                            >
+                              {connection.type}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

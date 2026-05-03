@@ -1088,16 +1088,21 @@ export function PrivateChart({
         className="overflow-hidden rounded-2xl border border-white/10"
         style={{ background: "#0f0819" }}
       >
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-white/55">
-            Direct connections
-          </p>
-          <div className="flex items-center gap-2 text-[10px] text-white/50">
+        <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-white/80">
+              🔒 Private Chart
+            </p>
+            <p className="mt-1 text-xs text-white/62">
+              Only you can see all connections, including unverified ones.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/50">
             <span className="rounded-full border border-white/15 px-2 py-0.5">
-              Placeholder dashed
+              🔒 Private = dashed lines (unverified)
             </span>
             <span className="rounded-full border border-white/15 px-2 py-0.5">
-              Confirmed solid
+              🌍 Public = solid lines (verified)
             </span>
           </div>
         </div>
@@ -1512,6 +1517,100 @@ export function PrivateChart({
         <p className="border-t border-white/10 px-4 py-3 text-center text-xs text-white/55">
           The more people you add, the more connections you uncover.
         </p>
+        {placeholders.length > 0 || combinedWebEdges.length > 0 ? (
+          <div className="border-t border-white/10 px-4 py-4">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-white/62">
+                  Manage private chart
+                </p>
+                <p className="text-[11px] text-white/45">
+                  Remove private people or links from this chart.
+                </p>
+              </div>
+            </div>
+
+            {placeholders.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {placeholders.map((p) => {
+                  const color = TYPE_COLORS[p.relationshipType] ?? "#888";
+                  const isWorking = workingId === p.id;
+                  const isOwned =
+                    currentUserId !== null && p.ownerId === currentUserId;
+
+                  return (
+                    <div
+                      key={`chart-manage-${p.id}`}
+                      className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-semibold text-white/82">
+                          {p.name}
+                        </p>
+                        <p className="text-[10px] uppercase tracking-wide text-white/42">
+                          {p.relationshipType}
+                        </p>
+                      </div>
+                      {isOwned ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(p.id)}
+                          disabled={isWorking}
+                          className="shrink-0 rounded-full border border-red-400/35 px-3 py-1 text-[11px] font-semibold text-red-300 transition hover:bg-red-500/10 disabled:opacity-60"
+                        >
+                          {isWorking ? "Removing..." : "Remove"}
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {combinedWebEdges.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {combinedWebEdges.map((edge) => {
+                  const color = TYPE_COLORS[edge.relationshipType] ?? "#9ca3af";
+
+                  return (
+                    <div
+                      key={`chart-manage-edge-${edge.id}`}
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-xs"
+                    >
+                      <span className="font-semibold text-white/80">
+                        {edge.sourceName} {" <-> "} {edge.targetName}
+                      </span>
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        style={{
+                          backgroundColor: `${color}22`,
+                          color,
+                          border: `1px solid ${color}44`,
+                        }}
+                      >
+                        {edge.relationshipType}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAnyWebEdge(edge)}
+                        disabled={deletingAnyWebEdgeId === edge.id}
+                        className="ml-auto rounded-full border border-red-400/35 px-3 py-1 text-[11px] font-semibold text-red-300 transition hover:bg-red-500/10 disabled:opacity-60"
+                      >
+                        {deletingAnyWebEdgeId === edge.id
+                          ? "Removing..."
+                          : "Remove"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {/* Confirmed direct connections */}
@@ -1686,46 +1785,64 @@ export function PrivateChart({
                 </label>
               </div>
 
-              <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 dark:bg-white/[0.04]">
+              <details
+                open
+                className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 dark:bg-white/[0.04]"
+              >
                 <summary className="cursor-pointer text-xs font-semibold text-black/65 dark:text-white/68">
                   Optional details
                 </summary>
                 <div className="mt-3 space-y-3">
                   <div className="grid gap-2 md:grid-cols-2">
-                    <input
-                      type="email"
-                      value={addEmail}
-                      onChange={(e) => setAddEmail(e.target.value)}
-                      placeholder="Email"
-                      maxLength={200}
-                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                      disabled={isAdding}
-                    />
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                        Their email
+                      </span>
+                      <input
+                        type="email"
+                        value={addEmail}
+                        onChange={(e) => setAddEmail(e.target.value)}
+                        placeholder="Connection's email"
+                        maxLength={200}
+                        className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                        disabled={isAdding}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                        Their phone
+                      </span>
+                      <input
+                        type="text"
+                        value={addPhoneNumber}
+                        onChange={(e) => setAddPhoneNumber(e.target.value)}
+                        placeholder="Connection's phone"
+                        maxLength={40}
+                        className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+                        disabled={isAdding}
+                      />
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
+                      Note about this connection
+                    </span>
                     <input
                       type="text"
-                      value={addPhoneNumber}
-                      onChange={(e) => setAddPhoneNumber(e.target.value)}
-                      placeholder="Phone"
-                      maxLength={40}
+                      value={addNote}
+                      onChange={(e) => setAddNote(e.target.value)}
+                      placeholder="How you know them, context, or reminder"
+                      maxLength={500}
                       className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
                       disabled={isAdding}
                     />
-                  </div>
-                  <input
-                    type="text"
-                    value={addNote}
-                    onChange={(e) => setAddNote(e.target.value)}
-                    placeholder="Note"
-                    maxLength={500}
-                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                    disabled={isAdding}
-                  />
-                  <label className="flex items-start gap-2 text-xs text-black/70 dark:text-white/75">
+                  </label>
+                  <label className="flex items-start gap-3 rounded-xl border border-[var(--border-soft)] bg-white/55 p-3 text-sm text-black/72 dark:bg-white/[0.06] dark:text-white/78">
                     <input
                       type="checkbox"
                       checked={addOfferToNameMatch}
                       onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
-                      className="mt-0.5 h-4 w-4"
+                      className="mt-0.5 h-5 w-5"
                       disabled={isAdding}
                     />
                     <span>Offer as a claim suggestion to matching signups.</span>
