@@ -487,6 +487,58 @@ function parseRelationshipNote(input: string): {
   }
 }
 
+function getConnectionRequestStatusText(args: {
+  relationship: Relationship | null;
+  currentUserId: string | null;
+  otherUserName: string;
+}) {
+  const { relationship, currentUserId, otherUserName } = args;
+
+  if (!relationship || !currentUserId) {
+    return null;
+  }
+
+  const parsed = parseRelationshipNote(relationship.note);
+
+  if (parsed.status === "active") {
+    return "Connected.";
+  }
+
+  if (parsed.status === "pending_claim") {
+    if (parsed.creatorId === currentUserId) {
+      return `Pending for you until ${otherUserName} verifies.`;
+    }
+
+    if (parsed.claimedByUserId === currentUserId) {
+      return "Waiting for you to verify in Pending Verification.";
+    }
+
+    return "Pending verification.";
+  }
+
+  if (parsed.status === "pending_creator_confirmation") {
+    if (parsed.creatorId === currentUserId) {
+      return "They verified. Confirm in Pending Verification to make it public.";
+    }
+
+    return "Verified by you. Waiting for the creator to make it public.";
+  }
+
+  if (parsed.status === "rejected") {
+    return "This request was rejected.";
+  }
+
+  if (parsed.status === "disputed") {
+    return "This request is under review.";
+  }
+
+  if (parsed.status === "expired") {
+    return "This request expired.";
+  }
+
+  return "Pending verification.";
+}
+
 function formatUtcDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -1137,50 +1189,11 @@ export function RelationshipMap({
     );
   }, [activeCurrentUserId, allRelationships, searchSelectedUser]);
   const searchSelectedRelationshipStatus = useMemo(() => {
-    if (!searchSelectedRelationship || !activeCurrentUserId) {
-      return null;
-    }
-
-    const parsed = parseRelationshipNote(searchSelectedRelationship.note);
-    const otherUserName = searchSelectedUser?.name ?? "them";
-
-    if (parsed.status === "active") {
-      return "Connected.";
-    }
-
-    if (parsed.status === "pending_claim") {
-      if (parsed.creatorId === activeCurrentUserId) {
-        return `Pending for you until ${otherUserName} verifies.`;
-      }
-
-      if (parsed.claimedByUserId === activeCurrentUserId) {
-        return "Waiting for you to verify in Pending Verification.";
-      }
-
-      return "Pending verification.";
-    }
-
-    if (parsed.status === "pending_creator_confirmation") {
-      if (parsed.creatorId === activeCurrentUserId) {
-        return "They verified. Confirm in Pending Verification to make it public.";
-      }
-
-      return "Verified by you. Waiting for the creator to make it public.";
-    }
-
-    if (parsed.status === "rejected") {
-      return "This request was rejected.";
-    }
-
-    if (parsed.status === "disputed") {
-      return "This request is under review.";
-    }
-
-    if (parsed.status === "expired") {
-      return "This request expired.";
-    }
-
-    return "Pending verification.";
+    return getConnectionRequestStatusText({
+      relationship: searchSelectedRelationship,
+      currentUserId: activeCurrentUserId,
+      otherUserName: searchSelectedUser?.name ?? "them",
+    });
   }, [activeCurrentUserId, searchSelectedRelationship, searchSelectedUser]);
   const usersById = useMemo(
     () => new Map(visibleDirectoryUsers.map((user) => [user.id, user])),
@@ -1838,6 +1851,28 @@ export function RelationshipMap({
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId,
   );
+  const selectedRelationship = useMemo(() => {
+    if (!activeCurrentUserId || !selectedUser) {
+      return null;
+    }
+
+    return (
+      allRelationships.find(
+        (item) =>
+          (item.source === activeCurrentUserId &&
+            item.target === selectedUser.id) ||
+          (item.source === selectedUser.id &&
+            item.target === activeCurrentUserId),
+      ) ?? null
+    );
+  }, [activeCurrentUserId, allRelationships, selectedUser]);
+  const selectedRelationshipStatus = useMemo(() => {
+    return getConnectionRequestStatusText({
+      relationship: selectedRelationship,
+      currentUserId: activeCurrentUserId,
+      otherUserName: selectedUser?.name ?? "them",
+    });
+  }, [activeCurrentUserId, selectedRelationship, selectedUser]);
   const selectedIsCurrentUser = Boolean(
     activeCurrentUserId && selectedId === activeCurrentUserId,
   );
@@ -2561,6 +2596,55 @@ export function RelationshipMap({
                         </button>
                       </div>
                     </div>
+
+                    {!selectedIsCurrentUser ? (
+                      <div className="mt-4 rounded-lg border border-[var(--border-soft)] bg-white/45 p-3 dark:bg-black/20">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                          <label className="grid gap-1 text-xs font-semibold text-black/65 dark:text-white/65">
+                            Connection type
+                            <select
+                              value={connectionType}
+                              onChange={(event) =>
+                                setConnectionType(
+                                  event.target.value as RelationshipType,
+                                )
+                              }
+                              disabled={
+                                Boolean(selectedRelationship) || isConnecting
+                              }
+                              className="min-h-10 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm font-semibold outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
+                            >
+                              {(Object.keys(relationColors) as RelationshipType[]).map(
+                                (type) => (
+                                  <option key={type} value={type}>
+                                    {type}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => createConnection(selectedUser.id)}
+                            disabled={
+                              isConnecting ||
+                              Boolean(selectedRelationship) ||
+                              !activeCurrentUserId
+                            }
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-65"
+                          >
+                            <UserPlus className="h-4 w-4" aria-hidden="true" />
+                            {isConnecting ? "Sending..." : "Add connection"}
+                          </button>
+                        </div>
+                        <p className="mt-2 text-xs text-black/58 dark:text-white/58">
+                          {selectedRelationshipStatus ??
+                            (activeCurrentUserId
+                              ? "This will stay pending for you until they verify it."
+                              : "Sign in to add this public connection.")}
+                        </p>
+                      </div>
+                    ) : null}
 
                     <div className="mt-4">
                       <p className="text-xs font-bold uppercase tracking-wide text-black/55 dark:text-white/55">
