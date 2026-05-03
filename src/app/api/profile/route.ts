@@ -19,6 +19,7 @@ const profileSafeSelect = {
   interests: true,
   links: true,
   profileImage: true,
+  isPro: true,
   email: true,
   phoneNumber: true,
 } as const;
@@ -97,6 +98,7 @@ function shapeProfile(user: {
   interests: string[];
   links: unknown;
   profileImage: string | null;
+  isPro?: boolean | null;
   email: string | null;
   phoneNumber?: string | null;
 }) {
@@ -115,6 +117,7 @@ function shapeProfile(user: {
     interests: user.interests,
     links: normalizeLinks(user.links),
     profileImage: user.profileImage ?? "",
+    isPro: Boolean(user.isPro),
     phoneNumber: user.phoneNumber ?? "",
   };
 }

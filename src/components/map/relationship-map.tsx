@@ -98,11 +98,23 @@ function PersonNode({
   data,
   selected,
 }: {
-  data: PersonNodeData & { isPro?: boolean };
+  data: PersonNodeData & { isPro?: boolean; isPathNode?: boolean; dimmed?: boolean };
   selected?: boolean;
 }) {
   const initial = (data.label?.[0] ?? "?").toUpperCase();
   const displayName = data.label.split(" ")[0] ?? data.label;
+  const isPathNode = Boolean(data.isPathNode);
+  const isDimmed = Boolean(data.dimmed);
+
+  // base visual adjustments
+  const nodeBorder = selected || isPathNode ? `2px solid ${data.color}` : "1px solid rgba(255,255,255,0.06)";
+  const nodeTransform = selected || isPathNode ? "translateY(-1px) scale(1.06)" : "translateY(0) scale(1)";
+  const nodeBoxShadow = isPathNode
+    ? `0 8px 26px ${data.color}33`
+    : data.isPulsing
+      ? `0 6px 18px ${data.color}22`
+      : `0 2px 6px rgba(2,6,23,0.18)`;
+
   return (
     <>
       <Handle
@@ -117,7 +129,7 @@ function PersonNode({
         position={Position.Right}
         style={{ opacity: 0, top: 23, transform: "translateY(-50%)" }}
       />
-      <div style={{ textAlign: "center", width: 86 }}>
+      <div style={{ textAlign: "center", width: 86, opacity: isDimmed ? 0.28 : 1 }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <div style={{ position: "relative", display: "inline-block" }}>
             {data.isPro ? (
@@ -131,22 +143,16 @@ function PersonNode({
                 height: 40,
                 borderRadius: "50%",
                 background: data.color,
-                boxShadow: data.isPulsing
-                  ? `0 6px 18px ${data.color}22`
-                  : `0 2px 6px rgba(2,6,23,0.18)`,
+                boxShadow: nodeBoxShadow,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 margin: "0 auto",
-                border: selected
-                  ? `2px solid ${data.color}`
-                  : "1px solid rgba(255,255,255,0.06)",
-                transition: "transform 0.18s ease, box-shadow 0.18s ease",
-                transform: selected
-                  ? "translateY(-1px) scale(1.04)"
-                  : "translateY(0) scale(1)",
+                border: nodeBorder,
+                transition: "transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease",
+                transform: nodeTransform,
                 position: "relative",
-                zIndex: 2,
+                zIndex: isPathNode ? 3 : 2,
                 overflow: "hidden",
               }}
             >
@@ -266,6 +272,72 @@ function getConnectionSearchTokens(user: User) {
     handle ? `@${handle}` : "",
     user.location,
   ].map(normalizeConnectionSearchValue);
+}
+
+function findShortestConnectionPath(
+  relationships: Relationship[],
+  startUserId: string | null | undefined,
+  targetUserId: string | null | undefined,
+): { degree: number; path: string[] } | null {
+  if (!startUserId || !targetUserId) {
+    return null;
+  }
+
+  if (startUserId === targetUserId) {
+    return { degree: 0, path: [startUserId] };
+  }
+
+  const neighborsByUserId = new Map<string, Set<string>>();
+
+  relationships.forEach((relationship) => {
+    if (!neighborsByUserId.has(relationship.source)) {
+      neighborsByUserId.set(relationship.source, new Set());
+    }
+    if (!neighborsByUserId.has(relationship.target)) {
+      neighborsByUserId.set(relationship.target, new Set());
+    }
+
+    neighborsByUserId.get(relationship.source)?.add(relationship.target);
+    neighborsByUserId.get(relationship.target)?.add(relationship.source);
+  });
+
+  const parentByUserId = new Map<string, string | null>([
+    [startUserId, null],
+  ]);
+  const queue = [startUserId];
+
+  while (queue.length > 0) {
+    const currentUserId = queue.shift();
+    if (!currentUserId) {
+      continue;
+    }
+
+    const neighbors = neighborsByUserId.get(currentUserId) ?? new Set<string>();
+    for (const neighborId of neighbors) {
+      if (parentByUserId.has(neighborId)) {
+        continue;
+      }
+
+      parentByUserId.set(neighborId, currentUserId);
+
+      if (neighborId === targetUserId) {
+        const path: string[] = [];
+        let pathUserId: string | null = targetUserId;
+
+        while (pathUserId) {
+          path.push(pathUserId);
+          pathUserId = parentByUserId.get(pathUserId) ?? null;
+        }
+
+        path.reverse();
+        return { degree: path.length - 1, path };
+      }
+
+      queue.push(neighborId);
+    }
+  }
+
+  return null;
 }
 
 function isObviousTestProfile(user: User) {
@@ -440,6 +512,12 @@ export function RelationshipMap({
   const [connectionQuery, setConnectionQuery] = useState<string>("");
   const [connectionType, setConnectionType] =
     useState<RelationshipType>("Friends");
+  // STEP 1: search UI state
+  const [searchValue, setSearchValue] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [hasSearchedUsers, setHasSearchedUsers] = useState(false);
+  // store the user selected from search (local state, separate from existing selectedId)
+  const [searchSelectedUser, setSearchSelectedUser] = useState<User | null>(null);
   const [allRelationships, setAllRelationships] =
     useState<Relationship[]>(relationships);
   // Track IDs that have been mutated client-side so SSR rehydration doesn't overwrite them.
@@ -472,6 +550,9 @@ export function RelationshipMap({
     useState(0);
   const [showSecondaryActions, setShowSecondaryActions] = useState(false);
   const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(false);
+  // Whether the active user has an active Pro subscription. Populated from
+  // /api/profile when we resolve the current DB user.
+  const [hasPro, setHasPro] = useState(false);
   const feedbackTimeoutRef = useRef<number | null>(null);
 
   function triggerConnectionFeedback(
@@ -545,6 +626,23 @@ export function RelationshipMap({
   );
   const isSignedInEffective = Boolean(isSignedIn || hasBrowserSession);
   const needsAccountSync = isSignedInEffective && !hasDbUser;
+
+  function searchLoadedUsers() {
+    const query = normalizeConnectionSearchValue(searchValue);
+    setHasSearchedUsers(true);
+    setSearchSelectedUser(null);
+
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    const matches = visibleDirectoryUsers.filter((user) =>
+      getConnectionSearchTokens(user).some((token) => token.includes(query)),
+    );
+    setSearchResults(matches);
+    setSearchSelectedUser(matches[0] ?? null);
+  }
 
   const authFetch = useCallback(
     async (input: string, init?: RequestInit) => {
@@ -621,7 +719,12 @@ export function RelationshipMap({
       try {
         const response = await authFetch("/api/profile", { cache: "no-store" });
         const body = (await response.json()) as {
-          profile?: { id?: string };
+          profile?: {
+            id?: string;
+            isPro?: boolean;
+            hasPro?: boolean;
+            pro?: { active?: boolean };
+          };
           error?: string;
         };
 
@@ -635,6 +738,13 @@ export function RelationshipMap({
         }
 
         const dbUserId = body.profile?.id;
+        // Accept a few possible shapes from the API: isPro, hasPro, or nested
+        // pro.active. If present, update local state so UI can show Pro UX.
+        const profileIsPro =
+          Boolean(body.profile?.isPro) ||
+          Boolean(body.profile?.hasPro) ||
+          Boolean(body.profile?.pro?.active);
+        setHasPro(profileIsPro);
         if (!dbUserId) {
           if (!silent) {
             setConnectionError(
@@ -925,9 +1035,9 @@ export function RelationshipMap({
         displayedUsers.find((user) => user.id === activeCurrentUserId)?.id) ??
       displayedUsers[0].id;
     // If the defaultSelected matches a recently dismissed id, don't auto-select
-    if (dismissedUserId && defaultSelected === dismissedUserId) {
-      return;
-    }
+    // if (dismissedUserId && defaultSelected === dismissedUserId) {
+    //   return;
+    // }
     setSelectedId(defaultSelected);
   }, [displayedUsers, selectedId, activeCurrentUserId, dismissedUserId]);
 
@@ -989,13 +1099,20 @@ export function RelationshipMap({
     setConnectionTargetId(filteredConnectableUsers[0].id);
   }, [filteredConnectableUsers, connectionTargetId]);
 
-  // Determine which relationships to display
+  // When a user selects someone from the search/connect list, open that user's
+  // profile so we can show the connection distance modal. Clear any dismissed id
+  // so the modal appears reliably when explicitly chosen from search.
+  useEffect(() => {
+    if (!connectionTargetId) return;
+    setDismissedUserId(null);
+    setSelectedId(connectionTargetId);
+  }, [connectionTargetId]);
+
   const displayedRelationships = useMemo(
     () => approvedRelationships,
     [approvedRelationships],
   );
 
-  // ensure filteredRelationships is declared before mappedNodes (used to build degree map)
   const filteredRelationships = useMemo(() => {
     return displayedRelationships.filter(
       (item) =>
@@ -1005,24 +1122,58 @@ export function RelationshipMap({
     );
   }, [activeTypes, displayedRelationships, displayedUserIds]);
 
+  const searchConnectionPath = useMemo(
+    () =>
+      findShortestConnectionPath(
+        approvedRelationships,
+        activeCurrentUserId,
+        searchSelectedUser?.id,
+      ),
+    [approvedRelationships, activeCurrentUserId, searchSelectedUser?.id],
+  );
+  const usersById = useMemo(
+    () => new Map(visibleDirectoryUsers.map((user) => [user.id, user])),
+    [visibleDirectoryUsers],
+  );
+
+  const pathNodeIds = useMemo(
+    () => new Set<string>(searchConnectionPath?.path ?? []),
+    [searchConnectionPath],
+  );
+  const pathEdgeIds = useMemo(() => {
+    const path = searchConnectionPath?.path;
+    if (!path || path.length < 2) return new Set<string>();
+    const ids = new Set<string>();
+    for (let i = 0; i < path.length - 1; i += 1) {
+      const a = path[i];
+      const b = path[i + 1];
+      const rel = approvedRelationships.find(
+        (r) =>
+          (r.source === a && r.target === b) ||
+          (r.source === b && r.target === a),
+      );
+      if (rel) ids.add(rel.id);
+    }
+    return ids;
+  }, [searchConnectionPath, approvedRelationships]);
+
+  const pathActive = Boolean(hasPro && searchConnectionPath);
+
   const mappedNodes: Node[] = useMemo(() => {
-    // Build a map of connected neighbors for better layout
     const neighborMap = new Map<string, Set<string>>();
     filteredRelationships.forEach((rel) => {
       if (!neighborMap.has(rel.source)) neighborMap.set(rel.source, new Set());
       if (!neighborMap.has(rel.target)) neighborMap.set(rel.target, new Set());
-      neighborMap.get(rel.source)!.add(rel.target);
-      neighborMap.get(rel.target)!.add(rel.source);
+      neighborMap.get(rel.source)?.add(rel.target);
+      neighborMap.get(rel.target)?.add(rel.source);
     });
 
-    // Smart ordering: place connected nodes near each other to minimize edge crossings
-    // Start with current user, then arrange others by connectivity
     const positioned = new Set<string>();
     const orderedUsers: User[] = [];
 
     if (activeCurrentUserId) {
       const currentUser = displayedUsers.find(
-        (u) => u.id === activeCurrentUserId,
+        (user) => user.id === activeCurrentUserId,
       );
       if (currentUser) {
         orderedUsers.push(currentUser);
@@ -1030,7 +1181,6 @@ export function RelationshipMap({
       }
     }
 
-    // Greedily add users: next user is one that's connected to someone already positioned
     while (positioned.size < displayedUsers.length) {
       let nextUser: User | null = null;
       let bestConnections = -1;
@@ -1038,42 +1188,38 @@ export function RelationshipMap({
       for (const user of displayedUsers) {
         if (positioned.has(user.id)) continue;
 
-        // Count how many of this user's neighbors are already positioned
         const neighbors = neighborMap.get(user.id) ?? new Set();
-        const connectedCount = Array.from(neighbors).filter((n) =>
-          positioned.has(n),
+        const connectedCount = Array.from(neighbors).filter((id) =>
+          positioned.has(id),
         ).length;
 
-        // Prefer users with more connections to positioned nodes
         if (connectedCount > bestConnections) {
           bestConnections = connectedCount;
           nextUser = user;
         }
       }
 
-      // Fallback to any unpositioned user if none are connected
       if (!nextUser) {
-        nextUser = displayedUsers.find((u) => !positioned.has(u.id)) ?? null;
+        nextUser = displayedUsers.find((user) => !positioned.has(user.id)) ?? null;
       }
 
-      if (nextUser) {
-        orderedUsers.push(nextUser);
-        positioned.add(nextUser.id);
-      } else {
+      if (!nextUser) {
         break;
       }
+
+      orderedUsers.push(nextUser);
+      positioned.add(nextUser.id);
     }
 
-    // build a quick degree map
     const degreeMap = new Map<string, number>();
     filteredRelationships.forEach((rel) => {
       degreeMap.set(rel.source, (degreeMap.get(rel.source) ?? 0) + 1);
       degreeMap.set(rel.target, (degreeMap.get(rel.target) ?? 0) + 1);
     });
 
-    // initial placement with smart ordering
     const items = orderedUsers.map((user, index) => {
       const degree = degreeMap.get(user.id) ?? 0;
+      const isPathNode = pathActive && pathNodeIds.has(user.id);
       const pos = getOrganicPosition(
         index,
         orderedUsers.length,
@@ -1081,6 +1227,7 @@ export function RelationshipMap({
         user.id === activeCurrentUserId,
         degree,
       );
+
       return {
         id: user.id,
         type: "person",
@@ -1094,6 +1241,8 @@ export function RelationshipMap({
           isConnected: degree > 0,
           degree,
           isPro: Boolean(user.featured),
+          isPathNode,
+          dimmed: pathActive && !isPathNode,
         },
         position: { x: pos.x, y: pos.y },
         style: { background: "transparent", border: "none", padding: 0 },
@@ -1101,16 +1250,12 @@ export function RelationshipMap({
       } as Node & { position: { x: number; y: number } };
     });
 
-    // Build a set of connected node pairs so we can skip separation for them
     const connectedPairs = new Set<string>();
     filteredRelationships.forEach((rel) => {
-      const key1 = `${rel.source}|${rel.target}`;
-      const key2 = `${rel.target}|${rel.source}`;
-      connectedPairs.add(key1);
-      connectedPairs.add(key2);
+      connectedPairs.add(`${rel.source}|${rel.target}`);
+      connectedPairs.add(`${rel.target}|${rel.source}`);
     });
 
-    // Enhanced collision/repulsion pass to reduce tangling
     const minDistUnconnected = 160; // clear separation for unconnected nodes
     const minDistConnected = 60; // allow connected nodes closer
     const iterations = 10; // good balance for settling
@@ -1182,6 +1327,8 @@ export function RelationshipMap({
     pulsingNodeIds,
     bouncingNodeId,
     filteredRelationships,
+    pathActive,
+    pathNodeIds,
   ]);
 
   const graphRelationships = useMemo(
@@ -1202,11 +1349,18 @@ export function RelationshipMap({
       const targetX = targetNode?.position.x ?? 0;
       const sourceIsLeft = sourceX <= targetX;
 
+      const isPathEdge = pathActive && pathEdgeIds.has(item.id);
+      const isDimmedEdge = pathActive && !pathEdgeIds.has(item.id);
+
+      const classes: string[] = [];
+      if (recentEdgeId === item.id) classes.push("map-edge-reveal");
+      if (isPathEdge) classes.push("map-edge-path");
+
       return {
         id: item.id,
         source: item.source,
         target: item.target,
-        className: recentEdgeId === item.id ? "map-edge-reveal" : undefined,
+        className: classes.length ? classes.join(" ") : undefined,
         sourceHandle: sourceIsLeft ? "source-right" : "source-left",
         targetHandle: sourceIsLeft ? "target-left" : "target-right",
         type: "bezier",
@@ -1214,14 +1368,17 @@ export function RelationshipMap({
         animated: false,
         style: {
           stroke: relationColors[item.type] ?? "#94a3b8",
-          strokeWidth: 2.4,
-          strokeOpacity: 0.8,
+          strokeWidth: isPathEdge ? 3.6 : 2.4,
+          strokeOpacity: isDimmedEdge ? 0.18 : isPathEdge ? 1 : 0.8,
+          // subtle glow for path edges (SVG filter fallback may vary by renderer)
+          filter: isPathEdge ? `drop-shadow(0 6px 10px ${(relationColors[item.type] ?? "#94a3b8") + "66"})` : undefined,
         },
         labelStyle: {
           fontSize: 10,
           fill: relationColors[item.type] ?? "#94a3b8",
           fontWeight: 600,
           fontFamily: "system-ui",
+          opacity: isDimmedEdge ? 0.25 : 1,
         },
         labelBgStyle: {
           fill: "rgba(8,6,22,0.8)",
@@ -1233,7 +1390,7 @@ export function RelationshipMap({
         labelBgBorderRadius: 999,
       };
     });
-  }, [graphRelationships, mappedNodes, recentEdgeId]);
+  }, [graphRelationships, mappedNodes, pathActive, pathEdgeIds, recentEdgeId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(mappedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(mappedEdges);
@@ -1658,6 +1815,49 @@ export function RelationshipMap({
     return null;
   }, [approvedRelationships, activeCurrentUserId, selectedId]);
 
+  // Compute full shortest path (list of user ids from current user -> ... -> selected user)
+  // Returns null when no path exists or insufficient inputs
+  const selectedPath = useMemo(() => {
+    if (!activeCurrentUserId || !selectedId) return null;
+    if (activeCurrentUserId === selectedId) return [activeCurrentUserId];
+
+    const adj = new Map<string, Set<string>>();
+    approvedRelationships.forEach((r) => {
+      if (!adj.has(r.source)) adj.set(r.source, new Set());
+      if (!adj.has(r.target)) adj.set(r.target, new Set());
+      adj.get(r.source)!.add(r.target);
+      adj.get(r.target)!.add(r.source);
+    });
+
+    const parent = new Map<string, string | null>();
+    const queue: string[] = [];
+    queue.push(activeCurrentUserId);
+    parent.set(activeCurrentUserId, null);
+
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const neighbors = adj.get(cur) ?? new Set();
+      for (const n of neighbors) {
+        if (parent.has(n)) continue;
+        parent.set(n, cur);
+        if (n === selectedId) {
+          // build path
+          const path: string[] = [];
+          let node: string | null = n;
+          while (node) {
+            path.push(node);
+            node = parent.get(node) ?? null;
+          }
+          path.reverse();
+          return path;
+        }
+        queue.push(n);
+      }
+    }
+
+    return null;
+  }, [approvedRelationships, activeCurrentUserId, selectedId]);
+
   // Unlock overlay visibility state for subtle fade+scale animation
   const [unlockOverlayVisible, setUnlockOverlayVisible] = useState(false);
 
@@ -1941,36 +2141,123 @@ export function RelationshipMap({
               </button>
             </div>
             {showSecondaryActions ? (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {(Object.keys(relationColors) as RelationshipType[]).map(
-                  (type) => {
-                    const active = activeTypes.includes(type);
-                    return (
-                      <button
-                        type="button"
-                        key={type}
-                        onClick={() =>
-                          setActiveTypes((prev) =>
-                            prev.includes(type)
-                              ? prev.filter((item) => item !== type)
-                              : [...prev, type],
-                          )
-                        }
-                        className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
-                        style={{
-                          borderColor: active
-                            ? relationColors[type]
-                            : "var(--border-soft)",
-                          backgroundColor: active
-                            ? `${relationColors[type]}20`
-                            : "transparent",
-                        }}
-                      >
-                        {type}
-                      </button>
-                    );
-                  },
-                )}
+              <div className="mb-3 space-y-3">
+                <form
+                  className="flex flex-col gap-2 sm:flex-row"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    searchLoadedUsers();
+                  }}
+                >
+                  <input
+                    type="search"
+                    aria-label="Search for a user"
+                    placeholder="Search for a user"
+                    value={searchValue}
+                    onChange={(event) => {
+                      setSearchValue(event.target.value);
+                      setHasSearchedUsers(false);
+                      setSearchResults([]);
+                      setSearchSelectedUser(null);
+                    }}
+                    className="min-h-10 flex-1 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!searchValue.trim()}
+                    className="min-h-10 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-black/55 disabled:cursor-not-allowed disabled:opacity-65 dark:text-white/60"
+                  >
+                    Search
+                  </button>
+                </form>
+                <p
+                  className="text-xs text-black/58 dark:text-white/58"
+                  aria-live="polite"
+                >
+                  {!hasSearchedUsers
+                    ? searchValue.trim()
+                      ? "Press Search to look for a matching user."
+                      : "Search for a user to see how many connections away they are."
+                    : searchResults.length > 0
+                      ? `${searchResults.length} matching user${searchResults.length === 1 ? "" : "s"} found.`
+                      : "No matching user found."}
+                </p>
+                {searchSelectedUser ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-3 dark:bg-white/[0.05]">
+                    <Avatar
+                      name={searchSelectedUser.name}
+                      src={searchSelectedUser.profileImage ?? undefined}
+                      className="h-10 w-10"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {searchSelectedUser.name}
+                      </p>
+                      <p className="truncate text-xs text-black/58 dark:text-white/58">
+                        @{searchSelectedUser.handle}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-black/65 dark:text-white/65">
+                        {searchConnectionPath
+                          ? searchConnectionPath.degree === 0
+                            ? "This is you."
+                            : `${searchConnectionPath.degree} connection${searchConnectionPath.degree === 1 ? "" : "s"} away.`
+                          : "No connection path found."}
+                      </p>
+                      {searchConnectionPath && hasPro ? (
+                        <ol className="mt-2 flex flex-wrap gap-1 text-xs text-black/65 dark:text-white/65">
+                          {searchConnectionPath.path.map((userId, index) => {
+                            const pathUser = usersById.get(userId);
+                            return (
+                              <li key={userId} className="flex items-center gap-1">
+                                {index > 0 ? (
+                                  <span className="text-black/35 dark:text-white/35">
+                                    /
+                                  </span>
+                                ) : null}
+                                <span>{pathUser?.name ?? "Member"}</span>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      ) : searchConnectionPath ? (
+                        <p className="mt-2 text-xs text-black/55 dark:text-white/55">
+                          Full path is available with Pro.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(relationColors) as RelationshipType[]).map(
+                    (type) => {
+                      const active = activeTypes.includes(type);
+                      return (
+                        <button
+                          type="button"
+                          key={type}
+                          onClick={() =>
+                            setActiveTypes((prev) =>
+                              prev.includes(type)
+                                ? prev.filter((item) => item !== type)
+                                : [...prev, type],
+                            )
+                          }
+                          className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
+                          style={{
+                            borderColor: active
+                              ? relationColors[type]
+                              : "var(--border-soft)",
+                            backgroundColor: active
+                              ? `${relationColors[type]}20`
+                              : "transparent",
+                          }}
+                        >
+                          {type}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
               </div>
             ) : null}
             <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
@@ -2040,7 +2327,7 @@ export function RelationshipMap({
                   {selectedUser &&
                   activeCurrentUserId &&
                   !isDirectlyConnected ? (
-                    // CONNECTION PATH TEASER (no path details revealed)
+                    // CONNECTION PATH TEASER (no path details revealed for non-Pro users)
                     <>
                       {/* Centered modal with fade+scale */}
                       <div
@@ -2055,16 +2342,11 @@ export function RelationshipMap({
                         <p className="text-lg font-semibold truncate">
                           {selectedDegree !== null
                             ? `You're ${selectedDegree} connection${selectedDegree === 1 ? "" : "s"} away from ${selectedUser.name}`
-                            : `You're not connected to ${selectedUser.name}`}
+                            : "No connection path found"}
                         </p>
 
                         <p className="mt-2 text-sm text-white/70">
-                          See exactly how you're connected
-                        </p>
-
-                        <p className="mt-2 text-[11px] text-white/70">
-                          Includes full path, mutual connections, and
-                          relationship context
+                          See exactly how you are connected
                         </p>
 
                         <div className="mt-5 flex gap-3">
@@ -2100,21 +2382,14 @@ export function RelationshipMap({
                           <p className="mb-2 text-xs font-semibold">Preview</p>
                           <div className="space-y-1">
                             {selectedConnections.slice(0, 4).map((c) => {
-                              const otherId =
-                                c.source === selectedId ? c.target : c.source;
-                              const other = users.find((u) => u.id === otherId);
                               return (
                                 <div
                                   key={c.id}
                                   className="flex items-center gap-2"
                                 >
                                   <span className="h-2.5 w-2.5 rounded-full bg-white/60" />
-                                  <span className="truncate text-xs">
-                                    {other?.name ?? "Member"}
-                                  </span>
-                                  <span className="ml-auto text-[11px] text-white/40">
-                                    {c.type}
-                                  </span>
+                                  <span className="truncate text-xs"></span>
+                                  <span className="ml-auto text-[11px] text-white/40"></span>
                                 </div>
                               );
                             })}
@@ -2133,7 +2408,7 @@ export function RelationshipMap({
                         aria-modal="true"
                       >
                         <p className="text-lg font-semibold truncate">
-                          See how you're connected to {selectedUser?.name}
+                          See how you are connected to {selectedUser?.name}
                         </p>
 
                         <ul className="mt-2 space-y-1 text-sm text-white/70">
@@ -2148,7 +2423,7 @@ export function RelationshipMap({
                             onClick={() => router.push("/checkout")}
                             className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
                           >
-                            Unlock with Pro
+                            Unlock the path with Pro
                           </button>
 
                           <button
