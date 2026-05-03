@@ -2,21 +2,27 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 
-// Install stripe package: npm install stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
-
 // IMPORTANT: set STRIPE_WEBHOOK_SECRET in Vercel to your webhook signing secret
 export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature") || "";
   const body = await req.text();
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!secretKey) {
+    console.error("Missing STRIPE_SECRET_KEY");
+    return NextResponse.json({ ok: false }, { status: 500 });
+  }
+
+  if (!webhookSecret) {
+    console.error("Missing STRIPE_WEBHOOK_SECRET");
+    return NextResponse.json({ ok: false }, { status: 500 });
+  }
+
+  const stripe = new Stripe(secretKey);
 
   let event: Stripe.Event;
   try {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      console.error("Missing STRIPE_WEBHOOK_SECRET");
-      return NextResponse.json({ ok: false }, { status: 500 });
-    }
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     console.error("Webhook signature verification failed:", err);
