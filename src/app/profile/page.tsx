@@ -1,6 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import { ConfirmClaimsPanel } from "@/components/profile/confirm-claims-panel";
 import {
   ProfileConnectionsList,
@@ -11,10 +10,7 @@ import {
   type ProfileFormData,
 } from "@/components/profile/profile-form";
 import { SectionHeader } from "@/components/ui/section-header";
-import {
-  getClaimCandidatesForUser,
-  getPendingCreatorConfirmations,
-} from "@/lib/network-claims";
+import { getPendingCreatorConfirmations } from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 import GoProButton from "@/components/profile/go-pro-button";
@@ -135,14 +131,7 @@ export default async function ProfilePage() {
     interests: user.interests ?? [],
   };
 
-  const [claimCandidates, pendingConfirmations] = await Promise.all([
-    getClaimCandidatesForUser(user.id, {
-      alternateNames: user.clerkNameCandidates,
-      includeDismissed: false,
-      limit: 5,
-    }),
-    getPendingCreatorConfirmations(user.id),
-  ]);
+  const pendingConfirmations = await getPendingCreatorConfirmations(user.id);
 
   const connections: ProfileConnectionItem[] = [
     ...user.relationships.map(
@@ -182,11 +171,6 @@ export default async function ProfilePage() {
           currentUserId={user.id}
         />
       ) : null}
-
-      <ClaimConnectionsPanel
-        initialCandidates={claimCandidates}
-        mode="settings"
-      />
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <ProfileForm initialProfile={initialProfile} />

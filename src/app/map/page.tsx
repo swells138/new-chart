@@ -1,6 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { cookies, headers } from "next/headers";
 import { RelationshipMap } from "@/components/map/relationship-map";
+import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
+import { getClaimCandidatesForUser } from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
 import { getAllRelationships, getAllUsers, getPrivateConnectionsByUser, getRelationshipsByUser } from "@/lib/prisma-queries";
 
@@ -32,6 +34,22 @@ function getRequestOrigin(headersList: Awaited<ReturnType<typeof headers>>) {
   return `${protocol}://${host}`.replace(/\/$/, "");
 }
 
+function getClerkNameCandidates(
+  clerkUser: Awaited<ReturnType<typeof currentUser>>,
+) {
+  if (!clerkUser) {
+    return [];
+  }
+
+  return [
+    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" "),
+    clerkUser.fullName,
+    clerkUser.username,
+    clerkUser.firstName,
+    clerkUser.lastName,
+  ].filter((name): name is string => Boolean(name?.trim()));
+}
+
 async function resolveClerkUserId() {
   try {
     const { userId } = await auth();
@@ -53,6 +71,7 @@ async function resolveClerkUserId() {
 export default async function MapPage() {
   let currentUserDbId: string | null = null;
   let currentUserIsPro = false;
+  let clerkNameCandidates: string[] = [];
   const cookieStore = await cookies();
   const headersList = await headers();
   const hasSessionCookie = cookieStore.has("__session");
@@ -65,6 +84,7 @@ export default async function MapPage() {
 
       if (userId) {
         const clerk = await currentUser();
+        clerkNameCandidates = getClerkNameCandidates(clerk);
         const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
         const profileImage = clerk?.imageUrl || null;
         const existing = await prisma.user.findUnique({
@@ -133,6 +153,7 @@ export default async function MapPage() {
   const users = allUsers;
   let userConnections: typeof relationships = [];
   let privatePlaceholders = [] as Awaited<ReturnType<typeof getPrivateConnectionsByUser>>;
+  let claimCandidates: Awaited<ReturnType<typeof getClaimCandidatesForUser>> = [];
 
   if (currentUserDbId) {
     try {
@@ -145,6 +166,17 @@ export default async function MapPage() {
       userConnections = [];
       privatePlaceholders = [];
     }
+
+    try {
+      claimCandidates = await getClaimCandidatesForUser(currentUserDbId, {
+        alternateNames: clerkNameCandidates,
+        includeDismissed: false,
+        limit: 5,
+      });
+    } catch (error) {
+      console.error("Map page failed to load claim candidates", error);
+      claimCandidates = [];
+    }
   }
 
   const baseUrl =
@@ -154,7 +186,13 @@ export default async function MapPage() {
     "http://localhost:3000";
 
   return (
-    <div>
+    <div className="space-y-4">
+      {currentUserDbId ? (
+        <ClaimConnectionsPanel
+          initialCandidates={claimCandidates}
+          mode="settings"
+        />
+      ) : null}
       <RelationshipMap
         users={users}
         relationships={relationships}

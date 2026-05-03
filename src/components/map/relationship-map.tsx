@@ -2019,28 +2019,28 @@ export function RelationshipMap({
 
       <section className="rounded-2xl border border-[var(--border-soft)] bg-white/70 p-3 dark:bg-black/30">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex gap-2 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06]">
+          <div className="flex w-full gap-2 rounded-2xl bg-black/[0.035] p-1.5 dark:bg-white/[0.06] sm:w-auto">
             <button
               type="button"
               onClick={() => setChartLayer("private")}
-              className={`rounded-lg px-4 py-2 text-left text-sm font-semibold transition ${
+              className={`min-h-12 flex-1 rounded-xl px-6 py-3 text-left text-base font-bold transition sm:min-w-36 sm:flex-none ${
                 chartLayer === "private"
                   ? "bg-[var(--accent)] text-white"
                   : "text-black/72 hover:bg-black/5 dark:text-white/72 dark:hover:bg-white/10"
               }`}
             >
-              🔒 Private
+              Private
             </button>
             <button
               type="button"
               onClick={() => setChartLayer("public")}
-              className={`rounded-lg px-4 py-2 text-left text-sm font-semibold transition ${
+              className={`min-h-12 flex-1 rounded-xl px-6 py-3 text-left text-base font-bold transition sm:min-w-36 sm:flex-none ${
                 chartLayer === "public"
                   ? "bg-[var(--accent)] text-white"
                   : "text-black/72 hover:bg-black/5 dark:text-white/72 dark:hover:bg-white/10"
               }`}
             >
-              🌍 Public
+              Public
             </button>
           </div>
           <div className="flex flex-col gap-2 text-xs text-black/62 dark:text-white/64 sm:flex-row sm:flex-wrap sm:items-center">

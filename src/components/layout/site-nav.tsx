@@ -20,7 +20,6 @@ function isModeratorEmail(email: string | null | undefined) {
 const links = [
   { href: "/", label: "Home" },
   { href: "/map", label: "Map" },
-  { href: "/inbox", label: "Inbox", requiresAuth: true },
   { href: "/profile", label: "Profile", requiresAuth: true },
 ];
 
