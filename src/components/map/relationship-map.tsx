@@ -501,13 +501,7 @@ export function RelationshipMap({
     "complicated",
     "FWB",
   ]);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    users[0]?.id ?? null,
-  );
-  // When a user dismisses the unlock modal with "Not now" we store the
-  // dismissed user id so the auto-select effect doesn't immediately re-open
-  // the same profile. Cleared when the user explicitly selects a node.
-  const [dismissedUserId, setDismissedUserId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionQuery, setConnectionQuery] = useState<string>("");
   const [connectionType, setConnectionType] =
@@ -1030,16 +1024,8 @@ export function RelationshipMap({
       return;
     }
 
-    const defaultSelected =
-      (activeCurrentUserId &&
-        displayedUsers.find((user) => user.id === activeCurrentUserId)?.id) ??
-      displayedUsers[0].id;
-    // If the defaultSelected matches a recently dismissed id, don't auto-select
-    // if (dismissedUserId && defaultSelected === dismissedUserId) {
-    //   return;
-    // }
-    setSelectedId(defaultSelected);
-  }, [displayedUsers, selectedId, activeCurrentUserId, dismissedUserId]);
+    setSelectedId(null);
+  }, [displayedUsers, selectedId]);
 
   const displayedUserIds = useMemo(
     () => new Set(displayedUsers.map((user) => user.id)),
@@ -1098,15 +1084,6 @@ export function RelationshipMap({
 
     setConnectionTargetId(filteredConnectableUsers[0].id);
   }, [filteredConnectableUsers, connectionTargetId]);
-
-  // When a user selects someone from the search/connect list, open that user's
-  // profile so we can show the connection distance modal. Clear any dismissed id
-  // so the modal appears reliably when explicitly chosen from search.
-  useEffect(() => {
-    if (!connectionTargetId) return;
-    setDismissedUserId(null);
-    setSelectedId(connectionTargetId);
-  }, [connectionTargetId]);
 
   const displayedRelationships = useMemo(
     () => approvedRelationships,
@@ -1770,6 +1747,12 @@ export function RelationshipMap({
   const selectedConnections = filteredRelationships.filter(
     (item) => item.source === selectedId || item.target === selectedId,
   );
+  const selectedIsCurrentUser = Boolean(
+    activeCurrentUserId && selectedId === activeCurrentUserId,
+  );
+  const shouldShowUnlockOverlay = Boolean(
+    selectedUser && !selectedUser.featured && !selectedIsCurrentUser,
+  );
 
   // Compute whether the selected user is directly connected to the active user
   const isDirectlyConnected = useMemo(() => {
@@ -1862,14 +1845,14 @@ export function RelationshipMap({
   const [unlockOverlayVisible, setUnlockOverlayVisible] = useState(false);
 
   useEffect(() => {
-    if (selectedUser && !selectedUser.featured) {
+    if (shouldShowUnlockOverlay) {
       // trigger a micro-tick so CSS transition from 0 -> 100% animates
       setUnlockOverlayVisible(false);
       const t = window.setTimeout(() => setUnlockOverlayVisible(true), 10);
       return () => window.clearTimeout(t);
     }
     setUnlockOverlayVisible(false);
-  }, [selectedUser]);
+  }, [shouldShowUnlockOverlay]);
 
   const pendingRequests = useMemo(() => {
     if (!activeCurrentUserId) {
@@ -2300,8 +2283,6 @@ export function RelationshipMap({
                 nodeTypes={nodeTypes}
                 fitView={chartLayer === "public"}
                 onNodeClick={(_, node) => {
-                  // Clear any dismissed id when the user explicitly picks a node
-                  setDismissedUserId(null);
                   setSelectedId(node.id);
                 }}
                 onNodesChange={onNodesChange}
@@ -2317,7 +2298,7 @@ export function RelationshipMap({
               </ReactFlow>
 
               {/* Unlock overlay for non-Pro profiles */}
-              {selectedUser && !selectedUser.featured ? (
+              {shouldShowUnlockOverlay ? (
                 <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-auto">
                   {/* Dark backdrop */}
                   <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-200" />
@@ -2360,12 +2341,7 @@ export function RelationshipMap({
 
                           <button
                             type="button"
-                            onClick={() => {
-                              // Remember the dismissed id so the auto-select logic
-                              // won't immediately re-open this same profile.
-                              setDismissedUserId(selectedId);
-                              setSelectedId(null);
-                            }}
+                            onClick={() => setSelectedId(null)}
                             className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
                           >
                             Not now
@@ -2428,12 +2404,7 @@ export function RelationshipMap({
 
                           <button
                             type="button"
-                            onClick={() => {
-                              // Remember the dismissed id so the auto-select logic
-                              // won't immediately re-open this same profile.
-                              setDismissedUserId(selectedId);
-                              setSelectedId(null);
-                            }}
+                            onClick={() => setSelectedId(null)}
                             // Reduced visual emphasis: lighter text and normal weight
                             className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
                           >
