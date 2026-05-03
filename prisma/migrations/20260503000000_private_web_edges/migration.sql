@@ -1,3 +1,7 @@
+DROP TABLE IF EXISTS "PrivateMixedConnectionEdge";
+DROP TABLE IF EXISTS "PrivateConfirmedConnectionEdge";
+DROP TABLE IF EXISTS "PrivateConnectionEdge";
+
 CREATE TABLE IF NOT EXISTS "PrivateConnectionEdge" (
   "id" TEXT PRIMARY KEY,
   "ownerId" TEXT NOT NULL,
