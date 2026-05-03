@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Info, UserPlus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   type ReactNode,
@@ -1121,6 +1121,67 @@ export function RelationshipMap({
       ),
     [approvedRelationships, activeCurrentUserId, searchSelectedUser?.id],
   );
+  const searchSelectedRelationship = useMemo(() => {
+    if (!activeCurrentUserId || !searchSelectedUser) {
+      return null;
+    }
+
+    return (
+      allRelationships.find(
+        (item) =>
+          (item.source === activeCurrentUserId &&
+            item.target === searchSelectedUser.id) ||
+          (item.source === searchSelectedUser.id &&
+            item.target === activeCurrentUserId),
+      ) ?? null
+    );
+  }, [activeCurrentUserId, allRelationships, searchSelectedUser]);
+  const searchSelectedRelationshipStatus = useMemo(() => {
+    if (!searchSelectedRelationship || !activeCurrentUserId) {
+      return null;
+    }
+
+    const parsed = parseRelationshipNote(searchSelectedRelationship.note);
+    const otherUserName = searchSelectedUser?.name ?? "them";
+
+    if (parsed.status === "active") {
+      return "Connected.";
+    }
+
+    if (parsed.status === "pending_claim") {
+      if (parsed.creatorId === activeCurrentUserId) {
+        return `Pending for you until ${otherUserName} verifies.`;
+      }
+
+      if (parsed.claimedByUserId === activeCurrentUserId) {
+        return "Waiting for you to verify in Pending Verification.";
+      }
+
+      return "Pending verification.";
+    }
+
+    if (parsed.status === "pending_creator_confirmation") {
+      if (parsed.creatorId === activeCurrentUserId) {
+        return "They verified. Confirm in Pending Verification to make it public.";
+      }
+
+      return "Verified by you. Waiting for the creator to make it public.";
+    }
+
+    if (parsed.status === "rejected") {
+      return "This request was rejected.";
+    }
+
+    if (parsed.status === "disputed") {
+      return "This request is under review.";
+    }
+
+    if (parsed.status === "expired") {
+      return "This request expired.";
+    }
+
+    return "Pending verification.";
+  }, [activeCurrentUserId, searchSelectedRelationship, searchSelectedUser]);
   const usersById = useMemo(
     () => new Map(visibleDirectoryUsers.map((user) => [user.id, user])),
     [visibleDirectoryUsers],
@@ -1477,8 +1538,8 @@ export function RelationshipMap({
         setClientCreatedConnectionCount((count) => count + 1);
       }
       dismissOnboarding();
-      setSelectedId(relationship.target);
-      triggerConnectionFeedback(relationship.id, sourceId, relationship.target);
+      setSelectedId(targetId);
+      triggerConnectionFeedback(relationship.id, sourceId, targetId);
     } catch (error) {
       console.error(error);
       setConnectionError("Could not create that connection.");
@@ -2592,13 +2653,14 @@ export function RelationshipMap({
                       : "No matching user found."}
                 </p>
                 {searchSelectedUser ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-3 dark:bg-white/[0.05]">
+                  <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-3 dark:bg-white/[0.05]">
+                    <div className="flex items-center gap-3">
                     <Avatar
                       name={searchSelectedUser.name}
                       src={searchSelectedUser.profileImage ?? undefined}
                       className="h-10 w-10"
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">
                         {searchSelectedUser.name}
                       </p>
@@ -2637,6 +2699,54 @@ export function RelationshipMap({
                         </p>
                       ) : null}
                     </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <label className="grid gap-1 text-xs font-semibold text-black/65 dark:text-white/65">
+                        Connection type
+                        <select
+                          value={connectionType}
+                          onChange={(event) =>
+                            setConnectionType(
+                              event.target.value as RelationshipType,
+                            )
+                          }
+                          disabled={
+                            Boolean(searchSelectedRelationship) ||
+                            isConnecting ||
+                            searchSelectedUser.id === activeCurrentUserId
+                          }
+                          className="min-h-10 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm font-semibold outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
+                        >
+                          {(Object.keys(relationColors) as RelationshipType[]).map(
+                            (type) => (
+                              <option key={type} value={type}>
+                                {type}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => createConnection(searchSelectedUser.id)}
+                        disabled={
+                          isConnecting ||
+                          Boolean(searchSelectedRelationship) ||
+                          !activeCurrentUserId ||
+                          searchSelectedUser.id === activeCurrentUserId
+                        }
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-65"
+                      >
+                        <UserPlus className="h-4 w-4" aria-hidden="true" />
+                        {isConnecting ? "Sending..." : "Add connection"}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-black/58 dark:text-white/58">
+                      {searchSelectedRelationshipStatus ??
+                        (activeCurrentUserId
+                          ? "This will stay pending for you until they verify it."
+                          : "Sign in to add this public connection.")}
+                    </p>
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
