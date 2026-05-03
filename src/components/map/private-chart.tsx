@@ -421,9 +421,8 @@ export function PrivateChart({
   >(null);
   const [existingUserSuggestion, setExistingUserSuggestion] =
     useState<ExistingUserSuggestion | null>(null);
-  const [activeWorkflowTab, setActiveWorkflowTab] = useState<WorkflowTab>(() =>
-    initialPlaceholders.length === 0 ? "add" : "connect",
-  );
+  const [activeWorkflowTab, setActiveWorkflowTab] =
+    useState<WorkflowTab>("add");
   const [publicConnectCandidates, setPublicConnectCandidates] = useState<
     Record<string, PublicConnectCandidate>
   >({});
