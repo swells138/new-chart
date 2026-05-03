@@ -347,6 +347,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ edge: normalizeEdge(created[0]) }, { status: 201 });
   } catch (error) {
     console.error("Failed to create private web edge", error);
+    if (isTableUnavailableError(error)) {
+      return NextResponse.json(
+        { error: "Private connection storage is still being set up. Please try again after the latest deployment finishes." },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(
       { error: "Could not create that private connection." },
       { status: 500 },
@@ -427,6 +434,13 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ deleted: true, id: parsed.data.id });
   } catch (error) {
     console.error("Failed to delete private web edge", error);
+    if (isTableUnavailableError(error)) {
+      return NextResponse.json(
+        { error: "Private connection storage is still being set up. Please try again after the latest deployment finishes." },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(
       { error: "Could not delete that private connection." },
       { status: 500 },
