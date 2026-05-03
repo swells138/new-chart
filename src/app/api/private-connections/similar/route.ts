@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { findPrivateDuplicateMatches } from "@/lib/private-duplicate-matches";
+import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -145,10 +146,14 @@ export async function POST(request: Request) {
       take: 200,
     });
 
-    const matches = findPrivateDuplicateMatches(parsed.data, candidates);
+    const [matches, suggestion] = await Promise.all([
+      Promise.resolve(findPrivateDuplicateMatches(parsed.data, candidates)),
+      findExistingUserSuggestion(parsed.data, currentDbUserId),
+    ]);
 
     return NextResponse.json({
       matches,
+      suggestion,
       checked: true,
     });
   } catch (error) {

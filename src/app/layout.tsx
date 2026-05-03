@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { SiteNav } from "@/components/layout/site-nav";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { UsernameRequiredGate } from "@/components/auth/username-required-gate";
 
 const nunito = Nunito({
   variable: "--font-body",
@@ -47,6 +48,7 @@ export default function RootLayout({
           <div className="hero-blob absolute -top-28 -left-12 h-72 w-72 rounded-full bg-[var(--blob-1)] blur-3xl" />
           <div className="hero-blob absolute top-36 right-0 h-72 w-72 rounded-full bg-[var(--blob-2)] blur-3xl" />
         </div>
+        <UsernameRequiredGate clerkEnabled={hasClerkKeys} />
         <SiteNav clerkEnabled={hasClerkKeys} />
         <main className="pt-8">{children}</main>
         <footer className="mt-12 border-t border-[var(--border-soft)] pt-5 pb-2">

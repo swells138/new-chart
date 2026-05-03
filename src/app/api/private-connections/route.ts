@@ -7,6 +7,7 @@ import type { PlaceholderPerson, RelationshipType } from "@/types/models";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
+import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -156,16 +157,6 @@ function normalizePlaceholder(p: {
     claimStatus: p.claimStatus as PlaceholderPerson["claimStatus"],
     createdAt: p.createdAt.toISOString(),
   };
-}
-
-interface ExistingUserSuggestion {
-  kind: "existing-user";
-  user: {
-    id: string;
-    name: string | null;
-    handle: string | null;
-  };
-  message: string;
 }
 
 async function getOrCreateCurrentDbUserId(clerkId: string) {
@@ -339,38 +330,10 @@ export async function POST(request: Request) {
       );
     }
 
-    let existingUserSuggestion: ExistingUserSuggestion | null = null;
-    if (normalizedEmail || normalizedPhoneNumber) {
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          id: { not: currentDbUserId },
-          OR: [
-            ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
-            ...(normalizedPhoneNumber
-              ? [{ phoneNumber: normalizedPhoneNumber }]
-              : []),
-          ],
-        },
-        select: {
-          id: true,
-          name: true,
-          handle: true,
-        },
-      });
-
-      if (existingUser) {
-        existingUserSuggestion = {
-          kind: "existing-user",
-          user: {
-            id: existingUser.id,
-            name: existingUser.name,
-            handle: existingUser.handle,
-          },
-          message:
-            "This contact already appears to be a Chart user. You can keep this as a private node, but consider adding a public connection too.",
-        };
-      }
-    }
+    const existingUserSuggestion = await findExistingUserSuggestion(
+      { name, email: normalizedEmail, phoneNumber: normalizedPhoneNumber },
+      currentDbUserId,
+    );
 
     let placeholder: {
       id: string;

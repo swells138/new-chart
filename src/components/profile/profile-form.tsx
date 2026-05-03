@@ -101,6 +101,7 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const usernameRequired = !handleLocked;
 
   const pronounOptions = withCurrentOption(PRONOUN_OPTIONS, formData.pronouns);
   const locationOptions = withCurrentOption(
@@ -110,6 +111,12 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (usernameRequired && !formData.handle.trim()) {
+      setMessage(null);
+      setError("Create a username to continue.");
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -152,7 +159,23 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
 
   return (
     <form onSubmit={onSubmit} className="paper-card rounded-2xl p-5">
-      <h3 className="text-xl font-semibold">Edit Profile</h3>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-xl font-semibold">
+            {usernameRequired ? "Create your username" : "Edit Profile"}
+          </h3>
+          {usernameRequired ? (
+            <p className="mt-1 text-sm text-black/65 dark:text-white/70">
+              Choose a username before continuing. This locks after you save.
+            </p>
+          ) : null}
+        </div>
+        {usernameRequired ? (
+          <span className="w-fit rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-bold text-[var(--accent)]">
+            Required
+          </span>
+        ) : null}
+      </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="space-y-1">
@@ -168,13 +191,17 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
 
         <label className="space-y-1">
           <span className="text-xs font-semibold uppercase tracking-wide text-black/65 dark:text-white/70">
-            Handle
+            Username
           </span>
           <input
             value={formData.handle}
             placeholder="your.handle"
             onChange={(event) => setFormData((prev) => ({ ...prev, handle: event.target.value }))}
             readOnly={handleLocked}
+            required={usernameRequired}
+            minLength={3}
+            maxLength={30}
+            pattern="[a-zA-Z0-9._-]{3,30}"
             title={handleLocked ? "Username cannot be changed" : "Set your username"}
             className={`w-full rounded-xl border border-[var(--border-soft)] px-3 py-2 text-sm outline-none dark:bg-black/20 ${
               handleLocked
@@ -182,6 +209,11 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
                 : "bg-white/80 focus:ring-2 focus:ring-[var(--accent)]"
             }`}
           />
+          {!handleLocked ? (
+            <span className="block text-xs text-black/55 dark:text-white/55">
+              3-30 letters, numbers, dots, underscores, or dashes.
+            </span>
+          ) : null}
         </label>
 
         <label className="space-y-1">

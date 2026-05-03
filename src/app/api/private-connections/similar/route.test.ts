@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authMock = vi.fn();
 const currentUserMock = vi.fn();
 const userFindUniqueMock = vi.fn();
+const userFindManyMock = vi.fn();
 const userCreateMock = vi.fn();
 const placeholderFindManyMock = vi.fn();
 
@@ -15,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
       findUnique: userFindUniqueMock,
+      findMany: userFindManyMock,
       create: userCreateMock,
     },
     placeholderPerson: {
@@ -29,6 +31,7 @@ describe("/api/private-connections/similar POST", () => {
     authMock.mockReset();
     currentUserMock.mockReset();
     userFindUniqueMock.mockReset();
+    userFindManyMock.mockReset();
     userCreateMock.mockReset();
     placeholderFindManyMock.mockReset();
 
@@ -37,6 +40,7 @@ describe("/api/private-connections/similar POST", () => {
 
     authMock.mockResolvedValue({ userId: "clerk_123" });
     userFindUniqueMock.mockResolvedValue({ id: "owner_123" });
+    userFindManyMock.mockResolvedValue([]);
   });
 
   it("only checks the current user's private chart results", async () => {
@@ -85,5 +89,58 @@ describe("/api/private-connections/similar POST", () => {
         note: "Met downtown",
       }),
     ]);
+  });
+
+  it("suggests an existing public user when the name already exists", async () => {
+    placeholderFindManyMock.mockResolvedValue([]);
+    userFindManyMock.mockResolvedValue([
+      {
+        id: "user_existing",
+        name: "Jordan Lee",
+        handle: "jordan",
+        email: null,
+        phoneNumber: null,
+      },
+    ]);
+
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      new Request("http://localhost/api/private-connections/similar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "jordan lee",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(userFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { not: "owner_123" },
+        }),
+      }),
+    );
+
+    const body = (await response.json()) as {
+      suggestion: {
+        kind: string;
+        user: { id: string; name: string | null; handle: string | null };
+        reason: string;
+      } | null;
+    };
+    expect(body.suggestion).toEqual({
+      kind: "existing-user",
+      user: {
+        id: "user_existing",
+        name: "Jordan Lee",
+        handle: "jordan",
+      },
+      reason: "name",
+      message:
+        "A Chart user already has this name. If this is them, you can connect with their public node instead.",
+    });
   });
 });

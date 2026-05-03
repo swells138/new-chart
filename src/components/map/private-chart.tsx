@@ -419,6 +419,8 @@ export function PrivateChart({
   const [duplicateEmptyMessage, setDuplicateEmptyMessage] = useState<
     string | null
   >(null);
+  const [existingUserSuggestion, setExistingUserSuggestion] =
+    useState<ExistingUserSuggestion | null>(null);
   const [activeWorkflowTab, setActiveWorkflowTab] = useState<WorkflowTab>(() =>
     initialPlaceholders.length === 0 ? "add" : "connect",
   );
@@ -770,6 +772,7 @@ export function PrivateChart({
     setDuplicateMatches([]);
     setDuplicateCheckError(null);
     setDuplicateEmptyMessage(null);
+    setExistingUserSuggestion(null);
   }
 
   function getAddPayload(name: string) {
@@ -809,6 +812,7 @@ export function PrivateChart({
         });
         const body = (await res.json()) as {
           matches?: PrivateDuplicateMatch[];
+          suggestion?: ExistingUserSuggestion | null;
           error?: string;
         };
 
@@ -820,8 +824,16 @@ export function PrivateChart({
           return;
         }
 
+        if (body.suggestion) {
+          setExistingUserSuggestion(body.suggestion);
+        }
+
         if (body.matches && body.matches.length > 0) {
           setDuplicateMatches(body.matches);
+          return;
+        }
+
+        if (body.suggestion) {
           return;
         }
 
@@ -844,6 +856,7 @@ export function PrivateChart({
     setAddSuccessMessage(null);
     setDuplicateMatches([]);
     setDuplicateCheckError(null);
+    setExistingUserSuggestion(null);
     if (skipDuplicateCheck) {
       setDuplicateEmptyMessage(null);
     }
@@ -1104,7 +1117,7 @@ export function PrivateChart({
   async function handleConnectPublicly(candidate: PublicConnectCandidate) {
     if (!currentUserId) {
       setActionError("Sign in and reload to connect publicly.");
-      return;
+      return false;
     }
 
     setPublicConnectingPlaceholderId(candidate.placeholderId);
@@ -1127,7 +1140,7 @@ export function PrivateChart({
         setActionError(
           body.error ?? "Could not send a public connection request.",
         );
-        return;
+        return false;
       }
 
       setActionMessage(`Public connection request sent to ${candidate.name}.`);
@@ -1136,10 +1149,31 @@ export function PrivateChart({
         delete next[candidate.placeholderId];
         return next;
       });
+      return true;
     } catch {
       setActionError("Could not send a public connection request.");
+      return false;
     } finally {
       setPublicConnectingPlaceholderId(null);
+    }
+  }
+
+  async function handleConnectSuggestedUser() {
+    if (!existingUserSuggestion) return;
+
+    const displayName =
+      existingUserSuggestion.user.name ||
+      existingUserSuggestion.user.handle ||
+      "that person";
+
+    const didConnect = await handleConnectPublicly({
+      placeholderId: `suggested-${existingUserSuggestion.user.id}`,
+      userId: existingUserSuggestion.user.id,
+      name: displayName,
+      relationshipType: addType,
+    });
+    if (didConnect) {
+      setExistingUserSuggestion(null);
     }
   }
 
@@ -1205,7 +1239,9 @@ export function PrivateChart({
       );
     }
 
-    if (duplicateMatches.length === 0) {
+    const suggestion = existingUserSuggestion;
+
+    if (duplicateMatches.length === 0 && !suggestion) {
       return duplicateEmptyMessage ? (
         <p className="text-xs text-black/55 dark:text-white/55">
           {duplicateEmptyMessage}
@@ -1214,72 +1250,118 @@ export function PrivateChart({
     }
 
     const hasMultipleMatches = duplicateMatches.length > 1;
+    const suggestionName = suggestion
+      ? suggestion.user.name || suggestion.user.handle || "this member"
+      : "";
+    const isPublicSuggestionConnecting = suggestion
+      ? publicConnectingPlaceholderId === `suggested-${suggestion.user.id}`
+      : false;
 
     return (
       <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3">
-        <div>
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-            Is this the person you were trying to add?
-          </p>
-          <p className="mt-1 text-xs text-amber-800/85 dark:text-amber-100/78">
-            They may already be on your chart.
-          </p>
-        </div>
-        <div className={hasMultipleMatches ? "grid gap-2 md:grid-cols-2" : "grid gap-2"}>
-          {duplicateMatches.map((match) => {
-            const details = [
-              match.phoneNumber ? `Phone: ${match.phoneNumber}` : null,
-              match.email ? `Email: ${match.email}` : null,
-              match.location ? `Location: ${match.location}` : null,
-              match.handle ? `Handle: @${match.handle}` : null,
-              match.relationshipType ? `Type: ${match.relationshipType}` : null,
-              match.claimStatus ? `Status: ${STATUS_LABELS[match.claimStatus] ?? match.claimStatus}` : null,
-              match.note ? `Note: ${match.note}` : null,
-            ].filter((item): item is string => Boolean(item));
-
-            return (
-              <div
-                key={match.id}
-                className="rounded-xl border border-amber-500/25 bg-white/70 p-3 text-xs dark:bg-black/20"
+        {suggestion ? (
+          <div className="rounded-xl border border-amber-500/25 bg-white/75 p-3 text-xs dark:bg-black/20">
+            <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+              {suggestionName} may already be on Chart.
+            </p>
+            <p className="mt-1 text-amber-800/85 dark:text-amber-100/78">
+              {suggestion.message}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleConnectSuggestedUser()}
+                disabled={
+                  isAdding ||
+                  isPublicSuggestionConnecting ||
+                  !currentUserId
+                }
+                className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
               >
-                <p className="font-bold text-black/82 dark:text-white/88">
-                  {match.name}
-                </p>
-                {details.length > 0 ? (
-                  <div className="mt-2 space-y-1 text-black/62 dark:text-white/68">
-                    {details.map((detail) => (
-                      <p key={detail}>{detail}</p>
-                    ))}
+                {isPublicSuggestionConnecting
+                  ? "Sending..."
+                  : `Connect publicly with ${suggestionName}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void createPrivateConnection(true)}
+                disabled={isAdding}
+                className="rounded-full border border-amber-500/45 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-100"
+              >
+                {isAdding ? "Creating..." : "Create private node anyway"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {duplicateMatches.length > 0 ? (
+          <>
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                Is this the person you were trying to add?
+              </p>
+              <p className="mt-1 text-xs text-amber-800/85 dark:text-amber-100/78">
+                They may already be on your chart.
+              </p>
+            </div>
+            <div className={hasMultipleMatches ? "grid gap-2 md:grid-cols-2" : "grid gap-2"}>
+              {duplicateMatches.map((match) => {
+                const details = [
+                  match.phoneNumber ? `Phone: ${match.phoneNumber}` : null,
+                  match.email ? `Email: ${match.email}` : null,
+                  match.location ? `Location: ${match.location}` : null,
+                  match.handle ? `Handle: @${match.handle}` : null,
+                  match.relationshipType ? `Type: ${match.relationshipType}` : null,
+                  match.claimStatus ? `Status: ${STATUS_LABELS[match.claimStatus] ?? match.claimStatus}` : null,
+                  match.note ? `Note: ${match.note}` : null,
+                ].filter((item): item is string => Boolean(item));
+
+                return (
+                  <div
+                    key={match.id}
+                    className="rounded-xl border border-amber-500/25 bg-white/70 p-3 text-xs dark:bg-black/20"
+                  >
+                    <p className="font-bold text-black/82 dark:text-white/88">
+                      {match.name}
+                    </p>
+                    {details.length > 0 ? (
+                      <div className="mt-2 space-y-1 text-black/62 dark:text-white/68">
+                        {details.map((detail) => (
+                          <p key={detail}>{detail}</p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-black/55 dark:text-white/55">
+                        No extra details are saved for this private person.
+                      </p>
+                    )}
+                    {match.reasons.length > 0 ? (
+                      <p className="mt-2 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                        {match.reasons.join(", ")}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleUseExistingPerson(match)}
+                      className="mt-3 w-full rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-white"
+                    >
+                      Use existing person
+                    </button>
                   </div>
-                ) : (
-                  <p className="mt-2 text-black/55 dark:text-white/55">
-                    No extra details are saved for this private person.
-                  </p>
-                )}
-                {match.reasons.length > 0 ? (
-                  <p className="mt-2 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                    {match.reasons.join(", ")}
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => handleUseExistingPerson(match)}
-                  className="mt-3 w-full rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-white"
-                >
-                  Use existing person
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <button
-          type="button"
-          onClick={() => void createPrivateConnection(true)}
-          disabled={isAdding}
-          className="rounded-full border border-amber-500/45 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-100"
-        >
-          {isAdding ? "Creating..." : "Create new person anyway"}
-        </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+        {duplicateMatches.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => void createPrivateConnection(true)}
+            disabled={isAdding}
+            className="rounded-full border border-amber-500/45 px-3 py-1.5 text-xs font-bold text-amber-900 transition hover:bg-amber-500/10 disabled:opacity-60 dark:text-amber-100"
+          >
+            {isAdding ? "Creating..." : "Create new person anyway"}
+          </button>
+        ) : null}
       </div>
     );
   }
