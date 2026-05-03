@@ -2123,126 +2123,6 @@ export function RelationshipMap({
                   : "Show search and filters"}
               </button>
             </div>
-            {showSecondaryActions ? (
-              <div className="mb-3 space-y-3">
-                <form
-                  className="flex flex-col gap-2 sm:flex-row"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    searchLoadedUsers();
-                  }}
-                >
-                  <input
-                    type="search"
-                    aria-label="Search for a user"
-                    placeholder="Search for a user"
-                    value={searchValue}
-                    onChange={(event) => {
-                      setSearchValue(event.target.value);
-                      setHasSearchedUsers(false);
-                      setSearchResults([]);
-                      setSearchSelectedUser(null);
-                    }}
-                    className="min-h-10 flex-1 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!searchValue.trim()}
-                    className="min-h-10 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-black/55 disabled:cursor-not-allowed disabled:opacity-65 dark:text-white/60"
-                  >
-                    Search
-                  </button>
-                </form>
-                <p
-                  className="text-xs text-black/58 dark:text-white/58"
-                  aria-live="polite"
-                >
-                  {!hasSearchedUsers
-                    ? searchValue.trim()
-                      ? "Press Search to look for a matching user."
-                      : "Search for a user to see how many connections away they are."
-                    : searchResults.length > 0
-                      ? `${searchResults.length} matching user${searchResults.length === 1 ? "" : "s"} found.`
-                      : "No matching user found."}
-                </p>
-                {searchSelectedUser ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-3 dark:bg-white/[0.05]">
-                    <Avatar
-                      name={searchSelectedUser.name}
-                      src={searchSelectedUser.profileImage ?? undefined}
-                      className="h-10 w-10"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">
-                        {searchSelectedUser.name}
-                      </p>
-                      <p className="truncate text-xs text-black/58 dark:text-white/58">
-                        @{searchSelectedUser.handle}
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-black/65 dark:text-white/65">
-                        {searchConnectionPath
-                          ? searchConnectionPath.degree === 0
-                            ? "This is you."
-                            : `${searchConnectionPath.degree} connection${searchConnectionPath.degree === 1 ? "" : "s"} away.`
-                          : "No connection path found."}
-                      </p>
-                      {searchConnectionPath && hasPro ? (
-                        <ol className="mt-2 flex flex-wrap gap-1 text-xs text-black/65 dark:text-white/65">
-                          {searchConnectionPath.path.map((userId, index) => {
-                            const pathUser = usersById.get(userId);
-                            return (
-                              <li key={userId} className="flex items-center gap-1">
-                                {index > 0 ? (
-                                  <span className="text-black/35 dark:text-white/35">
-                                    /
-                                  </span>
-                                ) : null}
-                                <span>{pathUser?.name ?? "Member"}</span>
-                              </li>
-                            );
-                          })}
-                        </ol>
-                      ) : searchConnectionPath ? (
-                        <p className="mt-2 text-xs text-black/55 dark:text-white/55">
-                          Full path is available with Pro.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(relationColors) as RelationshipType[]).map(
-                    (type) => {
-                      const active = activeTypes.includes(type);
-                      return (
-                        <button
-                          type="button"
-                          key={type}
-                          onClick={() =>
-                            setActiveTypes((prev) =>
-                              prev.includes(type)
-                                ? prev.filter((item) => item !== type)
-                                : [...prev, type],
-                            )
-                          }
-                          className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
-                          style={{
-                            borderColor: active
-                              ? relationColors[type]
-                              : "var(--border-soft)",
-                            backgroundColor: active
-                              ? `${relationColors[type]}20`
-                              : "transparent",
-                          }}
-                        >
-                          {type}
-                        </button>
-                      );
-                    },
-                  )}
-                </div>
-              </div>
-            ) : null}
             <p className="mb-3 rounded-lg border border-[var(--border-soft)] bg-black/[0.03] px-3 py-2 text-[11px] text-black/70 dark:bg-white/[0.05] dark:text-white/75">
               All connections are user-created and only become public after both
               parties verify.
@@ -2617,6 +2497,139 @@ export function RelationshipMap({
               </details>
             ) : null}
           </section>
+          {showSecondaryActions ? (
+            <aside className="paper-card rounded-2xl p-4 lg:sticky lg:top-4 lg:self-start">
+              <div className="mb-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
+                  Tools
+                </p>
+                <h3 className="mt-1 text-xl font-semibold">
+                  Search and filters
+                </h3>
+              </div>
+              <div className="space-y-3">
+                <form
+                  className="flex flex-col gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    searchLoadedUsers();
+                  }}
+                >
+                  <input
+                    type="search"
+                    aria-label="Search for a user"
+                    placeholder="Search for a user"
+                    value={searchValue}
+                    onChange={(event) => {
+                      setSearchValue(event.target.value);
+                      setHasSearchedUsers(false);
+                      setSearchResults([]);
+                      setSearchSelectedUser(null);
+                    }}
+                    className="min-h-10 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!searchValue.trim()}
+                    className="min-h-10 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-black/55 disabled:cursor-not-allowed disabled:opacity-65 dark:text-white/60"
+                  >
+                    Search
+                  </button>
+                </form>
+                <p
+                  className="text-xs text-black/58 dark:text-white/58"
+                  aria-live="polite"
+                >
+                  {!hasSearchedUsers
+                    ? searchValue.trim()
+                      ? "Press Search to look for a matching user."
+                      : "Search for a user to see how many connections away they are."
+                    : searchResults.length > 0
+                      ? `${searchResults.length} matching user${searchResults.length === 1 ? "" : "s"} found.`
+                      : "No matching user found."}
+                </p>
+                {searchSelectedUser ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-3 dark:bg-white/[0.05]">
+                    <Avatar
+                      name={searchSelectedUser.name}
+                      src={searchSelectedUser.profileImage ?? undefined}
+                      className="h-10 w-10"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {searchSelectedUser.name}
+                      </p>
+                      <p className="truncate text-xs text-black/58 dark:text-white/58">
+                        @{searchSelectedUser.handle}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-black/65 dark:text-white/65">
+                        {searchConnectionPath
+                          ? searchConnectionPath.degree === 0
+                            ? "This is you."
+                            : `${searchConnectionPath.degree} connection${searchConnectionPath.degree === 1 ? "" : "s"} away.`
+                          : "No connection path found."}
+                      </p>
+                      {searchConnectionPath && hasPro ? (
+                        <ol className="mt-2 flex flex-wrap gap-1 text-xs text-black/65 dark:text-white/65">
+                          {searchConnectionPath.path.map((userId, index) => {
+                            const pathUser = usersById.get(userId);
+                            return (
+                              <li
+                                key={userId}
+                                className="flex items-center gap-1"
+                              >
+                                {index > 0 ? (
+                                  <span className="text-black/35 dark:text-white/35">
+                                    /
+                                  </span>
+                                ) : null}
+                                <span>{pathUser?.name ?? "Member"}</span>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      ) : searchConnectionPath ? (
+                        <p className="mt-2 text-xs text-black/55 dark:text-white/55">
+                          Full path is available with Pro.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(relationColors) as RelationshipType[]).map(
+                    (type) => {
+                      const active = activeTypes.includes(type);
+                      return (
+                        <button
+                          type="button"
+                          key={type}
+                          onClick={() =>
+                            setActiveTypes((prev) =>
+                              prev.includes(type)
+                                ? prev.filter((item) => item !== type)
+                                : [...prev, type],
+                            )
+                          }
+                          className="rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide transition"
+                          style={{
+                            borderColor: active
+                              ? relationColors[type]
+                              : "var(--border-soft)",
+                            backgroundColor: active
+                              ? `${relationColors[type]}20`
+                              : "transparent",
+                          }}
+                        >
+                          {type}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+            </aside>
+          ) : null}
         </div>
       ) : null}
     </div>
