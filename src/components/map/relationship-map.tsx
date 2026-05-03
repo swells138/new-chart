@@ -13,7 +13,6 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -499,7 +498,6 @@ export function RelationshipMap({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user: clerkUser } = useUser();
   const [chartLayer, setChartLayer] = useState<"private" | "public">("public");
   const [activeTypes, setActiveTypes] = useState<RelationshipType[]>([
     "Talking",
@@ -560,6 +558,9 @@ export function RelationshipMap({
   // Whether the active user has an active Pro subscription. Populated from
   // /api/profile when we resolve the current DB user.
   const [hasPro, setHasPro] = useState(currentUserIsPro);
+  const [browserClerkImageUrl, setBrowserClerkImageUrl] = useState<
+    string | null
+  >(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
 
   function triggerConnectionFeedback(
@@ -612,17 +613,16 @@ export function RelationshipMap({
   const activeCurrentUserId = resolvedCurrentUserId ?? currentUserId;
   const hasDbUser = Boolean(activeCurrentUserId);
   const usersWithCurrentClerkImage = useMemo(() => {
-    const clerkImageUrl = clerkUser?.imageUrl;
-    if (!activeCurrentUserId || !clerkImageUrl) {
+    if (!activeCurrentUserId || !browserClerkImageUrl) {
       return users;
     }
 
     return users.map((user) =>
       user.id === activeCurrentUserId
-        ? { ...user, profileImage: clerkImageUrl }
+        ? { ...user, profileImage: browserClerkImageUrl }
         : user,
     );
-  }, [users, activeCurrentUserId, clerkUser?.imageUrl]);
+  }, [users, activeCurrentUserId, browserClerkImageUrl]);
   const visibleDirectoryUsers = useMemo(
     () =>
       usersWithCurrentClerkImage.filter(
@@ -675,6 +675,19 @@ export function RelationshipMap({
       const token = await getBrowserClerkToken();
       if (!cancelled && token) {
         setHasBrowserSession(true);
+      }
+
+      const maybeClerk = (
+        window as Window & {
+          Clerk?: {
+            user?: {
+              imageUrl?: string | null;
+            };
+          };
+        }
+      ).Clerk;
+      if (!cancelled) {
+        setBrowserClerkImageUrl(maybeClerk?.user?.imageUrl ?? null);
       }
     })();
 
