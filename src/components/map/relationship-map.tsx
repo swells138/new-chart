@@ -932,7 +932,7 @@ export function RelationshipMap({
       ? "Add another connection"
       : "Add your first connection";
   const showOnboardingOverlay =
-    personalConnectionCount <= 2 && !isOnboardingDismissed;
+    personalConnectionCount === 0 && !isOnboardingDismissed;
 
   const networkAccess = useMemo(() => {
     if (!activeCurrentUserId) {
@@ -1987,7 +1987,11 @@ export function RelationshipMap({
               <button
                 type="button"
                 onClick={scrollToAddConnection}
-                className="rounded-xl bg-[var(--accent)] px-6 py-4 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95"
+                className={`rounded-xl bg-[var(--accent)] px-6 py-4 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95 ${
+                  showOnboardingOverlay
+                    ? "animate-pulse ring-4 ring-[var(--accent)]/25"
+                    : ""
+                }`}
               >
                 {primaryCtaText}
               </button>
@@ -2012,34 +2016,6 @@ export function RelationshipMap({
           </div>
         </div>
       </section>
-
-      {showOnboardingOverlay ? (
-        <section className="rounded-2xl border border-[var(--accent)]/35 bg-[var(--accent)]/10 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-bold">Start here</p>
-              <div className="mt-2 grid gap-2 text-xs text-black/68 dark:text-white/72 sm:grid-cols-3">
-                <p className="rounded-lg bg-white/55 px-3 py-2 dark:bg-black/22">
-                  Click here to add someone
-                </p>
-                <p className="rounded-lg bg-white/55 px-3 py-2 dark:bg-black/22">
-                  Drag from your node to connect people
-                </p>
-                <p className="rounded-lg bg-white/55 px-3 py-2 dark:bg-black/22">
-                  Connections become public only after both users verify
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={dismissOnboarding}
-              className="self-start rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10 md:self-center"
-            >
-              Dismiss
-            </button>
-          </div>
-        </section>
-      ) : null}
 
       <section className="rounded-2xl border border-[var(--border-soft)] bg-white/70 p-3 dark:bg-black/30">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -2205,9 +2181,18 @@ export function RelationshipMap({
                 <span className="map-bg-dot map-bg-dot-4" aria-hidden="true" />
               </div>
               {showOnboardingOverlay ? (
-                <div className="pointer-events-none absolute left-4 top-4 z-20 max-w-xs rounded-xl border border-white/12 bg-black/55 px-3 py-2 text-xs text-white/78 backdrop-blur">
-                  Click a node for profile details. Drag from your node to start
-                  a verified connection.
+                <div className="absolute left-4 top-4 z-20 max-w-[260px] rounded-xl border border-white/15 bg-black/70 p-4 text-white shadow-xl shadow-black/20 backdrop-blur">
+                  <p className="text-sm font-bold">Start your network</p>
+                  <p className="mt-1 text-xs leading-5 text-white/72">
+                    Add your first connection to begin revealing your network.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={dismissOnboarding}
+                    className="mt-3 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#0f0819] transition hover:bg-white/90"
+                  >
+                    Got it
+                  </button>
                 </div>
               ) : null}
               <ReactFlow
