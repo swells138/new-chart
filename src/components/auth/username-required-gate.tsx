@@ -13,6 +13,14 @@ export function UsernameRequiredGate({
 }: {
   clerkEnabled: boolean;
 }) {
+  if (!clerkEnabled) {
+    return null;
+  }
+
+  return <ClerkUsernameRequiredGate />;
+}
+
+function ClerkUsernameRequiredGate() {
   const pathname = usePathname();
   const router = useRouter();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -21,7 +29,7 @@ export function UsernameRequiredGate({
   });
 
   useEffect(() => {
-    if (!clerkEnabled || !isLoaded || !isSignedIn || !user?.id) {
+    if (!isLoaded || !isSignedIn || !user?.id) {
       return;
     }
 
@@ -66,12 +74,11 @@ export function UsernameRequiredGate({
     return () => {
       cancelled = true;
     };
-  }, [clerkEnabled, isLoaded, isSignedIn, pathname, user?.id]);
+  }, [isLoaded, isSignedIn, pathname, user?.id]);
 
   useEffect(() => {
     if (
       usernameState.status !== "ready" ||
-      !clerkEnabled ||
       !isLoaded ||
       !isSignedIn ||
       usernameState.hasUsername ||
@@ -84,7 +91,7 @@ export function UsernameRequiredGate({
     }
 
     router.replace("/profile");
-  }, [clerkEnabled, isLoaded, isSignedIn, pathname, router, usernameState]);
+  }, [isLoaded, isSignedIn, pathname, router, usernameState]);
 
   return null;
 }
