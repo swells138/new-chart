@@ -1876,22 +1876,7 @@ export function RelationshipMap({
   const selectedIsCurrentUser = Boolean(
     activeCurrentUserId && selectedId === activeCurrentUserId,
   );
-  const shouldShowUnlockOverlay = Boolean(
-    selectedUser &&
-      !hasPro &&
-      networkAccess.lockedNodeIds.has(selectedUser.id) &&
-      !selectedIsCurrentUser,
-  );
-
-  // Compute whether the selected user is directly connected to the active user
-  const isDirectlyConnected = useMemo(() => {
-    if (!activeCurrentUserId || !selectedId) return false;
-    return approvedRelationships.some(
-      (r) =>
-        (r.source === activeCurrentUserId && r.target === selectedId) ||
-        (r.target === activeCurrentUserId && r.source === selectedId),
-    );
-  }, [approvedRelationships, activeCurrentUserId, selectedId]);
+  const shouldShowProDetailsCard = Boolean(selectedUser && !hasPro);
 
   // Compute degree of separation (shortest path length in number of edges) using BFS
   // Returns null when no path exists or when insufficient inputs
@@ -1926,62 +1911,6 @@ export function RelationshipMap({
 
     return null;
   }, [approvedRelationships, activeCurrentUserId, selectedId]);
-
-  // Compute full shortest path (list of user ids from current user -> ... -> selected user)
-  // Returns null when no path exists or insufficient inputs
-  const selectedPath = useMemo(() => {
-    if (!activeCurrentUserId || !selectedId) return null;
-    if (activeCurrentUserId === selectedId) return [activeCurrentUserId];
-
-    const adj = new Map<string, Set<string>>();
-    approvedRelationships.forEach((r) => {
-      if (!adj.has(r.source)) adj.set(r.source, new Set());
-      if (!adj.has(r.target)) adj.set(r.target, new Set());
-      adj.get(r.source)!.add(r.target);
-      adj.get(r.target)!.add(r.source);
-    });
-
-    const parent = new Map<string, string | null>();
-    const queue: string[] = [];
-    queue.push(activeCurrentUserId);
-    parent.set(activeCurrentUserId, null);
-
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      const neighbors = adj.get(cur) ?? new Set();
-      for (const n of neighbors) {
-        if (parent.has(n)) continue;
-        parent.set(n, cur);
-        if (n === selectedId) {
-          // build path
-          const path: string[] = [];
-          let node: string | null = n;
-          while (node) {
-            path.push(node);
-            node = parent.get(node) ?? null;
-          }
-          path.reverse();
-          return path;
-        }
-        queue.push(n);
-      }
-    }
-
-    return null;
-  }, [approvedRelationships, activeCurrentUserId, selectedId]);
-
-  // Unlock overlay visibility state for subtle fade+scale animation
-  const [unlockOverlayVisible, setUnlockOverlayVisible] = useState(false);
-
-  useEffect(() => {
-    if (shouldShowUnlockOverlay) {
-      // trigger a micro-tick so CSS transition from 0 -> 100% animates
-      setUnlockOverlayVisible(false);
-      const t = window.setTimeout(() => setUnlockOverlayVisible(true), 10);
-      return () => window.clearTimeout(t);
-    }
-    setUnlockOverlayVisible(false);
-  }, [shouldShowUnlockOverlay]);
 
   const pendingRequests = useMemo(() => {
     if (!activeCurrentUserId) {
@@ -2251,125 +2180,6 @@ export function RelationshipMap({
                   <Background gap={24} size={1} color="rgba(255,255,255,0.07)" />
                 </ReactFlow>
 
-                {/* Unlock overlay for network nodes beyond the free exploration limit */}
-                {shouldShowUnlockOverlay ? (
-                  <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-auto">
-                  {/* Dark backdrop */}
-                  <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-200" />
-
-                  {/* If we're showing a teaser for a non-direct connection, do NOT reveal any path info.
-                      Hide the blurred preview and only surface a small teaser showing degree of separation. */}
-                  {selectedUser &&
-                  activeCurrentUserId &&
-                  !isDirectlyConnected ? (
-                    // CONNECTION PATH TEASER (no path details revealed for non-Pro users)
-                    <>
-                      {/* Centered modal with fade+scale */}
-                      <div
-                        className={`relative z-40 w-full max-w-md rounded-2xl bg-[#0f0819]/95 border border-white/8 p-6 text-white shadow-2xl transform transition-all duration-180 ease-out ${
-                          unlockOverlayVisible
-                            ? "opacity-100 scale-100"
-                            : "opacity-0 scale-95"
-                        }`}
-                        role="dialog"
-                        aria-modal="true"
-                      >
-                        <p className="text-lg font-semibold truncate">
-                          {selectedDegree !== null
-                            ? `This node is ${selectedDegree} connection${selectedDegree === 1 ? "" : "s"} away`
-                            : "This part of the chart is locked"}
-                        </p>
-
-                        <p className="mt-2 text-sm text-white/70">
-                          Free accounts can explore 15 second-degree nodes. Pro unlocks the rest.
-                        </p>
-
-                        <div className="mt-5 flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => router.push("/checkout")}
-                            className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
-                          >
-                            Unlock the path with Pro
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId(null)}
-                            className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
-                          >
-                            Not now
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    // FALLBACK: keep the existing blurred preview + modal for other cases
-                    <>
-                      {/* Blurred preview of hidden info (behind modal) */}
-                      <div className="absolute z-35 w-full max-w-md -translate-y-20 rounded-xl p-4 text-sm text-white/80">
-                        <div className="rounded-lg bg-white/6 p-3 text-white/60 filter blur-sm">
-                          <p className="mb-2 text-xs font-semibold">Preview</p>
-                          <div className="space-y-1">
-                            {selectedConnections.slice(0, 4).map((c) => {
-                              return (
-                                <div
-                                  key={c.id}
-                                  className="flex items-center gap-2"
-                                >
-                                  <span className="h-2.5 w-2.5 rounded-full bg-white/60" />
-                                  <span className="truncate text-xs"></span>
-                                  <span className="ml-auto text-[11px] text-white/40"></span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Centered modal with fade+scale */}
-                      <div
-                        className={`relative z-40 w-full max-w-md rounded-2xl bg-[#0f0819]/95 border border-white/8 p-6 text-white shadow-2xl transform transition-all duration-180 ease-out ${
-                          unlockOverlayVisible
-                            ? "opacity-100 scale-100"
-                            : "opacity-0 scale-95"
-                        }`}
-                        role="dialog"
-                        aria-modal="true"
-                      >
-                        <p className="text-lg font-semibold truncate">
-                          Unlock the rest of your chart
-                        </p>
-
-                        <ul className="mt-2 space-y-1 text-sm text-white/70">
-                          <li>• Nodes beyond the first 15</li>
-                          <li>• Full connection paths</li>
-                          <li>• Relationship context</li>
-                        </ul>
-
-                        <div className="mt-5 flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => router.push("/checkout")}
-                            className="flex-1 rounded-lg bg-[#ff7b6b] py-3 text-sm font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(255,123,107,0.18)] focus:outline-none focus:ring-4 focus:ring-[#ff7b6b]/30"
-                          >
-                            Unlock the path with Pro
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId(null)}
-                            // Reduced visual emphasis: lighter text and normal weight
-                            className="rounded-lg px-4 py-3 text-sm font-normal text-white/40 hover:text-white/50"
-                          >
-                            Not now
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  </div>
-                ) : null}
               </div>
 
             </div>
@@ -2544,7 +2354,61 @@ export function RelationshipMap({
                 </h3>
               </div>
               <div className="space-y-3">
-                {selectedUser && !shouldShowUnlockOverlay ? (
+                {selectedUser && shouldShowProDetailsCard ? (
+                  <section className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Avatar
+                          name={selectedUser.name}
+                          src={selectedUser.profileImage ?? undefined}
+                          className="h-11 w-11"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-semibold">
+                            {selectedUser.name}
+                          </p>
+                          <p className="truncate text-xs text-black/58 dark:text-white/58">
+                            @{selectedUser.handle}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-[var(--accent)]/25 bg-[var(--accent)]/10 p-3">
+                        <div className="flex gap-2">
+                          <Info
+                            className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]"
+                            aria-hidden="true"
+                          />
+                          <div>
+                            <p className="text-sm font-semibold">
+                              Upgrade to Pro for more
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-black/65 dark:text-white/68">
+                              Node details, visible verified connections, path
+                              context, and relationship tools are Pro features.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => router.push("/checkout")}
+                          className="rounded-full bg-[#ff7b6b] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-95"
+                        >
+                          Upgrade to Pro
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(null)}
+                          className="rounded-full border border-[var(--border-soft)] px-3 py-2 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
+                {selectedUser && !shouldShowProDetailsCard ? (
                   <section className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-4 dark:bg-white/[0.04]">
                     <div className="flex flex-col gap-3">
                       <div className="flex min-w-0 items-center gap-3">
