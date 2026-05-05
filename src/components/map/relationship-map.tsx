@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import Link from "next/link";
-import { Info, UserPlus } from "lucide-react";
+import { Info, Lock, UserPlus, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   type ReactNode,
@@ -101,6 +101,7 @@ type PersonNodeData = {
   isBouncing?: boolean;
   isConnected?: boolean;
   isLocked?: boolean;
+  isPathLocked?: boolean;
   degree?: number;
 };
 
@@ -108,14 +109,19 @@ function PersonNode({
   data,
   selected,
 }: {
-  data: PersonNodeData & { isPro?: boolean; isPathNode?: boolean; dimmed?: boolean };
+  data: PersonNodeData & {
+    isPro?: boolean;
+    isPathNode?: boolean;
+    dimmed?: boolean;
+  };
   selected?: boolean;
 }) {
   const initial = (data.label?.[0] ?? "?").toUpperCase();
   const displayName = data.label.split(" ")[0] ?? data.label;
   const isPathNode = Boolean(data.isPathNode);
   const isDimmed = Boolean(data.dimmed);
-  const isLocked = Boolean(data.isLocked);
+  const isLocked = Boolean(data.isLocked || data.isPathLocked);
+  const isPathLocked = Boolean(data.isPathLocked);
 
   // base visual adjustments
   const nodeBorder = selected || isPathNode ? `2px solid ${data.color}` : "1px solid rgba(255,255,255,0.06)";
@@ -145,6 +151,7 @@ function PersonNode({
           textAlign: "center",
           width: 86,
           opacity: isDimmed ? 0.28 : isLocked ? 0.58 : 1,
+          cursor: isPathLocked ? "pointer" : undefined,
         }}
       >
         <div style={{ display: "flex", justifyContent: "center" }}>
@@ -167,10 +174,27 @@ function PersonNode({
                 position: "relative",
                 zIndex: isPathNode ? 3 : 2,
                 overflow: "hidden",
-                filter: isLocked ? "blur(3px) saturate(0.75)" : undefined,
+                filter:
+                  isLocked && !isPathLocked
+                    ? "blur(3px) saturate(0.75)"
+                    : undefined,
+                animation: isPathLocked ? "path-lock-pulse 1.7s ease-in-out infinite" : undefined,
               }}
             >
-              {data.profileImage ? (
+              {isPathLocked ? (
+                <span
+                  style={{
+                    color: "white",
+                    fontWeight: 800,
+                    fontSize: 13,
+                    fontFamily: "system-ui",
+                    letterSpacing: 0,
+                    userSelect: "none",
+                  }}
+                >
+                  ???
+                </span>
+              ) : data.profileImage ? (
                 <Avatar
                   name={data.label}
                   src={data.profileImage}
@@ -197,7 +221,9 @@ function PersonNode({
                   inset: -4,
                   borderRadius: "50%",
                   border: "1px solid rgba(255,255,255,0.22)",
-                  background: "rgba(8,6,22,0.2)",
+                  background: isPathLocked
+                    ? "rgba(255,123,107,0.14)"
+                    : "rgba(8,6,22,0.2)",
                   backdropFilter: "blur(1px)",
                   zIndex: 4,
                 }}
@@ -227,7 +253,7 @@ function PersonNode({
               userSelect: "none",
             }}
           >
-            {isLocked ? "Pro" : displayName}
+            {isPathLocked ? "???" : isLocked ? "Pro" : displayName}
           </span>
         </div>
       </div>
@@ -296,13 +322,13 @@ function findShortestConnectionPath(
   relationships: Relationship[],
   startUserId: string | null | undefined,
   targetUserId: string | null | undefined,
-): { degree: number; path: string[] } | null {
+): { degree: number; path: string[]; hasMultiplePaths: boolean } | null {
   if (!startUserId || !targetUserId) {
     return null;
   }
 
   if (startUserId === targetUserId) {
-    return { degree: 0, path: [startUserId] };
+    return { degree: 0, path: [startUserId], hasMultiplePaths: false };
   }
 
   const neighborsByUserId = new Map<string, Set<string>>();
@@ -322,6 +348,8 @@ function findShortestConnectionPath(
   const parentByUserId = new Map<string, string | null>([
     [startUserId, null],
   ]);
+  const distanceByUserId = new Map<string, number>([[startUserId, 0]]);
+  const shortestPathCountByUserId = new Map<string, number>([[startUserId, 1]]);
   const queue = [startUserId];
 
   while (queue.length > 0) {
@@ -330,32 +358,105 @@ function findShortestConnectionPath(
       continue;
     }
 
+    const currentDistance = distanceByUserId.get(currentUserId) ?? 0;
     const neighbors = neighborsByUserId.get(currentUserId) ?? new Set<string>();
     for (const neighborId of neighbors) {
-      if (parentByUserId.has(neighborId)) {
+      const nextDistance = currentDistance + 1;
+      const knownDistance = distanceByUserId.get(neighborId);
+
+      if (knownDistance === nextDistance) {
+        shortestPathCountByUserId.set(
+          neighborId,
+          Math.min(
+            2,
+            (shortestPathCountByUserId.get(neighborId) ?? 0) +
+              (shortestPathCountByUserId.get(currentUserId) ?? 1),
+          ),
+        );
+      }
+
+      if (knownDistance !== undefined) {
         continue;
       }
 
       parentByUserId.set(neighborId, currentUserId);
-
-      if (neighborId === targetUserId) {
-        const path: string[] = [];
-        let pathUserId: string | null = targetUserId;
-
-        while (pathUserId) {
-          path.push(pathUserId);
-          pathUserId = parentByUserId.get(pathUserId) ?? null;
-        }
-
-        path.reverse();
-        return { degree: path.length - 1, path };
-      }
-
+      distanceByUserId.set(neighborId, nextDistance);
+      shortestPathCountByUserId.set(
+        neighborId,
+        shortestPathCountByUserId.get(currentUserId) ?? 1,
+      );
       queue.push(neighborId);
     }
   }
 
-  return null;
+  if (!parentByUserId.has(targetUserId)) {
+    return null;
+  }
+
+  const path: string[] = [];
+  let pathUserId: string | null = targetUserId;
+
+  while (pathUserId) {
+    path.push(pathUserId);
+    pathUserId = parentByUserId.get(pathUserId) ?? null;
+  }
+
+  path.reverse();
+  return {
+    degree: path.length - 1,
+    path,
+    hasMultiplePaths: (shortestPathCountByUserId.get(targetUserId) ?? 0) > 1,
+  };
+}
+
+function findPathEdgeIds(
+  relationships: Relationship[],
+  path: string[] | undefined,
+) {
+  const ids = new Set<string>();
+  if (!path || path.length < 2) {
+    return ids;
+  }
+
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const firstId = path[index];
+    const secondId = path[index + 1];
+    const relationship = relationships.find(
+      (item) =>
+        (item.source === firstId && item.target === secondId) ||
+        (item.source === secondId && item.target === firstId),
+    );
+    if (relationship) {
+      ids.add(relationship.id);
+    }
+  }
+
+  return ids;
+}
+
+function getTeaserVisiblePathNodeIds(path: string[] | undefined, seed: number) {
+  const visibleIds = new Set<string>();
+  if (!path || path.length === 0) {
+    return visibleIds;
+  }
+
+  visibleIds.add(path[0]);
+  visibleIds.add(path[path.length - 1]);
+
+  const intermediateIds = path.slice(1, -1);
+  if (intermediateIds.length <= 1) {
+    return visibleIds;
+  }
+
+  const revealCount = Math.min(2, intermediateIds.length - 1);
+  const ordered = [...intermediateIds].sort((left, right) => {
+    const leftScore = hashNumber(`${seed}:${left}`);
+    const rightScore = hashNumber(`${seed}:${right}`);
+    return leftScore - rightScore;
+  });
+
+  ordered.slice(0, revealCount).forEach((id) => visibleIds.add(id));
+  return visibleIds;
 }
 
 function isObviousTestProfile(user: User) {
@@ -617,6 +718,11 @@ export function RelationshipMap({
     useState(0);
   const [showSecondaryActions, setShowSecondaryActions] = useState(false);
   const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(false);
+  const [pathRevealSeed, setPathRevealSeed] = useState(0);
+  const [showPathPaywall, setShowPathPaywall] = useState(false);
+  const [lockedPathClickName, setLockedPathClickName] = useState<string | null>(
+    null,
+  );
   // Whether the active user has an active Pro subscription. Populated from
   // /api/profile when we resolve the current DB user.
   const [hasPro, setHasPro] = useState(currentUserIsPro);
@@ -700,6 +806,7 @@ export function RelationshipMap({
     const query = normalizeConnectionSearchValue(searchValue);
     setHasSearchedUsers(true);
     setSearchSelectedUser(null);
+    setPathRevealSeed((seed) => seed + 1);
 
     if (!query) {
       setSearchResults([]);
@@ -965,6 +1072,52 @@ export function RelationshipMap({
     clientCreatedConnectionCount;
   const showOnboardingOverlay =
     personalConnectionCount === 0 && !isOnboardingDismissed;
+  const activePathTargetId =
+    searchSelectedUser?.id ?? (selectedId ? selectedId : null);
+  const activeConnectionPath = useMemo(
+    () =>
+      findShortestConnectionPath(
+        approvedRelationships,
+        activeCurrentUserId,
+        activePathTargetId,
+      ),
+    [approvedRelationships, activeCurrentUserId, activePathTargetId],
+  );
+  const activePathTarget = useMemo(
+    () =>
+      activePathTargetId
+        ? visibleDirectoryUsers.find((user) => user.id === activePathTargetId) ??
+          null
+        : null,
+    [activePathTargetId, visibleDirectoryUsers],
+  );
+  const pathNodeIds = useMemo(
+    () => new Set<string>(activeConnectionPath?.path ?? []),
+    [activeConnectionPath],
+  );
+  const pathEdgeIds = useMemo(
+    () => findPathEdgeIds(approvedRelationships, activeConnectionPath?.path),
+    [activeConnectionPath, approvedRelationships],
+  );
+  const teaserVisiblePathNodeIds = useMemo(
+    () => getTeaserVisiblePathNodeIds(activeConnectionPath?.path, pathRevealSeed),
+    [activeConnectionPath, pathRevealSeed],
+  );
+  const lockedPathNodeIds = useMemo(() => {
+    if (hasPro || !activeConnectionPath) {
+      return new Set<string>();
+    }
+
+    const hiddenIds = new Set<string>();
+    activeConnectionPath.path.forEach((userId) => {
+      if (!teaserVisiblePathNodeIds.has(userId)) {
+        hiddenIds.add(userId);
+      }
+    });
+    return hiddenIds;
+  }, [activeConnectionPath, hasPro, teaserVisiblePathNodeIds]);
+  const pathActive = Boolean(activeConnectionPath);
+  const pathIsTeaser = Boolean(activeConnectionPath && !hasPro);
 
   const networkAccess = useMemo(() => {
     if (!activeCurrentUserId) {
@@ -1068,7 +1221,9 @@ export function RelationshipMap({
 
     return baseUsers.filter(
       (user) =>
-        connectedInGraph.has(user.id) || user.id === activeCurrentUserId,
+        connectedInGraph.has(user.id) ||
+        user.id === activeCurrentUserId ||
+        pathNodeIds.has(user.id),
     );
   }, [
     visibleDirectoryUsers,
@@ -1077,6 +1232,7 @@ export function RelationshipMap({
     networkAccess,
     approvedRelationships,
     activeTypes,
+    pathNodeIds,
   ]);
 
   useEffect(() => {
@@ -1158,21 +1314,14 @@ export function RelationshipMap({
   const filteredRelationships = useMemo(() => {
     return displayedRelationships.filter(
       (item) =>
-        isVisibleByType(item.type, activeTypes) &&
+        (isVisibleByType(item.type, activeTypes) || pathEdgeIds.has(item.id)) &&
         displayedUserIds.has(item.source) &&
         displayedUserIds.has(item.target),
     );
-  }, [activeTypes, displayedRelationships, displayedUserIds]);
+  }, [activeTypes, displayedRelationships, displayedUserIds, pathEdgeIds]);
 
-  const searchConnectionPath = useMemo(
-    () =>
-      findShortestConnectionPath(
-        approvedRelationships,
-        activeCurrentUserId,
-        searchSelectedUser?.id,
-      ),
-    [approvedRelationships, activeCurrentUserId, searchSelectedUser?.id],
-  );
+  const searchConnectionPath =
+    searchSelectedUser?.id === activePathTargetId ? activeConnectionPath : null;
   const searchSelectedRelationship = useMemo(() => {
     if (!activeCurrentUserId || !searchSelectedUser) {
       return null;
@@ -1199,29 +1348,6 @@ export function RelationshipMap({
     () => new Map(visibleDirectoryUsers.map((user) => [user.id, user])),
     [visibleDirectoryUsers],
   );
-
-  const pathNodeIds = useMemo(
-    () => new Set<string>(searchConnectionPath?.path ?? []),
-    [searchConnectionPath],
-  );
-  const pathEdgeIds = useMemo(() => {
-    const path = searchConnectionPath?.path;
-    if (!path || path.length < 2) return new Set<string>();
-    const ids = new Set<string>();
-    for (let i = 0; i < path.length - 1; i += 1) {
-      const a = path[i];
-      const b = path[i + 1];
-      const rel = approvedRelationships.find(
-        (r) =>
-          (r.source === a && r.target === b) ||
-          (r.source === b && r.target === a),
-      );
-      if (rel) ids.add(rel.id);
-    }
-    return ids;
-  }, [searchConnectionPath, approvedRelationships]);
-
-  const pathActive = Boolean(hasPro && searchConnectionPath);
 
   const mappedNodes: Node[] = useMemo(() => {
     const neighborMap = new Map<string, Set<string>>();
@@ -1284,6 +1410,7 @@ export function RelationshipMap({
     const items = orderedUsers.map((user, index) => {
       const degree = degreeMap.get(user.id) ?? 0;
       const isPathNode = pathActive && pathNodeIds.has(user.id);
+      const isPathLocked = lockedPathNodeIds.has(user.id);
       const isLocked = networkAccess.lockedNodeIds.has(user.id);
       const pos = getOrganicPosition(
         index,
@@ -1297,16 +1424,17 @@ export function RelationshipMap({
         id: user.id,
         type: "person",
         data: {
-          label: user.name,
-          handle: user.handle,
+          label: isPathLocked ? "???" : user.name,
+          handle: isPathLocked ? "locked" : user.handle,
           color: hashColor(user.id),
-          profileImage: user.profileImage,
+          profileImage: isPathLocked ? null : user.profileImage,
           isPulsing: pulsingNodeIds.includes(user.id),
-          isBouncing: bouncingNodeId === user.id,
+          isBouncing: bouncingNodeId === user.id || isPathLocked,
           isConnected: degree > 0,
           degree,
           isPro: Boolean(user.isPro || user.featured),
           isLocked,
+          isPathLocked,
           isPathNode,
           dimmed: pathActive && !isPathNode,
         },
@@ -1395,6 +1523,7 @@ export function RelationshipMap({
     filteredRelationships,
     pathActive,
     pathNodeIds,
+    lockedPathNodeIds,
     networkAccess,
   ]);
 
@@ -1418,9 +1547,14 @@ export function RelationshipMap({
 
       const isPathEdge = pathActive && pathEdgeIds.has(item.id);
       const isDimmedEdge = pathActive && !pathEdgeIds.has(item.id);
+      const isPathEdgeLocked =
+        pathIsTeaser &&
+        isPathEdge &&
+        (lockedPathNodeIds.has(item.source) || lockedPathNodeIds.has(item.target));
       const isLockedEdge =
         networkAccess.lockedNodeIds.has(item.source) ||
-        networkAccess.lockedNodeIds.has(item.target);
+        networkAccess.lockedNodeIds.has(item.target) ||
+        isPathEdgeLocked;
 
       const classes: string[] = [];
       if (recentEdgeId === item.id) classes.push("map-edge-reveal");
@@ -1434,14 +1568,24 @@ export function RelationshipMap({
         sourceHandle: sourceIsLeft ? "source-right" : "source-left",
         targetHandle: sourceIsLeft ? "target-left" : "target-right",
         type: "bezier",
-        label: item.type,
-        animated: false,
+        label: isPathEdgeLocked ? "Locked" : item.type,
+        animated: isPathEdgeLocked,
         style: {
           stroke: relationColors[item.type] ?? "#94a3b8",
           strokeWidth: isPathEdge ? 3.6 : 2.4,
-          strokeOpacity: isLockedEdge ? 0.18 : isDimmedEdge ? 0.18 : isPathEdge ? 1 : 0.8,
+          strokeOpacity: isPathEdgeLocked
+            ? 0.82
+            : isLockedEdge
+              ? 0.18
+              : isDimmedEdge
+                ? 0.18
+                : isPathEdge
+                  ? 1
+                  : 0.8,
           // subtle glow for path edges (SVG filter fallback may vary by renderer)
-          filter: isLockedEdge
+          filter: isPathEdgeLocked
+            ? `drop-shadow(0 6px 14px ${(relationColors[item.type] ?? "#94a3b8") + "88"})`
+            : isLockedEdge
             ? "blur(3px)"
             : isPathEdge
               ? `drop-shadow(0 6px 10px ${(relationColors[item.type] ?? "#94a3b8") + "66"})`
@@ -1469,7 +1613,9 @@ export function RelationshipMap({
     mappedNodes,
     networkAccess,
     pathActive,
+    pathIsTeaser,
     pathEdgeIds,
+    lockedPathNodeIds,
     recentEdgeId,
   ]);
 
@@ -1973,6 +2119,13 @@ export function RelationshipMap({
     dismissOnboarding();
   }
 
+  function openPathPaywall(source: "cta" | "locked-node") {
+    setLockedPathClickName(
+      source === "locked-node" ? activePathTarget?.name ?? null : null,
+    );
+    setShowPathPaywall(true);
+  }
+
   return (
     <div className="space-y-8">
       <section className="paper-card rounded-2xl p-4 md:p-5">
@@ -2134,6 +2287,41 @@ export function RelationshipMap({
               </p>
             ) : null}
             <div className="grid gap-4">
+              {activeConnectionPath && activePathTarget ? (
+                <div className="rounded-2xl border border-[#ff7b6b]/35 bg-[#ff7b6b]/10 p-4 text-white shadow-sm">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm font-bold">
+                        {activeConnectionPath.degree === 0
+                          ? `This is you: ${activePathTarget.name}`
+                          : `You are ${activeConnectionPath.degree} connection${activeConnectionPath.degree === 1 ? "" : "s"} away from ${activePathTarget.name}`}
+                      </p>
+                      {activeConnectionPath.hasMultiplePaths ? (
+                        <p className="mt-1 text-xs font-semibold text-white/72">
+                          There are multiple paths connecting you.
+                        </p>
+                      ) : null}
+                      {activeConnectionPath.degree > 0 ? (
+                        <p className="mt-1 text-xs text-white/70">
+                          {pathIsTeaser
+                            ? "You're closer than you think..."
+                            : "Full connection path revealed."}
+                        </p>
+                      ) : null}
+                    </div>
+                    {pathIsTeaser && activeConnectionPath.degree > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => openPathPaywall("cta")}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#ff7b6b] px-4 text-sm font-bold text-white shadow-lg shadow-black/15 transition hover:brightness-95"
+                      >
+                        <Lock className="h-4 w-4" aria-hidden="true" />
+                        Reveal the full connection path
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               <div
                 className="relative h-[620px] overflow-hidden rounded-2xl border border-[var(--border-soft)]"
                 style={{ background: "#0f0819" }}
@@ -2165,6 +2353,13 @@ export function RelationshipMap({
                   nodeTypes={nodeTypes}
                   fitView={chartLayer === "public"}
                   onNodeClick={(_, node) => {
+                    if (lockedPathNodeIds.has(node.id)) {
+                      openPathPaywall("locked-node");
+                      return;
+                    }
+
+                    setSearchSelectedUser(null);
+                    setPathRevealSeed((seed) => seed + 1);
                     setSelectedId(node.id);
                     setShowSecondaryActions(true);
                   }}
@@ -2372,6 +2567,54 @@ export function RelationshipMap({
                           </p>
                         </div>
                       </div>
+                      {!selectedIsCurrentUser ? (
+                        <div className="rounded-lg border border-[var(--border-soft)] bg-white/45 p-3 dark:bg-black/20">
+                          <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                            <label className="grid gap-1 text-xs font-semibold text-black/65 dark:text-white/65">
+                              Connection type
+                              <select
+                                value={connectionType}
+                                onChange={(event) =>
+                                  setConnectionType(
+                                    event.target.value as RelationshipType,
+                                  )
+                                }
+                                disabled={
+                                  Boolean(selectedRelationship) || isConnecting
+                                }
+                                className="min-h-10 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm font-semibold outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
+                              >
+                                {(Object.keys(relationColors) as RelationshipType[]).map(
+                                  (type) => (
+                                    <option key={type} value={type}>
+                                      {type}
+                                    </option>
+                                  ),
+                                )}
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => createConnection(selectedUser.id)}
+                              disabled={
+                                isConnecting ||
+                                Boolean(selectedRelationship) ||
+                                !activeCurrentUserId
+                              }
+                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-65"
+                            >
+                              <UserPlus className="h-4 w-4" aria-hidden="true" />
+                              {isConnecting ? "Sending..." : "Add connection"}
+                            </button>
+                          </div>
+                          <p className="mt-2 text-xs text-black/58 dark:text-white/58">
+                            {selectedRelationshipStatus ??
+                              (activeCurrentUserId
+                                ? "This will stay pending for you until they verify it."
+                                : "Sign in to add this public connection.")}
+                          </p>
+                        </div>
+                      ) : null}
                       <div className="rounded-lg border border-[var(--accent)]/25 bg-[var(--accent)]/10 p-3">
                         <div className="flex gap-2">
                           <Info
@@ -2383,8 +2626,8 @@ export function RelationshipMap({
                               Upgrade to Pro for more
                             </p>
                             <p className="mt-1 text-xs leading-5 text-black/65 dark:text-white/68">
-                              Node details, visible verified connections, path
-                              context, and relationship tools are Pro features.
+                              Node details, visible verified connections, and
+                              path context are Pro features.
                             </p>
                           </div>
                         </div>
@@ -2731,6 +2974,73 @@ export function RelationshipMap({
               </div>
             </aside>
           ) : null}
+        </div>
+      ) : null}
+      {showPathPaywall ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="path-paywall-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/12 bg-[#120a20] p-5 text-white shadow-2xl shadow-black/30">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#ff7b6b]">
+                  Locked path
+                </p>
+                <h2
+                  id="path-paywall-title"
+                  className="mt-2 text-2xl font-semibold"
+                >
+                  Unlock your connection path
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPathPaywall(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/72 transition hover:bg-white/10 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-white/72">
+              See exactly how you&apos;re connected and explore every node in the
+              chain.
+            </p>
+            {lockedPathClickName ? (
+              <p className="mt-3 rounded-xl border border-[#ff7b6b]/25 bg-[#ff7b6b]/10 px-3 py-2 text-xs font-semibold text-white/78">
+                There&apos;s a hidden connection here with {lockedPathClickName}.
+              </p>
+            ) : null}
+            <div className="mt-4 grid gap-2 text-sm text-white/78">
+              <div className="flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-2">
+                <Lock className="h-4 w-4 text-[#ff7b6b]" aria-hidden="true" />
+                Full path reveal
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-2">
+                <Lock className="h-4 w-4 text-[#ff7b6b]" aria-hidden="true" />
+                Ability to click and view all node details
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => router.push("/checkout")}
+                className="min-h-11 flex-1 rounded-xl bg-[#ff7b6b] px-4 text-sm font-bold text-white shadow-lg shadow-black/20 transition hover:brightness-95"
+              >
+                Reveal the full connection path
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPathPaywall(false)}
+                className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-semibold text-white/72 transition hover:bg-white/10 hover:text-white"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
       {afterGraph ? <div>{afterGraph}</div> : null}
