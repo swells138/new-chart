@@ -1,5 +1,17 @@
 import type { Relationship } from "@/types/models";
 
+export type ConnectionPathMode = "shortest" | "most_interesting";
+
+export interface ConnectionPathOptions {
+  mode?: ConnectionPathMode;
+}
+
+export interface ConnectionPathMetadata {
+  mode: ConnectionPathMode;
+  multiplePathCount: number;
+  connectionStrength: number | null;
+}
+
 export type ConnectionDistanceResult =
   | {
       status: "connected";
@@ -7,6 +19,7 @@ export type ConnectionDistanceResult =
       degree: number;
       path: string[];
       hasMultiplePaths: boolean;
+      metadata: ConnectionPathMetadata;
     }
   | {
       status: "no_connection";
@@ -15,13 +28,17 @@ export type ConnectionDistanceResult =
       degree: null;
       path: [];
       hasMultiplePaths: false;
+      metadata: ConnectionPathMetadata;
     };
 
 export function calculateShortestConnectionPath(
   relationships: Pick<Relationship, "source" | "target">[],
   currentUserId: string | null | undefined,
   targetUserId: string | null | undefined,
+  options: ConnectionPathOptions = {},
 ): ConnectionDistanceResult | null {
+  const mode = options.mode ?? "shortest";
+
   if (!currentUserId || !targetUserId) {
     return null;
   }
@@ -33,6 +50,11 @@ export function calculateShortestConnectionPath(
       degree: 0,
       path: [currentUserId],
       hasMultiplePaths: false,
+      metadata: {
+        mode,
+        multiplePathCount: 1,
+        connectionStrength: 1,
+      },
     };
   }
 
@@ -103,6 +125,11 @@ export function calculateShortestConnectionPath(
       degree: null,
       path: [],
       hasMultiplePaths: false,
+      metadata: {
+        mode,
+        multiplePathCount: 0,
+        connectionStrength: null,
+      },
     };
   }
 
@@ -122,5 +149,10 @@ export function calculateShortestConnectionPath(
     degree: path.length - 1,
     path,
     hasMultiplePaths: (shortestPathCountByUserId.get(targetUserId) ?? 0) > 1,
+    metadata: {
+      mode,
+      multiplePathCount: shortestPathCountByUserId.get(targetUserId) ?? 1,
+      connectionStrength: Number((1 / Math.max(1, path.length - 1)).toFixed(2)),
+    },
   };
 }

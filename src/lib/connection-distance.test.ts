@@ -41,11 +41,31 @@ describe("calculateShortestConnectionPath", () => {
       degree: null,
       path: [],
       hasMultiplePaths: false,
+      metadata: {
+        mode: "shortest",
+        multiplePathCount: 0,
+        connectionStrength: null,
+      },
     });
   });
 
   it("returns null when either user is missing", () => {
     expect(calculateShortestConnectionPath(relationships, null, "u1")).toBeNull();
     expect(calculateShortestConnectionPath(relationships, "u1", undefined)).toBeNull();
+  });
+
+  it("keeps future path-ranking metadata with the result", () => {
+    const result = calculateShortestConnectionPath(relationships, "u1", "u4", {
+      mode: "most_interesting",
+    });
+
+    expect(result).toMatchObject({
+      status: "connected",
+      metadata: {
+        mode: "most_interesting",
+        multiplePathCount: 1,
+        connectionStrength: 0.5,
+      },
+    });
   });
 });

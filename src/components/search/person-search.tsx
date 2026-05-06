@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { users } from "@/lib/data";
 
-const MAX_RESULTS = 6;
+const MAX_RESULTS = 8;
 
 export function PersonSearch() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export function PersonSearch() {
   return (
     <div className="relative w-full md:max-w-xs">
       <label htmlFor="person-search" className="sr-only">
-        Search for a person
+        Search for anyone
       </label>
       <div className="relative">
         <Search
@@ -41,7 +41,7 @@ export function PersonSearch() {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search for a person..."
+          placeholder="Search for anyone..."
           autoComplete="off"
           className="w-full rounded-full border border-[var(--border-soft)] bg-white/80 py-2 pr-4 pl-9 text-sm font-semibold outline-none transition placeholder:text-black/45 focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 dark:bg-black/25 dark:placeholder:text-white/45"
         />

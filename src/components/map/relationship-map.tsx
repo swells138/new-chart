@@ -369,6 +369,14 @@ function getTeaserVisiblePathNodeIds(path: string[] | undefined, seed: number) {
   return visibleIds;
 }
 
+function getUnlockedPathStorageKey(userId: string | null | undefined) {
+  return `meshy-unlocked-paths:${userId ?? "guest"}`;
+}
+
+function getPathUnlockId(currentUserId: string | null | undefined, targetUserId: string) {
+  return `${currentUserId ?? "guest"}:${targetUserId}`;
+}
+
 function isObviousTestProfile(user: User) {
   const values = [user.name, user.handle, user.firstName, user.lastName].map(
     normalizeConnectionSearchValue,
@@ -638,6 +646,9 @@ export function RelationshipMap({
   const [unlockedPathTargetId, setUnlockedPathTargetId] = useState<string | null>(
     null,
   );
+  const [unlockedPathIds, setUnlockedPathIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   // Whether the active user has an active Pro subscription. Populated from
   // /api/profile when we resolve the current DB user.
   const [hasPro, setHasPro] = useState(currentUserIsPro);
@@ -801,6 +812,17 @@ export function RelationshipMap({
       window.localStorage.getItem("meshy-map-onboarding-dismissed") === "true",
     );
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const stored = window.localStorage.getItem(
+      getUnlockedPathStorageKey(activeCurrentUserId),
+    );
+    setUnlockedPathIds(new Set(stored ? JSON.parse(stored) as string[] : []));
+  }, [activeCurrentUserId]);
 
   useEffect(() => {
     return () => {
@@ -1012,8 +1034,14 @@ export function RelationshipMap({
         : null,
     [approvedRelationships, activeCurrentUserId, targetUserId],
   );
+  const searchedPathUnlockId = targetUserId
+    ? getPathUnlockId(activeCurrentUserId, targetUserId)
+    : null;
   const searchedPathUnlocked = Boolean(
-    targetUserId && (hasPro || unlockedPathTargetId === targetUserId),
+    targetUserId &&
+      (hasPro ||
+        unlockedPathTargetId === targetUserId ||
+        (searchedPathUnlockId && unlockedPathIds.has(searchedPathUnlockId))),
   );
   const activePathTargetId =
     searchedPathUnlocked && targetUserId
@@ -2050,6 +2078,55 @@ export function RelationshipMap({
     setShowPathPaywall(true);
   }
 
+  function unlockSearchedPath() {
+    if (!targetUserId) {
+      return;
+    }
+
+    const unlockId = getPathUnlockId(activeCurrentUserId, targetUserId);
+    const nextIds = new Set(unlockedPathIds);
+    nextIds.add(unlockId);
+    setUnlockedPathIds(nextIds);
+    setUnlockedPathTargetId(targetUserId);
+    setChartLayer("public");
+    setShowSecondaryActions(false);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        getUnlockedPathStorageKey(activeCurrentUserId),
+        JSON.stringify(Array.from(nextIds)),
+      );
+    }
+  }
+
+  function renderPathPreview(path: string[]) {
+    return path.map((userId, index) => {
+      const isFirst = index === 0;
+      const isTarget = index === path.length - 1;
+      const isFirstAfterUser = index === 1;
+      const isLastBeforeTarget = index === path.length - 2;
+      const shouldReveal =
+        isFirst || isTarget || isFirstAfterUser || isLastBeforeTarget;
+      const user = users.find((item) => item.id === userId);
+      const label = isFirst ? "You" : user?.name ?? "Member";
+
+      return (
+        <span key={`${userId}-${index}`} className="inline-flex items-center gap-2">
+          {index > 0 ? <span className="text-black/35 dark:text-white/35">→</span> : null}
+          <span
+            className={
+              shouldReveal
+                ? "rounded-full bg-white/80 px-2.5 py-1 shadow-sm dark:bg-white/10"
+                : "rounded-full bg-black/10 px-2.5 py-1 text-transparent blur-[3px] select-none dark:bg-white/10"
+            }
+          >
+            {shouldReveal ? label : "???"}
+          </span>
+        </span>
+      );
+    });
+  }
+
   return (
     <div className="space-y-8">
       <section className="paper-card rounded-2xl p-4 md:p-5">
@@ -2192,7 +2269,7 @@ export function RelationshipMap({
                 <div className="mt-3 space-y-1">
                   <p className="text-lg font-bold">
                     {searchedConnectionPath.distance === 0
-                      ? "0 connections away (you found yourself 👍)"
+                      ? "0 connections away (you 👍)"
                       : `You are ${searchedConnectionPath.distance} connection${searchedConnectionPath.distance === 1 ? "" : "s"} away from ${searchedTargetUser.name}`}
                   </p>
                   {searchedConnectionPath.distance > 0 ? (
@@ -2214,11 +2291,11 @@ export function RelationshipMap({
 
             {searchedConnectionPath?.status === "connected" &&
             searchedConnectionPath.distance > 0 ? (
-              <div className="w-full max-w-md rounded-xl border border-[var(--border-soft)] p-3">
+              <div className="w-full max-w-xl rounded-xl border border-[var(--border-soft)] p-3">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-black/55 dark:text-white/55">
                   Connection path
                 </p>
-                <div className="mt-2 min-h-10 rounded-lg bg-black/[0.04] px-3 py-2 text-sm font-semibold dark:bg-white/[0.06]">
+                <div className="mt-2 rounded-lg bg-black/[0.04] px-3 py-3 text-sm font-semibold dark:bg-white/[0.06]">
                   {searchedPathUnlocked ? (
                     <span>
                       {searchedConnectionPath.path
@@ -2226,9 +2303,9 @@ export function RelationshipMap({
                         .join(" -> ")}
                     </span>
                   ) : (
-                    <span className="select-none blur-[3px]" aria-hidden="true">
-                      {searchedConnectionPath.path.map(() => "Hidden").join(" -> ")}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {renderPathPreview(searchedConnectionPath.path)}
+                    </div>
                   )}
                 </div>
                 {searchedPathUnlocked ? (
@@ -2236,29 +2313,35 @@ export function RelationshipMap({
                     Path unlocked on the graph.
                   </p>
                 ) : (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUnlockedPathTargetId(searchedTargetUser.id);
-                        setChartLayer("public");
-                        setShowSecondaryActions(false);
-                      }}
-                      className="min-h-10 rounded-xl bg-[var(--accent)] px-3 text-sm font-bold text-white transition hover:brightness-95"
-                    >
-                      Unlock the connection path
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUnlockedPathTargetId(searchedTargetUser.id);
-                        setChartLayer("public");
-                        setShowSecondaryActions(false);
-                      }}
-                      className="min-h-10 rounded-xl border border-[var(--border-soft)] px-3 text-sm font-bold transition hover:bg-black/5 dark:hover:bg-white/10"
-                    >
-                      Unlock this path for $1.99
-                    </button>
+                  <div className="relative mt-3 overflow-hidden rounded-xl border border-[#ff7b6b]/35 bg-[#ff7b6b]/10 p-4">
+                    <div className="select-none text-center text-sm font-bold blur-[4px]" aria-hidden="true">
+                      {searchedConnectionPath.path
+                        .map((userId) => users.find((user) => user.id === userId)?.name ?? "Member")
+                        .join(" -> ")}
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--card)]/78 p-3 backdrop-blur-sm">
+                      <div className="w-full max-w-sm text-center">
+                        <p className="text-sm font-black">
+                          There’s a surprising connection in here 👀
+                        </p>
+                        <div className="mt-3 grid gap-2">
+                          <button
+                            type="button"
+                            onClick={unlockSearchedPath}
+                            className="min-h-11 rounded-xl bg-[var(--accent)] px-3 text-sm font-black text-white shadow-lg shadow-black/15 transition hover:brightness-95"
+                          >
+                            Unlock this path – $1.99
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => router.push("/checkout")}
+                            className="min-h-11 rounded-xl border border-[var(--border-soft)] bg-[var(--card)] px-3 text-sm font-black transition hover:bg-black/5 dark:hover:bg-white/10"
+                          >
+                            Go Pro – Unlimited access
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2366,7 +2449,7 @@ export function RelationshipMap({
                         className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#ff7b6b] px-4 text-sm font-bold text-white shadow-lg shadow-black/15 transition hover:brightness-95"
                       >
                         <Lock className="h-4 w-4" aria-hidden="true" />
-                        Reveal the full connection path
+                        Unlock the connection path
                       </button>
                     ) : null}
                   </div>
@@ -3056,9 +3139,8 @@ export function RelationshipMap({
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            <p className="mt-3 text-sm leading-6 text-white/72">
-              See exactly how you&apos;re connected and explore every node in the
-              chain.
+            <p className="mt-3 text-base font-bold leading-6 text-white">
+              There’s a surprising connection in here 👀
             </p>
             {lockedPathClickName ? (
               <p className="mt-3 rounded-xl border border-[#ff7b6b]/25 bg-[#ff7b6b]/10 px-3 py-2 text-xs font-semibold text-white/78">
@@ -3078,17 +3160,20 @@ export function RelationshipMap({
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={() => router.push("/checkout")}
+                onClick={() => {
+                  unlockSearchedPath();
+                  setShowPathPaywall(false);
+                }}
                 className="min-h-11 flex-1 rounded-xl bg-[#ff7b6b] px-4 text-sm font-bold text-white shadow-lg shadow-black/20 transition hover:brightness-95"
               >
-                Reveal the full connection path
+                Unlock this path – $1.99
               </button>
               <button
                 type="button"
-                onClick={() => setShowPathPaywall(false)}
+                onClick={() => router.push("/checkout")}
                 className="min-h-11 rounded-xl border border-white/15 px-4 text-sm font-semibold text-white/72 transition hover:bg-white/10 hover:text-white"
               >
-                Not now
+                Go Pro – Unlimited access
               </button>
             </div>
           </div>
