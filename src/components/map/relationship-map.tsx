@@ -32,6 +32,7 @@ import type {
 } from "@/types/models";
 import { Avatar } from "@/components/ui/avatar";
 import { PrivateChart } from "@/components/map/private-chart";
+import { calculateShortestConnectionPath } from "@/lib/connection-distance";
 
 // ─── Demo-style node colours ───────────────────────────────
 const NODE_PALETTE = [
@@ -318,97 +319,6 @@ function getConnectionSearchTokens(user: User) {
   ].map(normalizeConnectionSearchValue);
 }
 
-function findShortestConnectionPath(
-  relationships: Relationship[],
-  startUserId: string | null | undefined,
-  targetUserId: string | null | undefined,
-): { degree: number; path: string[]; hasMultiplePaths: boolean } | null {
-  if (!startUserId || !targetUserId) {
-    return null;
-  }
-
-  if (startUserId === targetUserId) {
-    return { degree: 0, path: [startUserId], hasMultiplePaths: false };
-  }
-
-  const neighborsByUserId = new Map<string, Set<string>>();
-
-  relationships.forEach((relationship) => {
-    if (!neighborsByUserId.has(relationship.source)) {
-      neighborsByUserId.set(relationship.source, new Set());
-    }
-    if (!neighborsByUserId.has(relationship.target)) {
-      neighborsByUserId.set(relationship.target, new Set());
-    }
-
-    neighborsByUserId.get(relationship.source)?.add(relationship.target);
-    neighborsByUserId.get(relationship.target)?.add(relationship.source);
-  });
-
-  const parentByUserId = new Map<string, string | null>([
-    [startUserId, null],
-  ]);
-  const distanceByUserId = new Map<string, number>([[startUserId, 0]]);
-  const shortestPathCountByUserId = new Map<string, number>([[startUserId, 1]]);
-  const queue = [startUserId];
-
-  while (queue.length > 0) {
-    const currentUserId = queue.shift();
-    if (!currentUserId) {
-      continue;
-    }
-
-    const currentDistance = distanceByUserId.get(currentUserId) ?? 0;
-    const neighbors = neighborsByUserId.get(currentUserId) ?? new Set<string>();
-    for (const neighborId of neighbors) {
-      const nextDistance = currentDistance + 1;
-      const knownDistance = distanceByUserId.get(neighborId);
-
-      if (knownDistance === nextDistance) {
-        shortestPathCountByUserId.set(
-          neighborId,
-          Math.min(
-            2,
-            (shortestPathCountByUserId.get(neighborId) ?? 0) +
-              (shortestPathCountByUserId.get(currentUserId) ?? 1),
-          ),
-        );
-      }
-
-      if (knownDistance !== undefined) {
-        continue;
-      }
-
-      parentByUserId.set(neighborId, currentUserId);
-      distanceByUserId.set(neighborId, nextDistance);
-      shortestPathCountByUserId.set(
-        neighborId,
-        shortestPathCountByUserId.get(currentUserId) ?? 1,
-      );
-      queue.push(neighborId);
-    }
-  }
-
-  if (!parentByUserId.has(targetUserId)) {
-    return null;
-  }
-
-  const path: string[] = [];
-  let pathUserId: string | null = targetUserId;
-
-  while (pathUserId) {
-    path.push(pathUserId);
-    pathUserId = parentByUserId.get(pathUserId) ?? null;
-  }
-
-  path.reverse();
-  return {
-    degree: path.length - 1,
-    path,
-    hasMultiplePaths: (shortestPathCountByUserId.get(targetUserId) ?? 0) > 1,
-  };
-}
-
 function findPathEdgeIds(
   relationships: Relationship[],
   path: string[] | undefined,
@@ -472,6 +382,7 @@ interface Props {
   users: User[];
   relationships: Relationship[];
   currentUserId: string | null;
+  targetUserId?: string | null;
   isSignedIn?: boolean;
   currentUserIsPro?: boolean;
   userConnections?: Relationship[];
@@ -652,6 +563,7 @@ export function RelationshipMap({
   users,
   relationships,
   currentUserId,
+  targetUserId = null,
   isSignedIn = false,
   currentUserIsPro = false,
   userConnections,
@@ -721,6 +633,9 @@ export function RelationshipMap({
   const [pathRevealSeed, setPathRevealSeed] = useState(0);
   const [showPathPaywall, setShowPathPaywall] = useState(false);
   const [lockedPathClickName, setLockedPathClickName] = useState<string | null>(
+    null,
+  );
+  const [unlockedPathTargetId, setUnlockedPathTargetId] = useState<string | null>(
     null,
   );
   // Whether the active user has an active Pro subscription. Populated from
@@ -1079,15 +994,40 @@ export function RelationshipMap({
     clientCreatedConnectionCount;
   const showOnboardingOverlay =
     personalConnectionCount === 0 && !isOnboardingDismissed;
-  const activePathTargetId =
-    searchSelectedUser?.id ?? (selectedId ? selectedId : null);
-  const activeConnectionPath = useMemo(
+  const searchedTargetUser = useMemo(
     () =>
-      findShortestConnectionPath(
+      targetUserId
+        ? visibleDirectoryUsers.find((user) => user.id === targetUserId) ?? null
+        : null,
+    [targetUserId, visibleDirectoryUsers],
+  );
+  const searchedConnectionPath = useMemo(
+    () =>
+      targetUserId
+        ? calculateShortestConnectionPath(
+            approvedRelationships,
+            activeCurrentUserId,
+            targetUserId,
+          )
+        : null,
+    [approvedRelationships, activeCurrentUserId, targetUserId],
+  );
+  const searchedPathUnlocked = Boolean(
+    targetUserId && (hasPro || unlockedPathTargetId === targetUserId),
+  );
+  const activePathTargetId =
+    searchedPathUnlocked && targetUserId
+      ? targetUserId
+      : searchSelectedUser?.id ?? (selectedId ? selectedId : null);
+  const activeConnectionPath = useMemo(
+    () => {
+      const result = calculateShortestConnectionPath(
         approvedRelationships,
         activeCurrentUserId,
         activePathTargetId,
-      ),
+      );
+      return result?.status === "connected" ? result : null;
+    },
     [approvedRelationships, activeCurrentUserId, activePathTargetId],
   );
   const activePathTarget = useMemo(
@@ -2034,35 +1974,12 @@ export function RelationshipMap({
   // Compute degree of separation (shortest path length in number of edges) using BFS
   // Returns null when no path exists or when insufficient inputs
   const selectedDegree = useMemo(() => {
-    if (!activeCurrentUserId || !selectedId) return null;
-    if (activeCurrentUserId === selectedId) return 0;
-
-    const adj = new Map<string, Set<string>>();
-    approvedRelationships.forEach((r) => {
-      if (!adj.has(r.source)) adj.set(r.source, new Set());
-      if (!adj.has(r.target)) adj.set(r.target, new Set());
-      adj.get(r.source)!.add(r.target);
-      adj.get(r.target)!.add(r.source);
-    });
-
-    const visited = new Set<string>();
-    const queue: Array<{ id: string; dist: number }> = [
-      { id: activeCurrentUserId, dist: 0 },
-    ];
-    visited.add(activeCurrentUserId);
-
-    while (queue.length > 0) {
-      const { id, dist } = queue.shift()!;
-      const neighbors = adj.get(id) ?? new Set();
-      for (const n of neighbors) {
-        if (visited.has(n)) continue;
-        if (n === selectedId) return dist + 1;
-        visited.add(n);
-        queue.push({ id: n, dist: dist + 1 });
-      }
-    }
-
-    return null;
+    const result = calculateShortestConnectionPath(
+      approvedRelationships,
+      activeCurrentUserId,
+      selectedId,
+    );
+    return result?.distance ?? null;
   }, [approvedRelationships, activeCurrentUserId, selectedId]);
 
   const pendingRequests = useMemo(() => {
@@ -2260,6 +2177,127 @@ export function RelationshipMap({
               </button>
             </div>
           )}
+        </section>
+      ) : null}
+
+      {searchedTargetUser ? (
+        <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--card)] px-5 py-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-black/60 dark:text-white/65">
+                Selected person
+              </p>
+              <h1 className="mt-1 text-2xl font-bold">{searchedTargetUser.name}</h1>
+              {searchedConnectionPath?.status === "connected" ? (
+                <div className="mt-3 space-y-1">
+                  <p className="text-lg font-bold">
+                    {searchedConnectionPath.distance === 0
+                      ? "0 connections away (you found yourself 👍)"
+                      : `You are ${searchedConnectionPath.distance} connection${searchedConnectionPath.distance === 1 ? "" : "s"} away from ${searchedTargetUser.name}`}
+                  </p>
+                  {searchedConnectionPath.distance > 0 ? (
+                    <p className="text-sm font-semibold text-[var(--accent)]">
+                      You’re closer than you think 👀
+                    </p>
+                  ) : null}
+                </div>
+              ) : searchedConnectionPath?.status === "no_connection" ? (
+                <p className="mt-3 text-lg font-bold">
+                  No connection found yet — try expanding your network
+                </p>
+              ) : (
+                <p className="mt-3 text-sm font-semibold text-black/60 dark:text-white/65">
+                  Sign in to calculate your connection distance.
+                </p>
+              )}
+            </div>
+
+            {searchedConnectionPath?.status === "connected" &&
+            searchedConnectionPath.distance > 0 ? (
+              <div className="w-full max-w-md rounded-xl border border-[var(--border-soft)] p-3">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-black/55 dark:text-white/55">
+                  Connection path
+                </p>
+                <div className="mt-2 min-h-10 rounded-lg bg-black/[0.04] px-3 py-2 text-sm font-semibold dark:bg-white/[0.06]">
+                  {searchedPathUnlocked ? (
+                    <span>
+                      {searchedConnectionPath.path
+                        .map((userId) => users.find((user) => user.id === userId)?.name ?? userId)
+                        .join(" -> ")}
+                    </span>
+                  ) : (
+                    <span className="select-none blur-[3px]" aria-hidden="true">
+                      {searchedConnectionPath.path.map(() => "Hidden").join(" -> ")}
+                    </span>
+                  )}
+                </div>
+                {searchedPathUnlocked ? (
+                  <p className="mt-2 text-xs font-semibold text-[var(--accent)]">
+                    Path unlocked on the graph.
+                  </p>
+                ) : (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUnlockedPathTargetId(searchedTargetUser.id);
+                        setChartLayer("public");
+                        setShowSecondaryActions(false);
+                      }}
+                      className="min-h-10 rounded-xl bg-[var(--accent)] px-3 text-sm font-bold text-white transition hover:brightness-95"
+                    >
+                      Unlock the connection path
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUnlockedPathTargetId(searchedTargetUser.id);
+                        setChartLayer("public");
+                        setShowSecondaryActions(false);
+                      }}
+                      className="min-h-10 rounded-xl border border-[var(--border-soft)] px-3 text-sm font-bold transition hover:bg-black/5 dark:hover:bg-white/10"
+                    >
+                      Unlock this path for $1.99
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => document.getElementById("person-search")?.focus()}
+              className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-bold transition hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              Try another search
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const nextTarget = visibleDirectoryUsers.find(
+                  (user) => user.featured && user.id !== activeCurrentUserId,
+                );
+                if (nextTarget) {
+                  router.push(`/map?targetUserId=${encodeURIComponent(nextTarget.id)}`);
+                }
+              }}
+              className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-bold transition hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              Search a celebrity
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSecondaryActions(true);
+                document.getElementById("network-search")?.focus();
+              }}
+              className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-bold transition hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              Compare with a friend
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -2823,6 +2861,7 @@ export function RelationshipMap({
                   }}
                 >
                   <input
+                    id="network-search"
                     type="search"
                     aria-label="Search for a user"
                     placeholder="Search for a user"

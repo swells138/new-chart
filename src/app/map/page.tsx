@@ -68,7 +68,16 @@ async function resolveClerkUserId() {
   }
 }
 
-export default async function MapPage() {
+export default async function MapPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ targetUserId?: string | string[] }>;
+}) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const targetUserIdParam = resolvedSearchParams.targetUserId;
+  const targetUserId = Array.isArray(targetUserIdParam)
+    ? targetUserIdParam[0]
+    : targetUserIdParam;
   let currentUserDbId: string | null = null;
   let currentUserIsPro = false;
   let clerkNameCandidates: string[] = [];
@@ -184,23 +193,25 @@ export default async function MapPage() {
     getRequestOrigin(headersList) ??
     normalizeOrigin(process.env.VERCEL_URL) ??
     "http://localhost:3000";
-
   return (
-    <RelationshipMap
-      users={users}
-      relationships={relationships}
-      currentUserId={currentUserDbId}
-      isSignedIn={sessionSignedIn}
-      currentUserIsPro={currentUserIsPro}
-      userConnections={userConnections}
-      privatePlaceholders={privatePlaceholders}
-      baseUrl={baseUrl}
-      afterGraph={currentUserDbId ? (
-        <ClaimConnectionsPanel
-          initialCandidates={claimCandidates}
-          mode="settings"
-        />
-      ) : null}
-    />
+    <>
+      <RelationshipMap
+        users={users}
+        relationships={relationships}
+        currentUserId={currentUserDbId}
+        targetUserId={targetUserId}
+        isSignedIn={sessionSignedIn}
+        currentUserIsPro={currentUserIsPro}
+        userConnections={userConnections}
+        privatePlaceholders={privatePlaceholders}
+        baseUrl={baseUrl}
+        afterGraph={currentUserDbId ? (
+          <ClaimConnectionsPanel
+            initialCandidates={claimCandidates}
+            mode="settings"
+          />
+        ) : null}
+      />
+    </>
   );
 }

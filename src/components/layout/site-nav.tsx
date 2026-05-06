@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { PersonSearch } from "@/components/search/person-search";
 import {
   UserButton,
   useUser,
@@ -44,7 +45,8 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
             </div>
           </Link>
 
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-3 md:flex">
+            <PersonSearch />
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
@@ -81,6 +83,7 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
 
         {menuOpen && (
           <div className="mt-3 grid gap-2 border-t border-[var(--border-soft)] pt-3 md:hidden">
+            <PersonSearch />
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
