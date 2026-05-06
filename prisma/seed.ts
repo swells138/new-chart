@@ -51,6 +51,9 @@ async function main() {
         relationshipStatus: user.relationshipStatus,
         links: user.links,
         featured: user.featured,
+        connectionScore: user.connectionScore,
+        totalConnections: user.totalConnections,
+        secondDegreeConnections: user.secondDegreeConnections,
       },
       create: {
         id: user.id,
@@ -65,6 +68,9 @@ async function main() {
         relationshipStatus: user.relationshipStatus,
         links: user.links,
         featured: user.featured,
+        connectionScore: user.connectionScore,
+        totalConnections: user.totalConnections,
+        secondDegreeConnections: user.secondDegreeConnections,
       },
     });
   }

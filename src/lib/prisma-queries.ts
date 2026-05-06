@@ -7,6 +7,7 @@
 
 import { prisma } from "./prisma";
 import type { Prisma } from "@prisma/client";
+import { recalculateConnectionScoresForUsers } from "@/lib/connection-score";
 import type {
   User,
   Post,
@@ -36,6 +37,9 @@ const baseUserSelect = {
   links: true,
   featured: true,
   isPro: true,
+  connectionScore: true,
+  totalConnections: true,
+  secondDegreeConnections: true,
   profileImage: true,
 } as const satisfies Prisma.UserSelect;
 
@@ -94,6 +98,9 @@ function normalizeUser(user: {
   links: unknown;
   featured: boolean;
   isPro?: boolean | null;
+  connectionScore?: number | null;
+  totalConnections?: number | null;
+  secondDegreeConnections?: number | null;
   profileImage?: string | null;
 }): User {
   const links =
@@ -119,6 +126,9 @@ function normalizeUser(user: {
     links,
     featured: user.featured || Boolean(user.isPro),
     isPro: Boolean(user.isPro),
+    connectionScore: user.connectionScore ?? 0,
+    totalConnections: user.totalConnections ?? 0,
+    secondDegreeConnections: user.secondDegreeConnections ?? 0,
     profileImage: user.profileImage ?? null,
   };
 }
@@ -568,6 +578,7 @@ export async function createRelationship(data: {
   const relationship = await prisma.relationship.create({
     data,
   });
+  await recalculateConnectionScoresForUsers([data.user1Id, data.user2Id]);
   return normalizeRelationship(relationship);
 }
 
@@ -583,6 +594,7 @@ export async function deleteRelationship(
       ],
     },
   });
+  await recalculateConnectionScoresForUsers([user1Id, user2Id]);
 }
 
 // ===== MESSAGES =====

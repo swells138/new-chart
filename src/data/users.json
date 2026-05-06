@@ -12,7 +12,10 @@
       "website": "https://example.com/mara",
       "social": "@marasol"
     },
-    "featured": true
+    "featured": true,
+    "connectionScore": 0,
+    "totalConnections": 0,
+    "secondDegreeConnections": 0
   },
   {
     "id": "u2",
@@ -27,7 +30,10 @@
       "website": "https://example.com/rey",
       "social": "@reynotes"
     },
-    "featured": true
+    "featured": true,
+    "connectionScore": 0,
+    "totalConnections": 0,
+    "secondDegreeConnections": 0
   },
   {
     "id": "u3",
@@ -42,7 +48,10 @@
       "website": "https://example.com/ivy",
       "social": "@ivyframes"
     },
-    "featured": true
+    "featured": true,
+    "connectionScore": 0,
+    "totalConnections": 0,
+    "secondDegreeConnections": 0
   },
   {
     "id": "u4",
@@ -57,7 +66,10 @@
       "website": "https://example.com/noa",
       "social": "@nokline"
     },
-    "featured": false
+    "featured": false,
+    "connectionScore": 0,
+    "totalConnections": 0,
+    "secondDegreeConnections": 0
   },
   {
     "id": "u5",
@@ -72,7 +84,10 @@
       "website": "https://example.com/jules",
       "social": "@julesv"
     },
-    "featured": false
+    "featured": false,
+    "connectionScore": 0,
+    "totalConnections": 0,
+    "secondDegreeConnections": 0
   },
   {
     "id": "u6",
@@ -87,6 +102,9 @@
       "website": "https://example.com/dani",
       "social": "@danipark"
     },
-    "featured": false
+    "featured": false,
+    "connectionScore": 0,
+    "totalConnections": 0,
+    "secondDegreeConnections": 0
   }
 ]

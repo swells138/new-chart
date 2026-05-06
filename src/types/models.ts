@@ -28,6 +28,9 @@ export interface User {
   };
   featured: boolean;
   isPro?: boolean;
+  connectionScore: number;
+  totalConnections: number;
+  secondDegreeConnections: number;
   profileImage?: string | null;
 }
 

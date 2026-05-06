@@ -7,6 +7,7 @@ import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { createModerationReport } from "@/lib/moderation/reports";
+import { recalculateConnectionScoresForUsers } from "@/lib/connection-score";
 import {
   buildClaimMetaNote,
   composeClaimMeta,
@@ -258,6 +259,7 @@ export async function POST(request: Request) {
         }),
       },
     });
+    await recalculateConnectionScoresForUsers([user1Id, user2Id]);
 
     await sendNotification(
       requesterId,
@@ -531,6 +533,10 @@ export async function PATCH(request: Request) {
         isPublic: true,
       },
     });
+    await recalculateConnectionScoresForUsers([
+      existing.user1Id,
+      existing.user2Id,
+    ]);
 
     logClaimDebug("relationships.patch.pending-creator.confirmed", {
       relationshipId: id,
@@ -742,6 +748,10 @@ export async function DELETE(request: Request) {
 
   try {
     await prisma.relationship.delete({ where: { id } });
+    await recalculateConnectionScoresForUsers([
+      existing.user1Id,
+      existing.user2Id,
+    ]);
 
     await sendNotification(
       currentDbUserId,

@@ -9,6 +9,7 @@ import {
   updateModerationReportStatus,
 } from "@/lib/moderation/reports";
 import { getCurrentUserPrimaryEmail, isCurrentUserModerator } from "@/lib/moderation/auth";
+import { recalculateConnectionScoresForUsers } from "@/lib/connection-score";
 
 const patchSchema = z
   .object({
@@ -81,11 +82,26 @@ async function runModerationAction(input: {
       throw new Error("remove-public-connections only applies to public-node reports.");
     }
 
+    const affectedRelationships = await prisma.relationship.findMany({
+      where: {
+        OR: [{ user1Id: input.report.targetId }, { user2Id: input.report.targetId }],
+      },
+      select: {
+        user1Id: true,
+        user2Id: true,
+      },
+    });
+    const affectedUserIds = affectedRelationships.flatMap((relationship) => [
+      relationship.user1Id,
+      relationship.user2Id,
+    ]);
+
     await prisma.relationship.deleteMany({
       where: {
         OR: [{ user1Id: input.report.targetId }, { user2Id: input.report.targetId }],
       },
     });
+    await recalculateConnectionScoresForUsers(affectedUserIds);
     return;
   }
 

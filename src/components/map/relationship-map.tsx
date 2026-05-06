@@ -1065,6 +1065,13 @@ export function RelationshipMap({
       ),
     [allRelationships],
   );
+  const currentUser = useMemo(
+    () =>
+      activeCurrentUserId
+        ? users.find((user) => user.id === activeCurrentUserId) ?? null
+        : null,
+    [activeCurrentUserId, users],
+  );
 
   const personalConnectionCount =
     approvedUserConnections.length +
@@ -2141,6 +2148,11 @@ export function RelationshipMap({
               {personalConnectionCount} connection
               {personalConnectionCount === 1 ? "" : "s"} added
             </p>
+            {currentUser ? (
+              <p className="mt-1 text-sm font-semibold text-black/68 dark:text-white/70">
+                Connection Score: {currentUser.connectionScore}
+              </p>
+            ) : null}
           </div>
           <div className="flex sm:justify-end">
             <button

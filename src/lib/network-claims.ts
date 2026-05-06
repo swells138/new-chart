@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { recalculateConnectionScoresForUsers } from "@/lib/connection-score";
 import type { ClaimCandidate, RelationshipType } from "@/types/models";
 import {
   buildClaimMetaNote,
@@ -1096,6 +1097,12 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       alreadyConnected,
     };
   });
+
+  try {
+    await recalculateConnectionScoresForUsers([result.ownerId, userId]);
+  } catch {
+    // Non-fatal score refresh failure.
+  }
 
   try {
     await prisma.message.create({

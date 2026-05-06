@@ -19,6 +19,31 @@ export const dynamic = "force-dynamic";
 
 const pendingTypePrefix = "pending::";
 
+function getConnectionScoreLabel(score: number) {
+  if (score >= 50) {
+    return "Top 10%";
+  }
+
+  if (score >= 25) {
+    return "Top 25%";
+  }
+
+  return "Average";
+}
+
+function getConnectionPercentile(input: {
+  usersWithLowerScores: number;
+  totalUsers: number;
+}) {
+  if (input.totalUsers <= 1) {
+    return 0;
+  }
+
+  return Math.round(
+    (input.usersWithLowerScores / (input.totalUsers - 1)) * 100,
+  );
+}
+
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(
@@ -132,6 +157,21 @@ export default async function ProfilePage() {
   };
 
   const pendingConfirmations = await getPendingCreatorConfirmations(user.id);
+  const connectionScore = user.connectionScore ?? 0;
+  const connectionScoreLabel = getConnectionScoreLabel(connectionScore);
+  const [totalUsers, usersWithLowerScores] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({
+      where: {
+        id: { not: user.id },
+        connectionScore: { lt: connectionScore },
+      },
+    }),
+  ]);
+  const connectionPercentile = getConnectionPercentile({
+    usersWithLowerScores,
+    totalUsers,
+  });
 
   const connections: ProfileConnectionItem[] = [
     ...user.relationships.map(
@@ -176,7 +216,20 @@ export default async function ProfilePage() {
         <ProfileForm initialProfile={initialProfile} />
 
         <aside className="paper-card rounded-2xl p-5">
-          <h3 className="text-xl font-semibold">Your Connections</h3>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-xl font-semibold">Your Connections</h3>
+              <p className="mt-1 text-sm font-medium text-black/70 dark:text-white/75">
+                Connection Score: {connectionScore}
+              </p>
+              <p className="mt-1 text-sm text-black/60 dark:text-white/65">
+                You are more connected than {connectionPercentile}% of users
+              </p>
+            </div>
+            <span className="w-fit rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-bold text-[var(--accent)]">
+              {connectionScoreLabel}
+            </span>
+          </div>
           {user.isPro ? (
             <div className="mt-2">
               <span className="inline-block rounded-full bg-[var(--accent)]/10 px-3 py-1 text-[var(--accent)] font-semibold">
