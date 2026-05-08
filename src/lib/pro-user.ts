@@ -5,7 +5,7 @@ export function isHardcodedProEmail(email: string | null | undefined) {
 }
 
 export function getEffectiveIsPro(input: {
-  email: string | null | undefined;
+  email?: string | null | undefined;
   isPro?: boolean | null;
 }) {
   return Boolean(input.isPro) || isHardcodedProEmail(input.email);

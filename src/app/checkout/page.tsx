@@ -1,12 +1,22 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Stripe from "stripe";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
+import { getEffectiveIsPro } from "@/lib/pro-user";
 import CheckoutClient from "@/components/checkout/checkout-client";
 
 export const metadata = {
   title: "Go Pro — Checkout",
 };
+
+function getClerkPrimaryEmail(clerk: Awaited<ReturnType<typeof currentUser>>) {
+  const primaryEmailId = clerk?.primaryEmailAddressId;
+  const primaryEmail = clerk?.emailAddresses.find(
+    (email) => email.id === primaryEmailId,
+  )?.emailAddress;
+
+  return primaryEmail ?? clerk?.emailAddresses[0]?.emailAddress ?? null;
+}
 
 export default async function CheckoutPage() {
   const { userId } = await auth();
@@ -15,7 +25,21 @@ export default async function CheckoutPage() {
   }
 
   // Ensure DB user exists and get their id
-  const dbUser = await ensureDbUserByClerkId(userId, "New member");
+  const clerk = await currentUser();
+  const fullName =
+    [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim() ||
+    clerk?.username ||
+    "New member";
+  const dbUser = await ensureDbUserByClerkId(
+    userId,
+    fullName,
+    clerk?.imageUrl,
+    getClerkPrimaryEmail(clerk),
+  );
+
+  if (getEffectiveIsPro(dbUser)) {
+    redirect("/map");
+  }
 
   const priceId = process.env.STRIPE_PRICE_ID_PRO || process.env.Product_ID;
 

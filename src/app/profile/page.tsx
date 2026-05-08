@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import Stripe from "stripe";
 import { ConfirmClaimsPanel } from "@/components/profile/confirm-claims-panel";
 import {
   ProfileConnectionsList,
@@ -143,7 +144,65 @@ async function getOrCreateProfile(clerkId: string) {
   };
 }
 
-export default async function ProfilePage() {
+async function activateProFromCheckoutSession(input: {
+  dbUserId: string;
+  sessionId: string | undefined;
+}) {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey || !input.sessionId) {
+    return;
+  }
+
+  try {
+    const stripe = new Stripe(secretKey);
+    const session = await stripe.checkout.sessions.retrieve(input.sessionId);
+
+    if (
+      session.mode !== "subscription" ||
+      session.payment_status !== "paid" ||
+      session.metadata?.dbUserId !== input.dbUserId ||
+      session.metadata?.purchaseType === "connection_unlock"
+    ) {
+      return;
+    }
+
+    const customerId =
+      typeof session.customer === "string" ? session.customer : undefined;
+    const subscriptionId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : undefined;
+
+    let isActive = true;
+    if (subscriptionId) {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      isActive =
+        subscription.status === "active" || subscription.status === "trialing";
+    }
+
+    if (!isActive) {
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: input.dbUserId },
+      data: {
+        isPro: true,
+        ...(customerId ? { stripeCustomerId: customerId } : {}),
+        ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error("Failed to activate Pro from checkout session", error);
+  }
+}
+
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ session_id?: string | string[] }>;
+}) {
   if (!hasClerkKeys) {
     return (
       <div className="mx-auto max-w-xl rounded-2xl border border-[var(--border-soft)] bg-white/70 p-6 text-sm dark:bg-black/20">
@@ -159,7 +218,17 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  const user = await getOrCreateProfile(userId);
+  let user = await getOrCreateProfile(userId);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const sessionIdParam = resolvedSearchParams.session_id;
+  const sessionId = Array.isArray(sessionIdParam)
+    ? sessionIdParam[0]
+    : sessionIdParam;
+
+  if (!getEffectiveIsPro(user) && sessionId) {
+    await activateProFromCheckoutSession({ dbUserId: user.id, sessionId });
+    user = await getOrCreateProfile(userId);
+  }
 
   const initialProfile: ProfileFormData = {
     name: user.name ?? "",

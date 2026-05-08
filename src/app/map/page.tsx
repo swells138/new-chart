@@ -3,7 +3,8 @@ import { cookies, headers } from "next/headers";
 import { RelationshipMap } from "@/components/map/relationship-map";
 import { ClaimConnectionsPanel } from "@/components/profile/claim-connections-panel";
 import { getClaimCandidatesForUser } from "@/lib/network-claims";
-import { prisma } from "@/lib/prisma";
+import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
+import { getEffectiveIsPro } from "@/lib/pro-user";
 import { getAllRelationships, getAllUsers, getPrivateConnectionsByUser, getRelationshipsByUser } from "@/lib/prisma-queries";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,17 @@ function getClerkNameCandidates(
     clerkUser.firstName,
     clerkUser.lastName,
   ].filter((name): name is string => Boolean(name?.trim()));
+}
+
+function getClerkPrimaryEmail(
+  clerkUser: Awaited<ReturnType<typeof currentUser>>,
+) {
+  const primaryEmailId = clerkUser?.primaryEmailAddressId;
+  const primaryEmail = clerkUser?.emailAddresses.find(
+    (email) => email.id === primaryEmailId,
+  )?.emailAddress;
+
+  return primaryEmail ?? clerkUser?.emailAddresses[0]?.emailAddress ?? null;
 }
 
 async function resolveClerkUserId() {
@@ -96,52 +108,15 @@ export default async function MapPage({
         clerkNameCandidates = getClerkNameCandidates(clerk);
         const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
         const profileImage = clerk?.imageUrl || null;
-        const existing = await prisma.user.findUnique({
-          where: { clerkId: userId },
-          select: { id: true, isPro: true, profileImage: true },
-        });
+        const user = await ensureDbUserByClerkId(
+          userId,
+          fullName || clerk?.username || "New member",
+          profileImage,
+          getClerkPrimaryEmail(clerk),
+        );
 
-        if (existing) {
-          currentUserDbId = existing.id;
-          currentUserIsPro = existing.isPro;
-          if (profileImage && existing.profileImage !== profileImage) {
-            await prisma.user.update({
-              where: { id: existing.id },
-              data: { profileImage },
-              select: { id: true },
-            });
-          }
-        } else {
-          try {
-            const created = await prisma.user.create({
-              data: {
-                clerkId: userId,
-                name: fullName || clerk?.username || "New member",
-                profileImage,
-              },
-              select: { id: true, isPro: true },
-            });
-
-            currentUserDbId = created.id;
-            currentUserIsPro = created.isPro;
-          } catch (error) {
-            const prismaError = error as { code?: string };
-
-            if (prismaError.code === "P2002") {
-              const retry = await prisma.user.findUnique({
-                where: { clerkId: userId },
-                select: { id: true, isPro: true },
-              });
-
-              if (retry) {
-                currentUserDbId = retry.id;
-                currentUserIsPro = retry.isPro;
-              }
-            } else {
-              throw error;
-            }
-          }
-        }
+        currentUserDbId = user.id;
+        currentUserIsPro = getEffectiveIsPro(user);
       }
     } catch (error) {
       console.error("Map page failed to initialize authenticated user", error);

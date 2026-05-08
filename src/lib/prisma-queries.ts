@@ -8,6 +8,7 @@
 import { prisma } from "./prisma";
 import type { Prisma } from "@prisma/client";
 import { recalculateConnectionScoresForUsers } from "@/lib/connection-score";
+import { getEffectiveIsPro } from "@/lib/pro-user";
 import type {
   User,
   Post,
@@ -28,6 +29,7 @@ const baseUserSelect = {
   name: true,
   firstName: true,
   lastName: true,
+  email: true,
   handle: true,
   pronouns: true,
   bio: true,
@@ -89,6 +91,7 @@ function normalizeUser(user: {
   name: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  email?: string | null;
   handle: string | null;
   pronouns: string | null;
   bio: string | null;
@@ -108,6 +111,8 @@ function normalizeUser(user: {
       ? (user.links as User["links"])
       : {};
 
+  const isPro = getEffectiveIsPro(user);
+
   return {
     id: user.id,
     name:
@@ -124,8 +129,8 @@ function normalizeUser(user: {
     relationshipStatus: user.relationshipStatus ?? "unspecified",
     location: user.location ?? "Unknown",
     links,
-    featured: user.featured || Boolean(user.isPro),
-    isPro: Boolean(user.isPro),
+    featured: user.featured || isPro,
+    isPro,
     connectionScore: user.connectionScore ?? 0,
     totalConnections: user.totalConnections ?? 0,
     secondDegreeConnections: user.secondDegreeConnections ?? 0,
