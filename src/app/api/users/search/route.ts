@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { prisma } from "@/lib/prisma";
 
 const MAX_RESULTS = 8;
@@ -41,8 +42,16 @@ export async function GET(request: Request) {
   }
 
   try {
+    const clerkUserId = await resolveClerkUserId(request);
+    const currentUser = clerkUserId
+      ? await prisma.user.findUnique({
+          where: { clerkId: clerkUserId },
+          select: { id: true },
+        })
+      : null;
     const users = await prisma.user.findMany({
       where: {
+        id: currentUser?.id ? { not: currentUser.id } : undefined,
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { firstName: { contains: query, mode: "insensitive" } },
