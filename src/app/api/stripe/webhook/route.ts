@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
+import { isHardcodedProEmail } from "@/lib/pro-user";
 
 // IMPORTANT: set STRIPE_WEBHOOK_SECRET in Vercel to your webhook signing secret
 export async function POST(req: Request) {
@@ -73,10 +74,20 @@ export async function POST(req: Request) {
         typeof invoice.customer === "string" ? invoice.customer : undefined;
       if (customerId) {
         // Mark user as not pro if payment fails for their subscription
-        await prisma.user.updateMany({
+        const users = await prisma.user.findMany({
           where: { stripeCustomerId: customerId },
-          data: { isPro: false },
+          select: { id: true, email: true },
         });
+        const demotableUserIds = users
+          .filter((user) => !isHardcodedProEmail(user.email))
+          .map((user) => user.id);
+
+        if (demotableUserIds.length > 0) {
+          await prisma.user.updateMany({
+            where: { id: { in: demotableUserIds } },
+            data: { isPro: false },
+          });
+        }
       }
     }
 
@@ -84,10 +95,20 @@ export async function POST(req: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const subscriptionId = subscription.id;
       // Unset pro flag for users with this subscription id
-      await prisma.user.updateMany({
+      const users = await prisma.user.findMany({
         where: { stripeSubscriptionId: subscriptionId },
-        data: { isPro: false },
+        select: { id: true, email: true },
       });
+      const demotableUserIds = users
+        .filter((user) => !isHardcodedProEmail(user.email))
+        .map((user) => user.id);
+
+      if (demotableUserIds.length > 0) {
+        await prisma.user.updateMany({
+          where: { id: { in: demotableUserIds } },
+          data: { isPro: false },
+        });
+      }
     }
 
     return NextResponse.json({ received: true });

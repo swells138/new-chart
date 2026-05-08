@@ -1,6 +1,7 @@
 import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { isHardcodedProEmail } from "@/lib/pro-user";
 
 type ClerkWebhookEvent = {
   type: "user.created" | "user.updated" | "user.deleted";
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
 
   if (eventType === "user.created") {
     const { id, email_addresses, phone_numbers, first_name, last_name, image_url } = evt.data;
+    const email = email_addresses?.[0]?.email_address;
 
     if (!id) {
       return new Response("Missing user id", { status: 400 });
@@ -73,16 +75,18 @@ export async function POST(req: Request) {
         create: {
           clerkId: id,
           handle: null,
-          email: email_addresses?.[0]?.email_address,
+          email,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
           profileImage: image_url || null,
+          isPro: isHardcodedProEmail(email),
         },
         update: {
-          email: email_addresses?.[0]?.email_address,
+          email,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
           profileImage: image_url || null,
+          ...(isHardcodedProEmail(email) ? { isPro: true } : {}),
         },
       });
     } catch (error) {
@@ -93,6 +97,7 @@ export async function POST(req: Request) {
 
   if (eventType === "user.updated") {
     const { id, email_addresses, phone_numbers, first_name, last_name, image_url } = evt.data;
+    const email = email_addresses?.[0]?.email_address;
 
     if (!id) {
       return new Response("Missing user id", { status: 400 });
@@ -104,16 +109,18 @@ export async function POST(req: Request) {
         create: {
           clerkId: id,
           handle: null,
-          email: email_addresses?.[0]?.email_address,
+          email,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
           profileImage: image_url || null,
+          isPro: isHardcodedProEmail(email),
         },
         update: {
-          email: email_addresses?.[0]?.email_address,
+          email,
           phoneNumber: phone_numbers?.[0]?.phone_number,
           name: `${first_name || ""} ${last_name || ""}`.trim(),
           profileImage: image_url || null,
+          ...(isHardcodedProEmail(email) ? { isPro: true } : {}),
         },
       });
     } catch (error) {

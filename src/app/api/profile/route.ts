@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
+import { getEffectiveIsPro } from "@/lib/pro-user";
 
 const profileSafeSelect = {
   id: true,
@@ -117,7 +118,7 @@ function shapeProfile(user: {
     interests: user.interests,
     links: normalizeLinks(user.links),
     profileImage: user.profileImage ?? "",
-    isPro: Boolean(user.isPro),
+    isPro: getEffectiveIsPro(user),
     phoneNumber: user.phoneNumber ?? "",
   };
 }

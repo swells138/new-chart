@@ -14,6 +14,7 @@ import { getPendingCreatorConfirmations } from "@/lib/network-claims";
 import { prisma } from "@/lib/prisma";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 import GoProButton from "@/components/profile/go-pro-button";
+import { getEffectiveIsPro } from "@/lib/pro-user";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,15 @@ function getClerkNameCandidates(
   ].filter((name): name is string => Boolean(name?.trim()));
 }
 
+function getClerkPrimaryEmail(clerk: Awaited<ReturnType<typeof currentUser>>) {
+  const primaryEmailId = clerk?.primaryEmailAddressId;
+  const primaryEmail = clerk?.emailAddresses.find(
+    (email) => email.id === primaryEmailId,
+  )?.emailAddress;
+
+  return primaryEmail ?? clerk?.emailAddresses[0]?.emailAddress ?? null;
+}
+
 async function getOrCreateProfile(clerkId: string) {
   const clerk = await currentUser();
   const clerkNameCandidates = getClerkNameCandidates(clerk);
@@ -75,7 +85,12 @@ async function getOrCreateProfile(clerkId: string) {
     clerk?.username ||
     clerk?.firstName ||
     "New member";
-  const user = await ensureDbUserByClerkId(clerkId, fullName, clerk?.imageUrl);
+  const user = await ensureDbUserByClerkId(
+    clerkId,
+    fullName,
+    clerk?.imageUrl,
+    getClerkPrimaryEmail(clerk),
+  );
 
   const [relationships, reverseRelationships] = await Promise.all([
     prisma.relationship.findMany({
@@ -159,6 +174,7 @@ export default async function ProfilePage() {
   const pendingConfirmations = await getPendingCreatorConfirmations(user.id);
   const connectionScore = user.connectionScore ?? 0;
   const connectionScoreLabel = getConnectionScoreLabel(connectionScore);
+  const isPro = getEffectiveIsPro(user);
   const [totalUsers, usersWithLowerScores] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({
@@ -230,7 +246,7 @@ export default async function ProfilePage() {
               {connectionScoreLabel}
             </span>
           </div>
-          {user.isPro ? (
+          {isPro ? (
             <div className="mt-2">
               <span className="inline-block rounded-full bg-[var(--accent)]/10 px-3 py-1 text-[var(--accent)] font-semibold">
                 Pro
@@ -243,7 +259,7 @@ export default async function ProfilePage() {
           />
 
           <div className="mt-6">
-            {!user.isPro ? <GoProButton dbUserId={user.id} /> : null}
+            {!isPro ? <GoProButton dbUserId={user.id} /> : null}
           </div>
         </aside>
       </div>

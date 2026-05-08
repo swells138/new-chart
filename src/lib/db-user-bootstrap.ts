@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isHardcodedProEmail } from "@/lib/pro-user";
 
 const bootstrapUserSelect = {
   id: true,
@@ -47,7 +48,10 @@ function toPreferredDisplayName(value: string | null | undefined) {
   return isPlaceholderDisplayName(trimmed) ? null : trimmed;
 }
 
-async function insertLegacyCompatibleUser(clerkId: string, name: string = "New member") {
+async function insertLegacyCompatibleUser(
+  clerkId: string,
+  name: string = "New member",
+) {
   const id = makeLegacyUserId(clerkId);
   const now = new Date();
 
@@ -62,6 +66,7 @@ export async function ensureDbUserByClerkId(
   clerkId: string,
   name: string = "New member",
   profileImage?: string | null,
+  email?: string | null,
 ) {
   const existing = await prisma.user.findUnique({
     where: { clerkId },
@@ -75,19 +80,30 @@ export async function ensureDbUserByClerkId(
       profileImage && existing.profileImage !== profileImage
         ? { profileImage }
         : {};
+    const emailUpdate = email && existing.email !== email ? { email } : {};
+    const proUpdate =
+      isHardcodedProEmail(email ?? existing.email) && !existing.isPro
+        ? { isPro: true }
+        : {};
 
     if (preferredName && isPlaceholderDisplayName(existing.name)) {
       return prisma.user.update({
         where: { id: existing.id },
-        data: { name: preferredName, ...profileImageUpdate },
+        data: {
+          name: preferredName,
+          ...profileImageUpdate,
+          ...emailUpdate,
+          ...proUpdate,
+        },
         select: bootstrapUserSelect,
       });
     }
 
-    if (Object.keys(profileImageUpdate).length > 0) {
+    const userUpdate = { ...profileImageUpdate, ...emailUpdate, ...proUpdate };
+    if (Object.keys(userUpdate).length > 0) {
       return prisma.user.update({
         where: { id: existing.id },
-        data: profileImageUpdate,
+        data: userUpdate,
         select: bootstrapUserSelect,
       });
     }
@@ -106,9 +122,15 @@ export async function ensureDbUserByClerkId(
     handle?: string;
     email?: string;
   }> = [
+    { clerkId, name: preferredName ?? name, ...(email ? { email } : {}) },
     { clerkId, name: preferredName ?? name },
     { clerkId, name: preferredName ?? name, handle: handleBase },
-    { clerkId, name: preferredName ?? name, handle: handleBase, email: emailBase },
+    {
+      clerkId,
+      name: preferredName ?? name,
+      handle: handleBase,
+      email: emailBase,
+    },
   ];
 
   for (const data of attempts) {
@@ -117,6 +139,7 @@ export async function ensureDbUserByClerkId(
         data: {
           ...data,
           ...(profileImage ? { profileImage } : {}),
+          ...(isHardcodedProEmail(email) ? { isPro: true } : {}),
         },
         select: bootstrapUserSelect,
       });
