@@ -2,22 +2,66 @@
 
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { users } from "@/lib/data";
+import { useEffect, useState } from "react";
 
-const MAX_RESULTS = 8;
+interface PersonSearchResult {
+  id: string;
+  name: string;
+  handle: string;
+  location: string;
+}
 
 export function PersonSearch() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PersonSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const trimmedQuery = query.trim().toLowerCase();
-  const results = useMemo(() => {
-    if (!trimmedQuery) return [];
 
-    return users
-      .filter((user) => user.name.toLowerCase().includes(trimmedQuery))
-      .slice(0, MAX_RESULTS);
+  useEffect(() => {
+    if (!trimmedQuery) {
+      setResults([]);
+      setIsSearching(false);
+      setSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsSearching(true);
+    setSearchError(null);
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/users/search?q=${encodeURIComponent(trimmedQuery)}`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error("Search request failed");
+        }
+
+        const data = await response.json() as { users?: PersonSearchResult[] };
+        setResults(data.users ?? []);
+      } catch (error) {
+        if ((error as Error).name === "AbortError") {
+          return;
+        }
+        setResults([]);
+        setSearchError("Search is unavailable right now");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
+      }
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [trimmedQuery]);
 
   function selectUser(targetUserId: string) {
@@ -60,17 +104,29 @@ export function PersonSearch() {
                   >
                     <span>
                       <span className="block text-sm font-bold">{user.name}</span>
-                      <span className="block text-xs text-black/60 dark:text-white/65">
-                        @{user.handle}
+                      {user.handle ? (
+                        <span className="block text-xs text-black/60 dark:text-white/65">
+                          @{user.handle}
+                        </span>
+                      ) : null}
+                    </span>
+                    {user.location ? (
+                      <span className="text-xs font-semibold text-black/45 dark:text-white/45">
+                        {user.location}
                       </span>
-                    </span>
-                    <span className="text-xs font-semibold text-black/45 dark:text-white/45">
-                      {user.location}
-                    </span>
+                    ) : null}
                   </button>
                 </li>
               ))}
             </ul>
+          ) : isSearching ? (
+            <p className="px-4 py-3 text-sm font-semibold text-black/60 dark:text-white/65">
+              Searching...
+            </p>
+          ) : searchError ? (
+            <p className="px-4 py-3 text-sm font-semibold text-red-700 dark:text-red-400">
+              {searchError}
+            </p>
           ) : (
             <p className="px-4 py-3 text-sm font-semibold text-black/60 dark:text-white/65">
               No people found
