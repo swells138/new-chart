@@ -2103,10 +2103,7 @@ export function RelationshipMap({
     return path.map((userId, index) => {
       const isFirst = index === 0;
       const isTarget = index === path.length - 1;
-      const isFirstAfterUser = index === 1;
-      const isLastBeforeTarget = index === path.length - 2;
-      const shouldReveal =
-        isFirst || isTarget || isFirstAfterUser || isLastBeforeTarget;
+      const shouldReveal = isFirst || isTarget;
       const user = users.find((item) => item.id === userId);
       const label = isFirst ? "You" : user?.name ?? "Member";
 
@@ -2117,10 +2114,10 @@ export function RelationshipMap({
             className={
               shouldReveal
                 ? "rounded-full bg-white/80 px-2.5 py-1 shadow-sm dark:bg-white/10"
-                : "rounded-full bg-black/10 px-2.5 py-1 text-transparent blur-[3px] select-none dark:bg-white/10"
+                : "rounded-full bg-black/10 px-2.5 py-1 text-black/45 select-none dark:bg-white/10 dark:text-white/45"
             }
           >
-            {shouldReveal ? label : "???"}
+            {shouldReveal ? label : "Locked"}
           </span>
         </span>
       );
@@ -2314,9 +2311,19 @@ export function RelationshipMap({
                   </p>
                 ) : (
                   <div className="relative mt-3 overflow-hidden rounded-xl border border-[#ff7b6b]/35 bg-[#ff7b6b]/10 p-4">
-                    <div className="select-none text-center text-sm font-bold blur-[4px]" aria-hidden="true">
+                    <div className="select-none text-center text-sm font-bold text-black/45 dark:text-white/45" aria-hidden="true">
                       {searchedConnectionPath.path
-                        .map((userId) => users.find((user) => user.id === userId)?.name ?? "Member")
+                        .map((userId, index) => {
+                          if (index === 0) {
+                            return "You";
+                          }
+
+                          if (index === searchedConnectionPath.path.length - 1) {
+                            return users.find((user) => user.id === userId)?.name ?? "Member";
+                          }
+
+                          return "Locked";
+                        })
                         .join(" -> ")}
                     </div>
                     <div className="absolute inset-0 flex items-center justify-center bg-[var(--card)]/78 p-3 backdrop-blur-sm">
