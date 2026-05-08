@@ -2487,7 +2487,7 @@ export function RelationshipMap({
                 </div>
               ) : null}
               <div
-                className="relative h-[620px] overflow-hidden rounded-2xl border border-[var(--border-soft)]"
+                className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] sm:h-[620px]"
                 style={{ background: "#0f0819" }}
               >
                 <div className="pointer-events-none absolute inset-0 z-0">
@@ -2497,7 +2497,7 @@ export function RelationshipMap({
                   <span className="map-bg-dot map-bg-dot-4" aria-hidden="true" />
                 </div>
                 {showOnboardingOverlay ? (
-                  <div className="absolute left-4 top-4 z-20 max-w-[260px] rounded-xl border border-white/15 bg-black/70 p-4 text-white shadow-xl shadow-black/20 backdrop-blur">
+                  <div className="absolute left-3 right-3 top-3 z-20 rounded-xl border border-white/15 bg-black/70 p-4 text-white shadow-xl shadow-black/20 backdrop-blur sm:left-4 sm:right-auto sm:top-4 sm:max-w-[260px]">
                     <p className="text-sm font-bold">Add person</p>
                     <p className="mt-1 text-xs leading-5 text-white/72">
                       Start with one connection.

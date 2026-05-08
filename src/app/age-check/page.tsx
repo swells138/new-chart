@@ -34,7 +34,7 @@ function AgeCheckContent() {
   }
 
   return (
-    <section className="mx-auto max-w-xl rounded-2xl border border-[var(--border-soft)] bg-white/75 p-6 shadow-sm dark:bg-black/25">
+    <section className="mx-auto w-full max-w-xl rounded-2xl border border-[var(--border-soft)] bg-white/75 p-5 shadow-sm dark:bg-black/25 sm:p-6">
       <p className="text-xs font-semibold uppercase tracking-widest text-[var(--accent)]">
         Age verification
       </p>
@@ -46,7 +46,7 @@ function AgeCheckContent() {
         By continuing, you confirm you are 18+ and understand that reported connections can be reviewed.
       </p>
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-col gap-2 min-[380px]:flex-row min-[380px]:flex-wrap">
         <button
           type="button"
           onClick={confirmAge}
@@ -56,7 +56,7 @@ function AgeCheckContent() {
         </button>
         <Link
           href="https://www.google.com"
-          className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-sm font-semibold"
+          className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-center text-sm font-semibold"
         >
           I am under 18
         </Link>

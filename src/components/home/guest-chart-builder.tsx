@@ -267,7 +267,7 @@ export function GuestChartBuilder() {
                     </button>
 
                     {inviteOpenId === conn.id && (
-                      <div className="absolute right-0 top-full z-20 mt-1.5 w-64 rounded-2xl border border-[var(--border-soft)] bg-[var(--card)] p-4 shadow-2xl">
+                      <div className="absolute right-0 top-full z-20 mt-1.5 w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-[var(--border-soft)] bg-[var(--card)] p-4 shadow-2xl">
                         <p className="mb-3 text-xs font-semibold">
                           Invite{" "}
                           <span className="text-[var(--accent)]">{conn.name}</span> to confirm
