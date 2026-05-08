@@ -31,17 +31,24 @@ export async function POST(req: Request) {
       );
     }
 
-    // Support multiple env var names for the price id (backwards compatibility)
-    const priceId =
-      process.env.STRIPE_PRICE_ID_PRO ||
-      process.env.STRIPE_PRICE_ID ||
-      process.env.NEXT_PUBLIC_STRIPE_PRICE_ID ||
-      process.env.Product_ID;
+    const purchaseType =
+      body.purchaseType === "connection_unlock" ? "connection_unlock" : "pro";
+    const isConnectionUnlock = purchaseType === "connection_unlock";
 
-    if (!priceId) {
+    const priceOrProductId = isConnectionUnlock
+      ? process.env.connectionProductID
+      : process.env.STRIPE_PRICE_ID_PRO ||
+        process.env.STRIPE_PRICE_ID ||
+        process.env.NEXT_PUBLIC_STRIPE_PRICE_ID ||
+        process.env.Product_ID;
+
+    if (!priceOrProductId) {
       console.error(
-        "Missing Stripe price id. Ensure STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID (or Product_ID) is set.",
+        isConnectionUnlock
+          ? "Missing Stripe price id. Ensure connectionProductID is set."
+          : "Missing Stripe price id. Ensure STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID (or Product_ID) is set.",
         {
+          connectionProductID: !!process.env.connectionProductID,
           STRIPE_PRICE_ID_PRO: !!process.env.STRIPE_PRICE_ID_PRO,
           STRIPE_PRICE_ID: !!process.env.STRIPE_PRICE_ID,
           NEXT_PUBLIC_STRIPE_PRICE_ID:
@@ -52,8 +59,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          error:
-            "Missing STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID (or Product_ID) environment variable",
+          error: isConnectionUnlock
+            ? "Missing connectionProductID environment variable"
+            : "Missing STRIPE_PRICE_ID_PRO or STRIPE_PRICE_ID (or Product_ID) environment variable",
         },
         { status: 500 },
       );
@@ -62,17 +70,54 @@ export async function POST(req: Request) {
     // Create Stripe client after validating secret
     // Instantiate Stripe without specifying apiVersion so it uses the SDK's default
     const stripe = new Stripe(secretKey);
+    let priceId = priceOrProductId;
+
+    if (priceOrProductId.startsWith("prod_")) {
+      const product = await stripe.products.retrieve(priceOrProductId, {
+        expand: ["default_price"],
+      });
+      const defaultPrice = product.default_price;
+      const resolvedPriceId =
+        typeof defaultPrice === "string" ? defaultPrice : defaultPrice?.id;
+
+      if (!resolvedPriceId) {
+        return NextResponse.json(
+          {
+            error:
+              "Stripe product is missing a default price. Add a default price or use a price id.",
+          },
+          { status: 500 },
+        );
+      }
+
+      priceId = resolvedPriceId;
+    }
 
     // Allow the client to pass the local DB user id so it can be associated with the checkout session.
     const dbUserId = typeof body.userId === "string" ? body.userId : undefined;
+    const targetUserId =
+      typeof body.targetUserId === "string" ? body.targetUserId : undefined;
+    const connectionUnlockSuccessUrl = new URL("/map", origin);
+    connectionUnlockSuccessUrl.searchParams.set("connection_unlock", "success");
+    if (targetUserId) {
+      connectionUnlockSuccessUrl.searchParams.set("targetUserId", targetUserId);
+    }
 
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
+      mode: isConnectionUnlock ? "payment" : "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/profile?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/profile?canceled=true`,
-      metadata: dbUserId ? { dbUserId } : undefined,
+      success_url: isConnectionUnlock
+        ? connectionUnlockSuccessUrl.toString()
+        : `${origin}/profile?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: isConnectionUnlock
+        ? `${origin}/map${targetUserId ? `?targetUserId=${encodeURIComponent(targetUserId)}` : ""}`
+        : `${origin}/profile?canceled=true`,
+      metadata: {
+        purchaseType,
+        ...(dbUserId ? { dbUserId } : {}),
+        ...(targetUserId ? { targetUserId } : {}),
+      },
     });
 
     return NextResponse.json({ url: session.url });

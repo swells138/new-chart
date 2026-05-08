@@ -33,6 +33,7 @@ export async function POST(req: Request) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+      const purchaseType = session.metadata?.purchaseType;
       const dbUserId = session.metadata?.dbUserId as string | undefined;
       const customerId =
         typeof session.customer === "string" ? session.customer : undefined;
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
           ? session.subscription
           : undefined;
 
-      if (dbUserId) {
+      if (dbUserId && purchaseType !== "connection_unlock") {
         // If we have a subscription id, check its status — only mark active subscriptions as pro
         let isActive = true;
         if (subscriptionId) {

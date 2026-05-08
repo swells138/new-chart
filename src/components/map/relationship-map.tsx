@@ -373,6 +373,10 @@ function getUnlockedPathStorageKey(userId: string | null | undefined) {
   return `meshy-unlocked-paths:${userId ?? "guest"}`;
 }
 
+function getPendingPathUnlockStorageKey(userId: string | null | undefined) {
+  return `meshy-pending-path-unlock:${userId ?? "guest"}`;
+}
+
 function getPathUnlockId(currentUserId: string | null | undefined, targetUserId: string) {
   return `${currentUserId ?? "guest"}:${targetUserId}`;
 }
@@ -640,6 +644,8 @@ export function RelationshipMap({
   const [isOnboardingDismissed, setIsOnboardingDismissed] = useState(false);
   const [pathRevealSeed, setPathRevealSeed] = useState(0);
   const [showPathPaywall, setShowPathPaywall] = useState(false);
+  const [isStartingPathUnlockCheckout, setIsStartingPathUnlockCheckout] =
+    useState(false);
   const [lockedPathClickName, setLockedPathClickName] = useState<string | null>(
     null,
   );
@@ -823,6 +829,42 @@ export function RelationshipMap({
     );
     setUnlockedPathIds(new Set(stored ? JSON.parse(stored) as string[] : []));
   }, [activeCurrentUserId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (searchParams.get("connection_unlock") !== "success") {
+      return;
+    }
+
+    const pendingStorageKey = getPendingPathUnlockStorageKey(activeCurrentUserId);
+    const pendingTargetId =
+      window.localStorage.getItem(pendingStorageKey) ?? targetUserId;
+
+    if (!pendingTargetId) {
+      return;
+    }
+
+    const unlockId = getPathUnlockId(activeCurrentUserId, pendingTargetId);
+    const nextIds = new Set(unlockedPathIds);
+    nextIds.add(unlockId);
+    setUnlockedPathIds(nextIds);
+    setUnlockedPathTargetId(pendingTargetId);
+    window.localStorage.setItem(
+      getUnlockedPathStorageKey(activeCurrentUserId),
+      JSON.stringify(Array.from(nextIds)),
+    );
+    window.localStorage.removeItem(pendingStorageKey);
+    router.replace(`/map?targetUserId=${encodeURIComponent(pendingTargetId)}`);
+  }, [
+    activeCurrentUserId,
+    router,
+    searchParams,
+    targetUserId,
+    unlockedPathIds,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -2078,50 +2120,48 @@ export function RelationshipMap({
     setShowPathPaywall(true);
   }
 
-  function unlockSearchedPath() {
-    if (!targetUserId) {
+  async function startPathUnlockCheckout() {
+    const unlockTargetUserId = targetUserId ?? activePathTargetId;
+    if (!unlockTargetUserId || isStartingPathUnlockCheckout) {
       return;
     }
 
-    const unlockId = getPathUnlockId(activeCurrentUserId, targetUserId);
-    const nextIds = new Set(unlockedPathIds);
-    nextIds.add(unlockId);
-    setUnlockedPathIds(nextIds);
-    setUnlockedPathTargetId(targetUserId);
-    setChartLayer("public");
-    setShowSecondaryActions(false);
+    setIsStartingPathUnlockCheckout(true);
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        getUnlockedPathStorageKey(activeCurrentUserId),
-        JSON.stringify(Array.from(nextIds)),
+    try {
+      const sourceId = activeCurrentUserId ?? (await ensureCurrentUserId());
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          getPendingPathUnlockStorageKey(sourceId),
+          unlockTargetUserId,
+        );
+      }
+
+      const response = await authFetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          purchaseType: "connection_unlock",
+          origin: window.location.origin,
+          userId: sourceId,
+          targetUserId: unlockTargetUserId,
+        }),
+      });
+      const body = (await response.json()) as { error?: string; url?: string };
+
+      if (!response.ok || !body.url) {
+        throw new Error(body.error ?? "Could not start checkout.");
+      }
+
+      window.location.href = body.url;
+    } catch (error) {
+      setConnectionError(
+        error instanceof Error
+          ? error.message
+          : "Could not start checkout. Please try again.",
       );
+      setIsStartingPathUnlockCheckout(false);
     }
-  }
-
-  function renderPathPreview(path: string[]) {
-    return path.map((userId, index) => {
-      const isFirst = index === 0;
-      const isTarget = index === path.length - 1;
-      const shouldReveal = isFirst || isTarget;
-      const user = users.find((item) => item.id === userId);
-      const label = isFirst ? "You" : user?.name ?? "Member";
-
-      return (
-        <span key={`${userId}-${index}`} className="inline-flex items-center gap-2">
-          {index > 0 ? <span className="text-black/35 dark:text-white/35">→</span> : null}
-          <span
-            className={
-              shouldReveal
-                ? "rounded-full bg-white/80 px-2.5 py-1 shadow-sm dark:bg-white/10"
-                : "rounded-full bg-black/10 px-2.5 py-1 text-black/45 select-none dark:bg-white/10 dark:text-white/45"
-            }
-          >
-            {shouldReveal ? label : "Locked"}
-          </span>
-        </span>
-      );
-    });
   }
 
   return (
@@ -2300,9 +2340,9 @@ export function RelationshipMap({
                         .join(" -> ")}
                     </span>
                   ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {renderPathPreview(searchedConnectionPath.path)}
-                    </div>
+                    <p className="text-black/65 dark:text-white/65">
+                      Full path details are locked.
+                    </p>
                   )}
                 </div>
                 {searchedPathUnlocked ? (
@@ -2310,44 +2350,28 @@ export function RelationshipMap({
                     Path unlocked on the graph.
                   </p>
                 ) : (
-                  <div className="relative mt-3 overflow-hidden rounded-xl border border-[#ff7b6b]/35 bg-[#ff7b6b]/10 p-4">
-                    <div className="select-none text-center text-sm font-bold text-black/45 dark:text-white/45" aria-hidden="true">
-                      {searchedConnectionPath.path
-                        .map((userId, index) => {
-                          if (index === 0) {
-                            return "You";
-                          }
-
-                          if (index === searchedConnectionPath.path.length - 1) {
-                            return users.find((user) => user.id === userId)?.name ?? "Member";
-                          }
-
-                          return "Locked";
-                        })
-                        .join(" -> ")}
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--card)]/78 p-3 backdrop-blur-sm">
-                      <div className="w-full max-w-sm text-center">
-                        <p className="text-sm font-black">
-                          There’s a surprising connection in here 👀
-                        </p>
-                        <div className="mt-3 grid gap-2">
-                          <button
-                            type="button"
-                            onClick={unlockSearchedPath}
-                            className="min-h-11 rounded-xl bg-[var(--accent)] px-3 text-sm font-black text-white shadow-lg shadow-black/15 transition hover:brightness-95"
-                          >
-                            Unlock this path – $1.99
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => router.push("/checkout")}
-                            className="min-h-11 rounded-xl border border-[var(--border-soft)] bg-[var(--card)] px-3 text-sm font-black transition hover:bg-black/5 dark:hover:bg-white/10"
-                          >
-                            Go Pro – Unlimited access
-                          </button>
-                        </div>
-                      </div>
+                  <div className="mt-3 rounded-xl border border-[#ff7b6b]/35 bg-[#ff7b6b]/10 p-4">
+                    <p className="text-center text-sm font-black">
+                      There&apos;s a surprising connection in here.
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => void startPathUnlockCheckout()}
+                        disabled={isStartingPathUnlockCheckout}
+                        className="min-h-11 rounded-xl bg-[var(--accent)] px-3 text-sm font-black text-white shadow-lg shadow-black/15 transition hover:brightness-95"
+                      >
+                        {isStartingPathUnlockCheckout
+                          ? "Starting checkout..."
+                          : "Unlock this path - $0.99"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/checkout")}
+                        className="min-h-11 rounded-xl border border-[var(--border-soft)] bg-[var(--card)] px-3 text-sm font-black transition hover:bg-black/5 dark:hover:bg-white/10"
+                      >
+                        Go Pro - Unlimited access
+                      </button>
                     </div>
                   </div>
                 )}
@@ -3167,13 +3191,13 @@ export function RelationshipMap({
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={() => {
-                  unlockSearchedPath();
-                  setShowPathPaywall(false);
-                }}
+                onClick={() => void startPathUnlockCheckout()}
+                disabled={isStartingPathUnlockCheckout}
                 className="min-h-11 flex-1 rounded-xl bg-[#ff7b6b] px-4 text-sm font-bold text-white shadow-lg shadow-black/20 transition hover:brightness-95"
               >
-                Unlock this path – $1.99
+                {isStartingPathUnlockCheckout
+                  ? "Starting checkout..."
+                  : "Unlock this path - $0.99"}
               </button>
               <button
                 type="button"
