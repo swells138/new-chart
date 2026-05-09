@@ -2165,31 +2165,33 @@ export function RelationshipMap({
   }
 
   return (
-    <div className="space-y-8">
+    <div className={`space-y-5 sm:space-y-8 ${showSecondaryActions ? "pb-80 lg:pb-0" : ""}`}>
       <section className="paper-card rounded-2xl p-4 md:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
+            <h1 className="text-2xl font-semibold leading-tight sm:text-3xl md:text-4xl">
               Build your network
             </h1>
             <p className="mt-1 text-sm text-black/68 dark:text-white/70">
               Add someone to reveal connections.
             </p>
-            <p className="mt-3 text-xs font-semibold text-black/52 dark:text-white/55">
-              {personalConnectionCount} connection
-              {personalConnectionCount === 1 ? "" : "s"} added
-            </p>
-            {currentUser ? (
-              <p className="mt-1 text-sm font-semibold text-black/68 dark:text-white/70">
-                Connection Score: {currentUser.connectionScore}
-              </p>
-            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-black/58 dark:text-white/58">
+              <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
+                {personalConnectionCount} connection
+                {personalConnectionCount === 1 ? "" : "s"}
+              </span>
+              {currentUser ? (
+                <span className="rounded-full border border-[var(--border-soft)] px-3 py-1">
+                  Score {currentUser.connectionScore}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className="flex sm:justify-end">
             <button
               type="button"
               onClick={scrollToAddConnection}
-              className={`rounded-xl bg-[var(--accent)] px-6 py-3 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95 ${
+              className={`min-h-11 w-full rounded-xl bg-[var(--accent)] px-6 text-base font-bold text-white shadow-lg shadow-black/10 transition hover:brightness-95 sm:w-auto ${
                 showOnboardingOverlay
                   ? "animate-pulse ring-4 ring-[var(--accent)]/25"
                   : ""
@@ -2421,19 +2423,19 @@ export function RelationshipMap({
             showSecondaryActions ? "lg:grid-cols-[1.5fr_0.9fr]" : ""
           }`}
         >
-          <section className="paper-card rounded-2xl p-4">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <section className="paper-card rounded-2xl p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-semibold">Network graph</h2>
+                <h2 className="text-xl font-semibold sm:text-2xl">Network graph</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShowSecondaryActions((shown) => !shown)}
-                className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
+                className="shrink-0 rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
               >
                 {showSecondaryActions
                   ? "Hide tools"
-                  : "Show search and filters"}
+                  : "Tools"}
               </button>
             </div>
             {hasDbUser ? null : (
@@ -2487,7 +2489,7 @@ export function RelationshipMap({
                 </div>
               ) : null}
               <div
-                className="relative h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] sm:h-[620px]"
+                className="relative h-[62vh] min-h-[380px] max-h-[520px] overflow-hidden rounded-2xl border border-[var(--border-soft)] sm:h-[620px] sm:max-h-none"
                 style={{ background: "#0f0819" }}
               >
                 <div className="pointer-events-none absolute inset-0 z-0">
@@ -2516,6 +2518,7 @@ export function RelationshipMap({
                   edges={edges}
                   nodeTypes={nodeTypes}
                   fitView={chartLayer === "public"}
+                  fitViewOptions={{ padding: 0.22, minZoom: 0.28, maxZoom: 0.92 }}
                   onNodeClick={(_, node) => {
                     if (lockedPathNodeIds.has(node.id)) {
                       openPathPaywall("locked-node");
@@ -2533,6 +2536,9 @@ export function RelationshipMap({
                   minZoom={0.2}
                   maxZoom={1.8}
                   connectOnClick={false}
+                  panOnScroll={false}
+                  zoomOnScroll={false}
+                  zoomOnDoubleClick={false}
                   className="relative z-10"
                 >
                   <Controls showInteractive={false} />
@@ -2703,14 +2709,24 @@ export function RelationshipMap({
             ) : null}
           </section>
           {showSecondaryActions ? (
-            <aside className="paper-card rounded-2xl p-4 lg:sticky lg:top-4 lg:self-start">
-              <div className="mb-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
-                  Tools
-                </p>
-                <h3 className="mt-1 text-xl font-semibold">
-                  Search and filters
-                </h3>
+            <aside className="paper-card fixed inset-x-3 bottom-3 z-40 max-h-[72vh] overflow-y-auto rounded-2xl p-4 shadow-2xl shadow-black/20 lg:sticky lg:inset-auto lg:top-4 lg:max-h-none lg:self-start lg:overflow-visible lg:shadow-none">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
+                    Tools
+                  </p>
+                  <h3 className="mt-1 text-xl font-semibold">
+                    Search and filters
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSecondaryActions(false)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border-soft)] text-black/65 transition hover:bg-black/5 dark:text-white/70 dark:hover:bg-white/10 lg:hidden"
+                  aria-label="Close tools"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
               <div className="space-y-3">
                 {selectedUser && shouldShowProDetailsCard ? (
