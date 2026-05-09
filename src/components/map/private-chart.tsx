@@ -905,8 +905,8 @@ export function PrivateChart({
       setAddNote("");
       setAddSuccessMessage(
         skipDuplicateCheck
-          ? "Added a new private person. Send an invite when you’re ready."
-          : "Added privately. Send an invite when you’re ready.",
+          ? "Added a new private person. This stays private until they join and claim their node. Generate an invite link and share it with them when you're ready."
+          : "Added privately. This stays private until they join and claim their node. Generate an invite link and share it with them when you're ready.",
       );
     } catch {
       setAddError("Could not add that connection right now.");
@@ -957,7 +957,9 @@ export function PrivateChart({
       setPlaceholders((prev) =>
         prev.map((p) => (p.id === id ? body.placeholder! : p)),
       );
-      setActionMessage("Invite generated. Copy and share the link.");
+      setActionMessage(
+        "Invite generated. Share this link with them so they can join, claim their node, and help make the connection public.",
+      );
     } finally {
       setWorkingId(null);
     }
@@ -1105,6 +1107,9 @@ export function PrivateChart({
     const link = `${baseUrl}/invite/${p.inviteToken}`;
     await navigator.clipboard.writeText(link).catch(() => null);
     setCopiedId(p.id);
+    setActionMessage(
+      "Invite link copied. Send it to them so they can join Chart and claim their node.",
+    );
     setTimeout(
       () => setCopiedId((prev) => (prev === p.id ? null : prev)),
       2000,
@@ -2473,17 +2478,24 @@ export function PrivateChart({
                               </div>
                             </div>
                             {inviteLink ? (
-                              <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
-                                <p className="min-w-0 flex-1 truncate text-[10px] text-white/42">
-                                  {inviteLink}
+                              <div className="mt-3 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                <p className="text-[11px] font-semibold text-white/72">
+                                  To become public, {p.name} has to join and claim
+                                  this node. Share the invite link with them so
+                                  they can verify it.
                                 </p>
-                                <button
-                                  type="button"
-                                  onClick={() => copyInviteLink(p)}
-                                  className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
-                                >
-                                  {isCopied ? "Copied!" : "Copy"}
-                                </button>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <p className="min-w-0 flex-1 truncate text-[10px] text-white/42">
+                                    {inviteLink}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyInviteLink(p)}
+                                    className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
+                                  >
+                                    {isCopied ? "Copied!" : "Copy"}
+                                  </button>
+                                </div>
                               </div>
                             ) : null}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
