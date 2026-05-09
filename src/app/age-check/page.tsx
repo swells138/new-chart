@@ -1,11 +1,8 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-
-const AGE_COOKIE_NAME = "age_verified";
-const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
+import { useSearchParams } from "next/navigation";
 
 function getSafeRedirectPath(input: string | null) {
   if (!input || !input.startsWith("/")) {
@@ -20,18 +17,14 @@ function getSafeRedirectPath(input: string | null) {
 }
 
 function AgeCheckContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const redirectTo = useMemo(
     () => getSafeRedirectPath(searchParams.get("redirectTo")),
     [searchParams],
   );
-
-  function confirmAge() {
-    document.cookie = `${AGE_COOKIE_NAME}=true; path=/; max-age=${ONE_YEAR_SECONDS}; SameSite=Lax`;
-    router.replace(redirectTo);
-  }
+  const confirmAction = `/age-check/confirm?redirectTo=${encodeURIComponent(redirectTo)}`;
 
   return (
     <section className="mx-auto w-full max-w-xl rounded-2xl border border-[var(--border-soft)] bg-white/75 p-5 shadow-sm dark:bg-black/25 sm:p-6">
@@ -47,13 +40,15 @@ function AgeCheckContent() {
       </p>
 
       <div className="mt-5 flex flex-col gap-2 min-[380px]:flex-row min-[380px]:flex-wrap">
-        <button
-          type="button"
-          onClick={confirmAge}
-          className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
-        >
-          I am 18 or older
-        </button>
+        <form action={confirmAction} method="post" onSubmit={() => setIsSubmitting(true)}>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-75"
+          >
+            {isSubmitting ? "Verifying..." : "I am 18 or older"}
+          </button>
+        </form>
         <Link
           href="https://www.google.com"
           className="rounded-full border border-[var(--border-soft)] px-4 py-2 text-center text-sm font-semibold"
