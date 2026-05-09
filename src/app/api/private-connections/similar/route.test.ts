@@ -51,7 +51,7 @@ describe("/api/private-connections/similar POST", () => {
         name: "Jordan Lee",
         email: "jordan@example.com",
         phoneNumber: null,
-        relationshipType: "Friends",
+        relationshipType: "Talking",
         note: "Met downtown",
         claimStatus: "unclaimed",
         createdAt: new Date("2026-05-01T00:00:00.000Z"),

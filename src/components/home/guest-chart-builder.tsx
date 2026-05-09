@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Plus, UserPlus, Link2, X, Clock, CheckCircle, ArrowRight } from "lucide-react";
 
 const RELATIONSHIP_TYPES = [
-  "Friends",
   "Dating",
   "Talking",
   "Situationship",
@@ -25,7 +24,6 @@ interface GuestConnection {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  Friends: "#66b6a7",
   Dating: "#f472b6",
   Talking: "#a78bfa",
   Situationship: "#fb923c",
@@ -41,7 +39,7 @@ const TYPE_COLORS: Record<string, string> = {
 export function GuestChartBuilder() {
   const [connections, setConnections] = useState<GuestConnection[]>([]);
   const [name, setName] = useState("");
-  const [type, setType] = useState<string>("Friends");
+  const [type, setType] = useState<string>("Dating");
   const [inviteOpenId, setInviteOpenId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 

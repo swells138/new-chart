@@ -283,7 +283,6 @@ const relationColors: Record<RelationshipType, string> = {
   Exes: "#ff8f84",
   Married: "#e85d8d",
   "Sneaky Link": "#9b8cff",
-  Friends: "#66b6a7",
   Lovers: "#ee82d8",
   "One Night Stand": "#ffbb6f",
   complicated: "#7aa2ff",
@@ -593,7 +592,6 @@ export function RelationshipMap({
     "Exes",
     "Married",
     "Sneaky Link",
-    "Friends",
     "Lovers",
     "One Night Stand",
     "complicated",
@@ -603,7 +601,7 @@ export function RelationshipMap({
   const [connectionTargetId, setConnectionTargetId] = useState<string>("");
   const [connectionQuery, setConnectionQuery] = useState<string>("");
   const [connectionType, setConnectionType] =
-    useState<RelationshipType>("Friends");
+    useState<RelationshipType>("Talking");
   // STEP 1: search UI state
   const [searchValue, setSearchValue] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -619,7 +617,7 @@ export function RelationshipMap({
   const [editingRelationshipId, setEditingRelationshipId] = useState<
     string | null
   >(null);
-  const [editingType, setEditingType] = useState<RelationshipType>("Friends");
+  const [editingType, setEditingType] = useState<RelationshipType>("Talking");
   const [editingNote, setEditingNote] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingEdit, setIsDeletingEdit] = useState(false);
@@ -2411,7 +2409,7 @@ export function RelationshipMap({
               }}
               className="rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-bold transition hover:bg-black/5 dark:hover:bg-white/10"
             >
-              Compare with a friend
+              Compare with someone
             </button>
           </div>
         </section>

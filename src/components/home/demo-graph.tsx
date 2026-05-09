@@ -15,12 +15,12 @@ const NODES: DemoNode[] = [
 
 const EDGES: DemoEdge[] = [
   { from: "1", to: "2", label: "Dating 💕",    color: "#f472b6" },
-  { from: "1", to: "3", label: "Friends",       color: "#66b6a7" },
+  { from: "1", to: "3", label: "Talking",       color: "#a78bfa" },
   { from: "2", to: "5", label: "Exes 💔",       color: "#ff8f84" },
-  { from: "3", to: "6", label: "Friends",       color: "#66b6a7" },
+  { from: "3", to: "6", label: "Dating",        color: "#f472b6" },
   { from: "4", to: "6", label: "Situationship", color: "#fb923c" },
   { from: "4", to: "7", label: "Talking",       color: "#a78bfa" },
-  { from: "5", to: "7", label: "Friends",       color: "#66b6a7" },
+  { from: "5", to: "7", label: "Situationship", color: "#fb923c" },
   { from: "1", to: "4", label: "Complicated",   color: "#7aa2ff", dashed: true },
 ];
 

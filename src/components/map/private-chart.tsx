@@ -21,7 +21,6 @@ const ALL_TYPES: RelationshipType[] = [
   "Exes",
   "Married",
   "Sneaky Link",
-  "Friends",
   "Lovers",
   "One Night Stand",
   "complicated",
@@ -35,7 +34,6 @@ const TYPE_COLORS: Record<RelationshipType, string> = {
   Exes: "#ff8f84",
   Married: "#e85d8d",
   "Sneaky Link": "#9b8cff",
-  Friends: "#66b6a7",
   Lovers: "#ee82d8",
   "One Night Stand": "#ffbb6f",
   complicated: "#7aa2ff",
@@ -260,7 +258,7 @@ export function PrivateChart({
     [],
   );
   const [webRelationshipType, setWebRelationshipType] =
-    useState<RelationshipType>("Friends");
+    useState<RelationshipType>("Talking");
   const [webNote, setWebNote] = useState("");
   const [confirmedWebEdges, setConfirmedWebEdges] = useState<
     PrivateConfirmedConnectionEdge[]
@@ -403,7 +401,7 @@ export function PrivateChart({
   const [addOfferToNameMatch, setAddOfferToNameMatch] = useState(true);
   const [addEmail, setAddEmail] = useState("");
   const [addPhoneNumber, setAddPhoneNumber] = useState("");
-  const [addType, setAddType] = useState<RelationshipType>("Friends");
+  const [addType, setAddType] = useState<RelationshipType>("Talking");
   const [addNote, setAddNote] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [addHint, setAddHint] = useState<string | null>(null);
@@ -461,7 +459,7 @@ export function PrivateChart({
   const [editOfferToNameMatch, setEditOfferToNameMatch] = useState(false);
   const [editEmail, setEditEmail] = useState("");
   const [editPhoneNumber, setEditPhoneNumber] = useState("");
-  const [editType, setEditType] = useState<RelationshipType>("Friends");
+  const [editType, setEditType] = useState<RelationshipType>("Talking");
   const [editNote, setEditNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);

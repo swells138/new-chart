@@ -14,7 +14,7 @@ const baseCandidate: PrivateDuplicateCandidate = {
   name: "Jordan Lee",
   email: null,
   phoneNumber: null,
-  relationshipType: "Friends",
+  relationshipType: "Talking",
   note: null,
   claimStatus: "unclaimed",
   createdAt: new Date("2026-05-01T00:00:00.000Z"),

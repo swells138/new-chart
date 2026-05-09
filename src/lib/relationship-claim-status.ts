@@ -49,7 +49,7 @@ export function parseStoredRelationshipType(
     };
   }
 
-  const [, rawBaseType = "Friends", creatorId = fallbackCreatorId, claimedByUserId = fallbackClaimedByUserId] =
+  const [, rawBaseType = "Talking", creatorId = fallbackCreatorId, claimedByUserId = fallbackClaimedByUserId] =
     storedType.split("::");
 
   return {

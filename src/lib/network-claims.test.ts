@@ -75,7 +75,7 @@ describe("claimPlaceholderForUser", () => {
     placeholderFindUniqueMock.mockResolvedValue({
       id: "placeholder_1",
       ownerId: "owner_1",
-      relationshipType: "Friends",
+      relationshipType: "Talking",
       linkedUserId: null,
       note: null,
       owner: {
@@ -122,7 +122,7 @@ describe("claimPlaceholderForUser", () => {
       id: "relationship_1",
       user1Id: "owner_1",
       user2Id: "claimer_1",
-      type: "Friends",
+      type: "Talking",
       note: "",
     });
 
@@ -133,7 +133,7 @@ describe("claimPlaceholderForUser", () => {
     expect(relationshipUpdateMock).toHaveBeenCalledWith({
       where: { id: "relationship_1" },
       data: {
-        type: expect.stringContaining("pending::Friends::owner_1::claimer_1"),
+        type: expect.stringContaining("pending::Talking::owner_1::claimer_1"),
         note: expect.stringContaining("\"status\":\"pending_creator_confirmation\""),
         isPublic: false,
       },
@@ -169,7 +169,7 @@ describe("getClaimCandidatesForUser", () => {
           offerToNameMatch: true,
           email: null,
           phoneNumber: null,
-          relationshipType: "Friends",
+          relationshipType: "Talking",
           note: null,
           inviteToken: null,
           claimStatus: "unclaimed",
@@ -189,7 +189,7 @@ describe("getClaimCandidatesForUser", () => {
         {
           user1Id: "claimer_1",
           user2Id: "owner_1",
-          type: "Friends",
+          type: "Talking",
           note: null,
         },
       ])
@@ -225,7 +225,7 @@ describe("getClaimCandidatesForUser", () => {
           offerToNameMatch: true,
           email: null,
           phoneNumber: null,
-          relationshipType: "Friends",
+          relationshipType: "Talking",
           note: null,
           inviteToken: null,
           claimStatus: "unclaimed",
@@ -263,7 +263,7 @@ describe("getClaimCandidatesForUser", () => {
           offerToNameMatch: true,
           email: null,
           phoneNumber: null,
-          relationshipType: "Friends",
+          relationshipType: "Talking",
           note: null,
           inviteToken: null,
           claimStatus: "unclaimed",
@@ -306,7 +306,7 @@ describe("getClaimCandidatesForUser", () => {
           offerToNameMatch: true,
           email: null,
           phoneNumber: null,
-          relationshipType: "Friends",
+          relationshipType: "Talking",
           note: null,
           inviteToken: null,
           claimStatus: "unclaimed",
@@ -326,7 +326,7 @@ describe("getClaimCandidatesForUser", () => {
         {
           user1Id: "claimer_1",
           user2Id: "owner_1",
-          type: "Friends",
+          type: "Talking",
           note: null,
         },
       ])

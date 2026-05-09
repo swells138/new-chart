@@ -41,7 +41,6 @@ const relationshipTypeValues = [
   "Exes",
   "Married",
   "Sneaky Link",
-  "Friends",
   "Lovers",
   "One Night Stand",
   "complicated",
@@ -114,7 +113,7 @@ function normalizeRelationship(relationship: {
     target: relationship.user2Id,
     type: relationshipTypes.includes(parsedType.baseType)
       ? parsedType.baseType
-      : "Friends",
+      : "Talking",
     isPublic: relationship.isPublic ?? false,
     publicRequestedBy: relationship.publicRequestedBy ?? null,
     note: claimMeta.status === "active" ? "" : buildClaimMetaNote(claimMeta),

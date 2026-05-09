@@ -69,7 +69,7 @@ The database includes:
 - **EventAttendee** - Track who's attending events
 - **Article** - Blog articles/stories
 - **Message** - Direct messages between users
-- **Relationship** - Connections between users (friends, collaborators, etc.)
+- **Relationship** - Connections between users (dating, collaborators, etc.)
 
 ## Syncing with Clerk
 

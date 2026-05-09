@@ -17,7 +17,6 @@ const connectionLabels: Record<string, string> = {
   Exes: "Exes",
   Married: "Married",
   "Sneaky Link": "Sneaky Link",
-  Friends: "Friends",
   Lovers: "Lovers",
   "One Night Stand": "One Night Stand",
   complicated: "complicated",

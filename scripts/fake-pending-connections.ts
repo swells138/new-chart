@@ -30,12 +30,12 @@ const TEST_CONNECTIONS = [
 
 type CliArgs = {
   forValue: string | null;
-  type: "Friends" | "Talking" | "Dating" | "Situationship" | "Exes" | "Married" | "Sneaky Link" | "Lovers" | "One Night Stand" | "complicated" | "FWB";
+  type: "Talking" | "Dating" | "Situationship" | "Exes" | "Married" | "Sneaky Link" | "Lovers" | "One Night Stand" | "complicated" | "FWB";
 };
 
 function parseArgs(argv: string[]): CliArgs {
   let forValue: string | null = null;
-  let type: CliArgs["type"] = "Friends";
+  let type: CliArgs["type"] = "Talking";
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];

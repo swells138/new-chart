@@ -3,7 +3,7 @@
     "id": "r1",
     "source": "u1",
     "target": "u2",
-    "type": "Friends",
+    "type": "Talking",
     "note": "Met through community radio"
   },
   {
@@ -17,14 +17,14 @@
     "id": "r3",
     "source": "u2",
     "target": "u4",
-    "type": "Friends",
+    "type": "Dating",
     "note": "Hosts open writing nights together"
   },
   {
     "id": "r4",
     "source": "u3",
     "target": "u5",
-    "type": "Friends",
+    "type": "Situationship",
     "note": "Share a studio loft"
   },
   {

@@ -71,7 +71,7 @@ describe("/api/relationships POST", () => {
       body: JSON.stringify({
         source: "db_1",
         target: "db_2",
-        type: "Friends",
+        type: "Talking",
         extra: "not-allowed",
       }),
     });
@@ -90,7 +90,7 @@ describe("/api/relationships POST", () => {
       body: JSON.stringify({
         source: "db_999",
         target: "db_2",
-        type: "Friends",
+        type: "Talking",
       }),
     });
 
@@ -129,7 +129,7 @@ describe("/api/relationships PATCH", () => {
       id: "rel_1",
       user1Id: "db_1",
       user2Id: "db_2",
-      type: "Friends",
+      type: "Talking",
     });
 
     relationshipUpdateMock.mockResolvedValue({

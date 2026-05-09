@@ -25,7 +25,6 @@ const relationshipTypeValues = [
   "Exes",
   "Married",
   "Sneaky Link",
-  "Friends",
   "Lovers",
   "One Night Stand",
   "complicated",

@@ -11,7 +11,6 @@ const hasClerkKeys =
 
 const EDGE_LEGEND = [
   { label: "Dating", color: "#f472b6" },
-  { label: "Friends", color: "#66b6a7" },
   { label: "Exes", color: "#ff8f84" },
   { label: "Situationship", color: "#fb923c" },
   { label: "Talking", color: "#a78bfa" },
@@ -99,7 +98,7 @@ export default async function Home() {
         <div className="mt-8 flex justify-center gap-10 sm:gap-16">
           {[
             { stat: "1°", label: "Direct connections" },
-            { stat: "2°", label: "Friends of friends" },
+            { stat: "2°", label: "Connections of connections" },
             { stat: "3°", label: "Extended network" },
           ].map(({ stat, label }) => (
             <div key={stat} className="text-center">
@@ -125,7 +124,7 @@ export default async function Home() {
             </h2>
             <p className="mt-2 text-sm text-black/60 dark:text-white/60 sm:text-base">
               Click a node to explore. Relationship labels show the kind of tie
-              — friends, dating, exes, and more.
+              — dating, exes, situationships, and more.
             </p>
           </div>
 
@@ -164,7 +163,7 @@ export default async function Home() {
             <div>
               <p className="text-2xl font-bold">2</p>
               <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-                Connect relationships (friend, ex, dating...)
+                Connect relationships (dating, ex, talking...)
               </p>
             </div>
             <div>
