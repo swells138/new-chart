@@ -47,6 +47,7 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [unlockingUserId, setUnlockingUserId] = useState<string | null>(null);
   const [sendingEmailTest, setSendingEmailTest] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedActionById, setSelectedActionById] = useState<
@@ -159,9 +160,22 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
     setError(null);
     setMessage(null);
 
+    // Basic client-side validation of optional email
+    if (testEmail) {
+      const s = testEmail.trim();
+      const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+      if (!ok) {
+        setError("Invalid test email address.");
+        setSendingEmailTest(false);
+        return;
+      }
+    }
+
     try {
       const response = await fetch("/api/moderation/email-test", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(testEmail ? { to: testEmail.trim() } : {}),
       });
 
       const body = (await response.json()) as {
@@ -325,6 +339,15 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
                 <option value="node-reports">Node reports</option>
               </select>
             </label>
+
+            <input
+              type="email"
+              placeholder="Optional test email"
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              disabled={sendingEmailTest}
+              className="ml-2 w-[220px] rounded-lg border border-[var(--border-soft)] bg-transparent px-2 py-1 text-sm outline-none"
+            />
 
             <button
               type="button"

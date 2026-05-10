@@ -32,13 +32,37 @@ function getSendGridErrorMessage(error: unknown) {
   return "SendGrid rejected the test email.";
 }
 
-export async function POST() {
+function looksLikeEmail(input: unknown) {
+  if (typeof input !== "string") return false;
+  const s = input.trim();
+  if (!s) return false;
+  // Very small, permissive check
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+export async function POST(request: Request) {
   const allowed = await isCurrentUserModerator();
   if (!allowed) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const email = await getCurrentUserPrimaryEmail();
+  // Try to parse optional { to } from the request body
+  let requestedTo: string | undefined;
+  try {
+    const body = (await request.json()) as { to?: unknown } | null;
+    if (body && body.to && looksLikeEmail(body.to)) {
+      requestedTo = (body.to as string).trim();
+    } else if (body && body.to) {
+      return NextResponse.json(
+        { error: "Invalid email address." },
+        { status: 400 },
+      );
+    }
+  } catch {
+    // no body or invalid json — that's fine; we'll fall back to moderator email
+  }
+
+  const email = requestedTo ?? (await getCurrentUserPrimaryEmail());
   if (!email) {
     return NextResponse.json(
       { error: "Your account does not have an email address to test with." },
