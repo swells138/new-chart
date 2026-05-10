@@ -829,7 +829,7 @@ export async function getClaimCandidateDiagnosticsForUser(
 
         return {
           placeholderId: placeholder.id,
-          placeholderName: placeholder.name,
+          placeholderName: placeholder.name ?? placeholder.note ?? placeholder.id,
           ownerId: placeholder.ownerId,
           ownerName: placeholder.owner.name ?? "Someone",
           claimStatus: placeholder.claimStatus,
@@ -870,6 +870,7 @@ async function getOwnedClaimedPlaceholderDiagnostics(userId: string) {
       select: {
         id: true,
         name: true,
+        note: true,
         relationshipType: true,
         linkedUserId: true,
         linkedUser: {
@@ -925,7 +926,7 @@ async function getOwnedClaimedPlaceholderDiagnostics(userId: string) {
 
       return {
         placeholderId: placeholder.id,
-        placeholderName: placeholder.name,
+        placeholderName: placeholder.name ?? placeholder.note ?? placeholder.id,
         relationshipType: placeholder.relationshipType,
         linkedUserId: placeholder.linkedUserId,
         linkedUserName: placeholder.linkedUser?.name ?? null,
@@ -1003,6 +1004,7 @@ export async function claimPlaceholderForUser(
       select: {
         id: true,
         ownerId: true,
+        name: true,
         relationshipType: true,
         linkedUserId: true,
         note: true,
@@ -1162,7 +1164,7 @@ export async function claimPlaceholderForUser(
       relationshipType: placeholder.relationshipType,
       relationshipId,
       alreadyConnected,
-      placeholderName: placeholder.name,
+      placeholderName: placeholder.name ?? placeholder.note ?? placeholder.id,
     };
   });
 
