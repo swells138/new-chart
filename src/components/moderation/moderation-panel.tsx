@@ -181,14 +181,25 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
       const body = (await response.json()) as {
         error?: string;
         sentTo?: string;
+        sendGridStatusCode?: number | null;
       };
 
+      const sgStatus = body.sendGridStatusCode ?? null;
+
       if (!response.ok || !body.sentTo) {
-        setError(body.error ?? "Could not send test email.");
+        const detail = body.error
+          ? `${body.error}`
+          : "Could not send test email.";
+        const withStatus = sgStatus
+          ? `${detail} (SendGrid ${sgStatus})`
+          : detail;
+        setError(withStatus);
         return;
       }
 
-      setMessage(`Test email sent to ${body.sentTo}.`);
+      setMessage(
+        `Test email sent to ${body.sentTo}${sgStatus ? ` (SendGrid ${sgStatus})` : ""}`,
+      );
     } catch {
       setError("Could not send test email.");
     } finally {

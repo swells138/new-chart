@@ -71,8 +71,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    await sendTestEmail(email);
-    return NextResponse.json({ sentTo: email });
+    const result = await sendTestEmail(email);
+    // sendgrid/mail.send typically returns an array with response objects
+    const statusCode = Array.isArray(result)
+      ? (result[0]?.statusCode ?? null)
+      : null;
+    return NextResponse.json({ sentTo: email, sendGridStatusCode: statusCode });
   } catch (error) {
     console.error("Failed to send moderation test email", error);
     return NextResponse.json(

@@ -69,12 +69,15 @@ export async function sendTestEmail(to: string) {
   const config = getEmailConfig();
 
   if (!config) {
-    throw new Error("SendGrid is missing SENDGRID_API_KEY or SENDGRID_FROM_EMAIL.");
+    throw new Error(
+      "SendGrid is missing SENDGRID_API_KEY or SENDGRID_FROM_EMAIL.",
+    );
   }
 
   sgMail.setApiKey(config.apiKey);
 
-  await sgMail.send({
+  // Return the raw SendGrid response to allow callers to inspect headers/status for debugging
+  const res = await sgMail.send({
     to,
     from: config.from,
     subject: "Chart SendGrid production test",
@@ -84,4 +87,6 @@ export async function sendTestEmail(to: string) {
       "If you received this, SendGrid is configured correctly in this environment.",
     ].join("\n"),
   });
+
+  return res;
 }
