@@ -17,7 +17,8 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:cleanup-dev": "tsx scripts/cleanup-dev-data.ts",
-    "db:fake-pending": "tsx scripts/fake-pending-connections.ts"
+    "db:fake-pending": "tsx scripts/fake-pending-connections.ts",
+    "email:test": "tsx scripts/send-test-email.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.12",
