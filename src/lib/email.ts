@@ -1,3 +1,5 @@
+import sgMail from "@sendgrid/mail";
+
 export async function sendInviteEmail(
   to: string,
   token: string,
@@ -18,6 +20,9 @@ export async function sendInviteEmail(
     return;
   }
 
+  // Configure the SendGrid client
+  sgMail.setApiKey(SENDGRID_API_KEY);
+
   const inviteUrl = `${siteUrl.replace(/\/+$/, "")}/invite/${token}`;
   const subject = `${ownerName ?? "Someone"} invited you on Chart`;
 
@@ -34,31 +39,16 @@ export async function sendInviteEmail(
     .filter(Boolean)
     .join("\n");
 
-  const payload = {
-    personalizations: [
-      {
-        to: [{ email: to }],
-      },
-    ],
-    from: { email: SENDGRID_FROM_EMAIL },
+  const msg = {
+    to,
+    from: SENDGRID_FROM_EMAIL,
     subject,
-    content: [
-      {
-        type: "text/plain",
-        value: plainText,
-      },
-    ],
-  };
+    text: plainText,
+    // You can add html if desired in the future
+  } as const;
 
   try {
-    await fetch("https://api.sendgrid.com/v3/mail/send", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SENDGRID_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    await sgMail.send(msg);
   } catch (err) {
     // swallow errors; caller will log if desired
     console.error("sendInviteEmail failed", err);
