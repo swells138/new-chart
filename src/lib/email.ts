@@ -26,7 +26,15 @@ export async function sendInviteEmail(
     "";
 
   if (!config || !siteUrl) {
-    // Missing configuration — silently return (non-fatal)
+    // Missing configuration — warn so developers can detect in logs.
+    console.warn(
+      "sendInviteEmail skipped: missing SendGrid config or site URL",
+      {
+        hasSendGridConfig: Boolean(config),
+        siteUrlProvided: Boolean(siteUrl),
+        to,
+      },
+    );
     return;
   }
 
@@ -99,7 +107,10 @@ export async function sendModerationNotification(input: {
   reporterLabel?: string | null;
 }) {
   const config = getEmailConfig();
-  if (!config) return null;
+  if (!config) {
+    console.warn("sendModerationNotification skipped: missing SendGrid config");
+    return null;
+  }
 
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
@@ -112,7 +123,12 @@ export async function sendModerationNotification(input: {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (modEmails.length === 0) return null;
+  if (modEmails.length === 0) {
+    console.warn(
+      "sendModerationNotification skipped: MODERATOR_EMAILS is empty",
+    );
+    return null;
+  }
 
   sgMail.setApiKey(config.apiKey);
 
