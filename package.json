@@ -23,6 +23,7 @@
     "@clerk/nextjs": "^7.0.12",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "@sendgrid/mail": "^8.1.6",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
     "@vercel/analytics": "^2.0.1",
