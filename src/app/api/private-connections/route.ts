@@ -8,6 +8,7 @@ import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
+import { sendInviteEmail } from "@/lib/email";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -314,7 +315,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
     }
 
-    const { name, offerToNameMatch, email, phoneNumber, relationshipType, note } = parsed.data;
+    const {
+      name,
+      offerToNameMatch,
+      email,
+      phoneNumber,
+      relationshipType,
+      note,
+    } = parsed.data;
     const normalizedEmail = email?.trim() || null;
     const normalizedPhoneNumber = phoneNumber?.trim() || null;
 
@@ -372,6 +380,44 @@ export async function POST(request: Request) {
         name: name.trim(),
         relationshipType,
       });
+    }
+
+    // If an email was provided, create an invite token and mark as invited,
+    // then send an email notifying the target that someone is waiting.
+    if (normalizedEmail) {
+      try {
+        const token = randomBytes(24).toString("hex");
+        const updated = await prisma.placeholderPerson.update({
+          where: { id: placeholder.id },
+          data: { inviteToken: token, claimStatus: "invited" },
+        });
+
+        // Attempt to resolve owner's public name for the email copy
+        const owner = await prisma.user.findUnique({
+          where: { id: currentDbUserId },
+          select: { name: true, handle: true },
+        });
+        const ownerName = owner?.name ?? owner?.handle ?? "Someone";
+
+        // Fire-and-forget sending; errors are non-fatal
+        sendInviteEmail(
+          normalizedEmail,
+          token,
+          ownerName,
+          relationshipType,
+          note?.trim() ?? null,
+        ).catch(() => {});
+
+        // Reflect the updated invite token in the response placeholder
+        placeholder = {
+          ...placeholder,
+          inviteToken: updated.inviteToken,
+          claimStatus: updated.claimStatus,
+        };
+      } catch (e) {
+        // Non-fatal; continue without blocking creation
+        console.error("Failed to generate/send invite email:", e);
+      }
     }
 
     return NextResponse.json(
@@ -441,15 +487,32 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
   }
 
-  const { id, action, name, offerToNameMatch, email, phoneNumber, relationshipType, note } =
-    parsed.data;
+  const {
+    id,
+    action,
+    name,
+    offerToNameMatch,
+    email,
+    phoneNumber,
+    relationshipType,
+    note,
+  } = parsed.data;
 
   const existing = await prisma.placeholderPerson.findUnique({
     where: { id },
     select: {
-      id: true, ownerId: true, name: true, email: true, phoneNumber: true,
-      relationshipType: true, note: true, inviteToken: true, linkedUserId: true,
-      claimStatus: true, createdAt: true, offerToNameMatch: true,
+      id: true,
+      ownerId: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      relationshipType: true,
+      note: true,
+      inviteToken: true,
+      linkedUserId: true,
+      claimStatus: true,
+      createdAt: true,
+      offerToNameMatch: true,
     },
   });
   if (!existing) {
@@ -472,6 +535,26 @@ export async function PATCH(request: Request) {
             : existing.claimStatus,
       },
     });
+    // If the placeholder has an email address, send an invite notification.
+    try {
+      const targetEmail = updated.email ?? existing.email ?? null;
+      if (targetEmail) {
+        const owner = await prisma.user.findUnique({
+          where: { id: existing.ownerId },
+          select: { name: true, handle: true },
+        });
+        const ownerName = owner?.name ?? owner?.handle ?? "Someone";
+        sendInviteEmail(
+          targetEmail,
+          token,
+          ownerName,
+          updated.relationshipType,
+          updated.note ?? null,
+        ).catch(() => {});
+      }
+    } catch (e) {
+      console.error("Failed to send invite email:", e);
+    }
     return NextResponse.json({ placeholder: normalizePlaceholder(updated) });
   }
 

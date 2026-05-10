@@ -7,7 +7,7 @@ const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-      process.env.CLERK_PUBLISHABLE_KEY
+    process.env.CLERK_PUBLISHABLE_KEY,
   );
 
 const claimDebugEnabled =
@@ -33,7 +33,10 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
   if (existing) return existing.id;
 
   const clerk = await currentUser();
-  const fullName = [clerk?.firstName, clerk?.lastName].filter(Boolean).join(" ").trim();
+  const fullName = [clerk?.firstName, clerk?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   try {
     const created = await prisma.user.create({
@@ -44,7 +47,10 @@ async function getOrCreateCurrentDbUserId(clerkId: string) {
   } catch (error) {
     const prismaError = error as { code?: string };
     if (prismaError.code === "P2002") {
-      const retry = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
+      const retry = await prisma.user.findUnique({
+        where: { clerkId },
+        select: { id: true },
+      });
       if (retry) return retry.id;
     }
     throw error;
@@ -72,17 +78,28 @@ export async function GET(_request: Request, context: RouteContext) {
 
   if (!placeholder) {
     logClaimDebug("invite.get.not-found", { tokenLength: token.length });
-    return NextResponse.json({ error: "This invite link is invalid or has expired." }, { status: 404 });
+    return NextResponse.json(
+      { error: "This invite link is invalid or has expired." },
+      { status: 404 },
+    );
   }
 
   if (placeholder.claimStatus === "claimed") {
-    logClaimDebug("invite.get.already-claimed", { placeholderId: placeholder.id });
-    return NextResponse.json({ error: "This invite has already been accepted." }, { status: 410 });
+    logClaimDebug("invite.get.already-claimed", {
+      placeholderId: placeholder.id,
+    });
+    return NextResponse.json(
+      { error: "This invite has already been accepted." },
+      { status: 410 },
+    );
   }
 
   if (placeholder.claimStatus === "denied") {
     logClaimDebug("invite.get.denied", { placeholderId: placeholder.id });
-    return NextResponse.json({ error: "This invite is no longer active." }, { status: 410 });
+    return NextResponse.json(
+      { error: "This invite is no longer active." },
+      { status: 410 },
+    );
   }
 
   logClaimDebug("invite.get.success", {
@@ -118,24 +135,30 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!hasClerkKeys) {
     logClaimDebug("invite.post.auth-config-missing");
-    return NextResponse.json({ error: "Auth is not configured." }, { status: 503 });
+    return NextResponse.json(
+      { error: "Auth is not configured." },
+      { status: 503 },
+    );
   }
 
   const { userId } = await auth();
   if (!userId) {
     logClaimDebug("invite.post.unauthorized");
-    return NextResponse.json({ error: "You must be signed in to accept an invite." }, { status: 401 });
+    return NextResponse.json(
+      { error: "You must be signed in to accept an invite." },
+      { status: 401 },
+    );
   }
 
   const clerk = await currentUser();
   const hasVerifiedEmail = clerk?.emailAddresses.some(
-    (emailAddress) => emailAddress.verification?.status === "verified"
+    (emailAddress) => emailAddress.verification?.status === "verified",
   );
   if (!hasVerifiedEmail) {
     logClaimDebug("invite.post.unverified-email", { clerkUserId: userId });
     return NextResponse.json(
       { error: "Verify your email before claiming this connection invite." },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
@@ -149,8 +172,14 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   if (action !== "approve" && action !== "deny") {
-    logClaimDebug("invite.post.invalid-action", { clerkUserId: userId, action });
-    return NextResponse.json({ error: "action must be 'approve' or 'deny'." }, { status: 400 });
+    logClaimDebug("invite.post.invalid-action", {
+      clerkUserId: userId,
+      action,
+    });
+    return NextResponse.json(
+      { error: "action must be 'approve' or 'deny'." },
+      { status: 400 },
+    );
   }
 
   const claimerDbId = await getOrCreateCurrentDbUserId(userId);
@@ -161,23 +190,44 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!placeholder) {
     logClaimDebug("invite.post.not-found", { dbUserId: claimerDbId });
-    return NextResponse.json({ error: "This invite link is invalid or has expired." }, { status: 404 });
+    return NextResponse.json(
+      { error: "This invite link is invalid or has expired." },
+      { status: 404 },
+    );
   }
 
   if (placeholder.claimStatus === "claimed") {
-    logClaimDebug("invite.post.already-claimed", { placeholderId: placeholder.id, dbUserId: claimerDbId });
-    return NextResponse.json({ error: "This invite has already been accepted." }, { status: 410 });
+    logClaimDebug("invite.post.already-claimed", {
+      placeholderId: placeholder.id,
+      dbUserId: claimerDbId,
+    });
+    return NextResponse.json(
+      { error: "This invite has already been accepted." },
+      { status: 410 },
+    );
   }
 
   if (placeholder.claimStatus === "denied") {
-    logClaimDebug("invite.post.denied", { placeholderId: placeholder.id, dbUserId: claimerDbId });
-    return NextResponse.json({ error: "This invite is no longer active." }, { status: 410 });
+    logClaimDebug("invite.post.denied", {
+      placeholderId: placeholder.id,
+      dbUserId: claimerDbId,
+    });
+    return NextResponse.json(
+      { error: "This invite is no longer active." },
+      { status: 410 },
+    );
   }
 
   // Prevent someone from claiming their own invite
   if (placeholder.ownerId === claimerDbId) {
-    logClaimDebug("invite.post.self-claim-blocked", { placeholderId: placeholder.id, dbUserId: claimerDbId });
-    return NextResponse.json({ error: "You cannot claim your own invite." }, { status: 400 });
+    logClaimDebug("invite.post.self-claim-blocked", {
+      placeholderId: placeholder.id,
+      dbUserId: claimerDbId,
+    });
+    return NextResponse.json(
+      { error: "You cannot claim your own invite." },
+      { status: 400 },
+    );
   }
 
   if (action === "deny") {
@@ -223,6 +273,6 @@ export async function POST(request: Request, context: RouteContext) {
         : undefined,
       alreadyConnected: result.alreadyConnected,
     },
-    { status: result.relationshipId ? 201 : 200 }
+    { status: result.relationshipId ? 201 : 200 },
   );
 }
