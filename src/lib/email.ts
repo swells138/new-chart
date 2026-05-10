@@ -166,3 +166,30 @@ export async function sendModerationNotification(input: {
     return null;
   }
 }
+
+export async function sendUserNotificationEmail(opts: {
+  to: string;
+  subject: string;
+  text: string;
+}) {
+  const config = getEmailConfig();
+  if (!config) {
+    console.warn("sendUserNotificationEmail skipped: missing SendGrid config");
+    return null;
+  }
+
+  sgMail.setApiKey(config.apiKey);
+
+  try {
+    const res = await sgMail.send({
+      to: opts.to,
+      from: config.from,
+      subject: opts.subject,
+      text: opts.text,
+    });
+    return res;
+  } catch (err) {
+    console.error("sendUserNotificationEmail failed", err);
+    return null;
+  }
+}

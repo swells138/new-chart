@@ -23,13 +23,14 @@ function isColumnMissingError(error: unknown) {
   }
 
   const message =
-    "message" in error && typeof (error as { message?: unknown }).message === "string"
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
       ? (error as { message: string }).message
       : String(error);
 
   return (
     message.includes("does not exist in the current database") ||
-    message.includes("column") && message.includes("does not exist")
+    (message.includes("column") && message.includes("does not exist"))
   );
 }
 
@@ -61,7 +62,9 @@ type ClaimUserRecord = {
   ignoredClaimPlaceholderIds: string[];
 };
 
-async function getClaimUserRecord(userId: string): Promise<ClaimUserRecord | null> {
+async function getClaimUserRecord(
+  userId: string,
+): Promise<ClaimUserRecord | null> {
   try {
     return await prisma.user.findUnique({
       where: { id: userId },
@@ -121,7 +124,9 @@ async function getClaimUserRecord(userId: string): Promise<ClaimUserRecord | nul
   }
 }
 
-async function getClaimablePlaceholders(userId: string): Promise<PlaceholderWithOwner[]> {
+async function getClaimablePlaceholders(
+  userId: string,
+): Promise<PlaceholderWithOwner[]> {
   try {
     return await prisma.placeholderPerson.findMany({
       where: {
@@ -268,7 +273,9 @@ function getNameMatchScore(userName: string, placeholderName: string) {
 
   const userTokens = normalizedUser.split(" ").filter(Boolean);
   const placeholderTokens = normalizedPlaceholder.split(" ").filter(Boolean);
-  const sharedTokens = userTokens.filter((token) => placeholderTokens.includes(token));
+  const sharedTokens = userTokens.filter((token) =>
+    placeholderTokens.includes(token),
+  );
 
   if (sharedTokens.length === 0) {
     return 0;
@@ -276,9 +283,10 @@ function getNameMatchScore(userName: string, placeholderName: string) {
 
   const longestSharedToken = sharedTokens.reduce(
     (max, token) => Math.max(max, token.length),
-    0
+    0,
   );
-  const overlapRatio = sharedTokens.length / Math.max(userTokens.length, placeholderTokens.length);
+  const overlapRatio =
+    sharedTokens.length / Math.max(userTokens.length, placeholderTokens.length);
 
   return Math.round(overlapRatio * 70 + Math.min(longestSharedToken * 4, 20));
 }
@@ -295,10 +303,7 @@ async function buildApprovedNeighborMap(userIds: string[]) {
           startsWith: pendingTypePrefix,
         },
       },
-      OR: [
-        { user1Id: { in: userIds } },
-        { user2Id: { in: userIds } },
-      ],
+      OR: [{ user1Id: { in: userIds } }, { user2Id: { in: userIds } }],
     },
     select: {
       user1Id: true,
@@ -327,7 +332,7 @@ async function buildApprovedNeighborMap(userIds: string[]) {
 function toClaimCandidate(
   placeholder: PlaceholderWithOwner,
   mutualConnectionNames: string[],
-  matchReasons: string[]
+  matchReasons: string[],
 ): ClaimCandidate {
   return {
     placeholderId: placeholder.id,
@@ -347,7 +352,11 @@ function toClaimCandidate(
 
 export async function getClaimCandidatesForUser(
   userId: string,
-  options?: { alternateNames?: string[]; includeDismissed?: boolean; limit?: number }
+  options?: {
+    alternateNames?: string[];
+    includeDismissed?: boolean;
+    limit?: number;
+  },
 ) {
   const includeDismissed = options?.includeDismissed ?? false;
   const limit = options?.limit ?? 5;
@@ -361,14 +370,18 @@ export async function getClaimCandidatesForUser(
 
     const placeholders = await getClaimablePlaceholders(userId);
 
-    const visiblePlaceholders = (includeDismissed
-      ? placeholders
-      : placeholders.filter(
-          (placeholder) => !currentUser.ignoredClaimPlaceholderIds.includes(placeholder.id)
-        ))
-      .filter((placeholder) => placeholder.offerToNameMatch !== false);
+    const visiblePlaceholders = (
+      includeDismissed
+        ? placeholders
+        : placeholders.filter(
+            (placeholder) =>
+              !currentUser.ignoredClaimPlaceholderIds.includes(placeholder.id),
+          )
+    ).filter((placeholder) => placeholder.offerToNameMatch !== false);
 
-    const ownerIds = Array.from(new Set(visiblePlaceholders.map((placeholder) => placeholder.ownerId)));
+    const ownerIds = Array.from(
+      new Set(visiblePlaceholders.map((placeholder) => placeholder.ownerId)),
+    );
 
     // If there is already an active or pending relationship between these two users,
     // suppress additional claim prompts to avoid repeated loops.
@@ -391,7 +404,10 @@ export async function getClaimCandidatesForUser(
 
     const relatedOwnerIds = new Set<string>();
     pairRelationshipRows.forEach((relationship) => {
-      const otherUserId = relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id;
+      const otherUserId =
+        relationship.user1Id === userId
+          ? relationship.user2Id
+          : relationship.user1Id;
       relatedOwnerIds.add(otherUserId);
     });
 
@@ -424,18 +440,21 @@ export async function getClaimCandidatesForUser(
     });
 
     const dedupedPlaceholders = new Map<string, PlaceholderWithOwner>();
-    visiblePlaceholders
-      .forEach((placeholder) => {
-        const key = `${placeholder.ownerId}::${normalizeMatchString(placeholder.name)}`;
-        const existing = dedupedPlaceholders.get(key);
-        if (!existing || placeholder.createdAt > existing.createdAt) {
-          dedupedPlaceholders.set(key, placeholder);
-        }
-      });
+    visiblePlaceholders.forEach((placeholder) => {
+      const key = `${placeholder.ownerId}::${normalizeMatchString(placeholder.name)}`;
+      const existing = dedupedPlaceholders.get(key);
+      if (!existing || placeholder.createdAt > existing.createdAt) {
+        dedupedPlaceholders.set(key, placeholder);
+      }
+    });
 
     const filteredPlaceholders = Array.from(dedupedPlaceholders.values());
-    const neighborMap = await buildApprovedNeighborMap([currentUser.id, ...ownerIds]);
-    const currentNeighbors = neighborMap.get(currentUser.id) ?? new Set<string>();
+    const neighborMap = await buildApprovedNeighborMap([
+      currentUser.id,
+      ...ownerIds,
+    ]);
+    const currentNeighbors =
+      neighborMap.get(currentUser.id) ?? new Set<string>();
 
     const mutualConnectionIds = Array.from(currentNeighbors);
     const mutualUsers = mutualConnectionIds.length
@@ -445,7 +464,10 @@ export async function getClaimCandidatesForUser(
         })
       : [];
     const mutualUserNames = new Map(
-      mutualUsers.map((user) => [user.id, user.name ?? user.handle ?? "Member"])
+      mutualUsers.map((user) => [
+        user.id,
+        user.name ?? user.handle ?? "Member",
+      ]),
     );
 
     const currentUserEmail = (currentUser.email ?? "").trim().toLowerCase();
@@ -460,9 +482,10 @@ export async function getClaimCandidatesForUser(
 
     const rankedCandidates = filteredPlaceholders
       .map((placeholder) => {
-        const ownerNeighbors = neighborMap.get(placeholder.ownerId) ?? new Set<string>();
-        const sharedConnectionIds = Array.from(ownerNeighbors).filter((connectionId) =>
-          currentNeighbors.has(connectionId)
+        const ownerNeighbors =
+          neighborMap.get(placeholder.ownerId) ?? new Set<string>();
+        const sharedConnectionIds = Array.from(ownerNeighbors).filter(
+          (connectionId) => currentNeighbors.has(connectionId),
         );
 
         const mutualConnectionNames = sharedConnectionIds
@@ -472,7 +495,9 @@ export async function getClaimCandidatesForUser(
 
         const nameScore = Math.max(
           0,
-          ...candidateNames.map((name) => getNameMatchScore(name, placeholder.name)),
+          ...candidateNames.map((name) =>
+            getNameMatchScore(name, placeholder.name),
+          ),
         );
         const emailMatches =
           currentUserEmail.length > 0 &&
@@ -483,11 +508,17 @@ export async function getClaimCandidatesForUser(
         const hasStrongIdentityMatch =
           nameScore >= 100 || emailMatches || phoneMatches;
 
-        if (claimedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+        if (
+          claimedOwnerIds.has(placeholder.ownerId) &&
+          !hasStrongIdentityMatch
+        ) {
           return null;
         }
 
-        if (relatedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+        if (
+          relatedOwnerIds.has(placeholder.ownerId) &&
+          !hasStrongIdentityMatch
+        ) {
           return null;
         }
 
@@ -514,7 +545,7 @@ export async function getClaimCandidatesForUser(
           matchReasons.push(
             sharedConnectionIds.length === 1
               ? "1 shared confirmed connection"
-              : `${sharedConnectionIds.length} shared confirmed connections`
+              : `${sharedConnectionIds.length} shared confirmed connections`,
           );
         }
 
@@ -525,16 +556,22 @@ export async function getClaimCandidatesForUser(
           score,
         };
       })
-      .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
-      .filter((candidate) => candidate.score >= 55 || candidate.matchReasons.some((reason) => reason.includes("matches")))
+      .filter((candidate): candidate is NonNullable<typeof candidate> =>
+        Boolean(candidate),
+      )
+      .filter(
+        (candidate) =>
+          candidate.score >= 55 ||
+          candidate.matchReasons.some((reason) => reason.includes("matches")),
+      )
       .sort((left, right) => right.score - left.score)
       .slice(0, limit)
       .map((candidate) =>
         toClaimCandidate(
           candidate.placeholder,
           candidate.mutualConnectionNames,
-          candidate.matchReasons
-        )
+          candidate.matchReasons,
+        ),
       );
 
     return rankedCandidates;
@@ -669,7 +706,9 @@ export async function getClaimCandidateDiagnosticsForUser(
       .map((placeholder) => {
         const nameScore = Math.max(
           0,
-          ...candidateNames.map((name) => getNameMatchScore(name, placeholder.name)),
+          ...candidateNames.map((name) =>
+            getNameMatchScore(name, placeholder.name),
+          ),
         );
         const emailMatches =
           currentUserEmail.length > 0 &&
@@ -711,7 +750,9 @@ export async function getClaimCandidateDiagnosticsForUser(
       : [];
     const relatedOwnerIds = new Set(
       pairRelationshipRows.map((relationship) =>
-        relationship.user1Id === userId ? relationship.user2Id : relationship.user1Id,
+        relationship.user1Id === userId
+          ? relationship.user2Id
+          : relationship.user1Id,
       ),
     );
     const claimedPairPlaceholders = ownerIds.length
@@ -756,7 +797,8 @@ export async function getClaimCandidateDiagnosticsForUser(
           item.nameScore >= 100 || item.emailMatches || item.phoneMatches;
 
         if (placeholder.ownerId === userId) reasons.push("same-account-owner");
-        if (placeholder.linkedUserId === userId) reasons.push("already-linked-to-you");
+        if (placeholder.linkedUserId === userId)
+          reasons.push("already-linked-to-you");
         if (placeholder.linkedUserId && placeholder.linkedUserId !== userId) {
           reasons.push("linked-to-another-user");
         }
@@ -769,10 +811,16 @@ export async function getClaimCandidateDiagnosticsForUser(
         if (placeholder.offerToNameMatch === false) {
           reasons.push("claim-suggestions-off");
         }
-        if (claimedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+        if (
+          claimedOwnerIds.has(placeholder.ownerId) &&
+          !hasStrongIdentityMatch
+        ) {
           reasons.push("already-claimed-between-this-pair");
         }
-        if (relatedOwnerIds.has(placeholder.ownerId) && !hasStrongIdentityMatch) {
+        if (
+          relatedOwnerIds.has(placeholder.ownerId) &&
+          !hasStrongIdentityMatch
+        ) {
           reasons.push("existing-relationship-weak-match");
         }
         if (reasons.length === 0) {
@@ -794,7 +842,8 @@ export async function getClaimCandidateDiagnosticsForUser(
           reasons,
         };
       }),
-      ownedClaimedPlaceholders: await getOwnedClaimedPlaceholderDiagnostics(userId),
+      ownedClaimedPlaceholders:
+        await getOwnedClaimedPlaceholderDiagnostics(userId),
       queryError: null,
     };
   } catch (error) {
@@ -803,7 +852,10 @@ export async function getClaimCandidateDiagnosticsForUser(
       candidateNames: [],
       matches: [],
       ownedClaimedPlaceholders: [],
-      queryError: error instanceof Error ? error.message : "Unknown claim diagnostic error.",
+      queryError:
+        error instanceof Error
+          ? error.message
+          : "Unknown claim diagnostic error.",
     };
   }
 }
@@ -895,7 +947,10 @@ async function getOwnedClaimedPlaceholderDiagnostics(userId: string) {
   }
 }
 
-export async function dismissClaimCandidate(userId: string, placeholderId: string) {
+export async function dismissClaimCandidate(
+  userId: string,
+  placeholderId: string,
+) {
   let user: { ignoredClaimPlaceholderIds: string[] } | null = null;
 
   try {
@@ -923,7 +978,10 @@ export async function dismissClaimCandidate(userId: string, placeholderId: strin
     await prisma.user.update({
       where: { id: userId },
       data: {
-        ignoredClaimPlaceholderIds: [...user.ignoredClaimPlaceholderIds, placeholderId],
+        ignoredClaimPlaceholderIds: [
+          ...user.ignoredClaimPlaceholderIds,
+          placeholderId,
+        ],
       },
     });
   } catch (error) {
@@ -935,7 +993,10 @@ export async function dismissClaimCandidate(userId: string, placeholderId: strin
   }
 }
 
-export async function claimPlaceholderForUser(userId: string, placeholderId: string) {
+export async function claimPlaceholderForUser(
+  userId: string,
+  placeholderId: string,
+) {
   const result = await prisma.$transaction(async (tx) => {
     const placeholder = await tx.placeholderPerson.findUnique({
       where: { id: placeholderId },
@@ -983,7 +1044,9 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
     let alreadyConnected = false;
 
     const claimConfirmedAt = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const pendingMeta = buildClaimMetaNote({
       status: "pending_creator_confirmation",
       creatorId: placeholder.ownerId,
@@ -1012,7 +1075,8 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
       });
       relationshipId = relationship.id;
     } else {
-      alreadyConnected = !existingRelationship.type.startsWith(pendingTypePrefix);
+      alreadyConnected =
+        !existingRelationship.type.startsWith(pendingTypePrefix);
       relationshipId = existingRelationship.id;
 
       const existingMeta = composeClaimMeta({
@@ -1078,7 +1142,10 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
         await tx.user.update({
           where: { id: userId },
           data: {
-            ignoredClaimPlaceholderIds: [...user.ignoredClaimPlaceholderIds, placeholder.id],
+            ignoredClaimPlaceholderIds: [
+              ...user.ignoredClaimPlaceholderIds,
+              placeholder.id,
+            ],
           },
         });
       }
@@ -1116,6 +1183,41 @@ export async function claimPlaceholderForUser(userId: string, placeholderId: str
     // Non-fatal notification failure.
   }
 
+  // Also send an email notification to the placeholder owner so they receive
+  // a message in their inbox outside of the app.
+  try {
+    const subject = `MeshyLinks — review a pending connection`;
+    const body = `Someone accepted the placeholder you created as themselves for "${placeholder.name}". Please visit your moderation queue or profile to confirm this connection.`;
+    // Try to read owner email and send (fire-and-forget)
+    const owner = await prisma.user.findUnique({
+      where: { id: result.ownerId },
+      select: { email: true },
+    });
+    if (owner?.email) {
+      import("@/lib/email")
+        .then(({ sendUserNotificationEmail }) => {
+          sendUserNotificationEmail({
+            to: owner.email!,
+            subject,
+            text: body,
+          }).catch((err) => {
+            console.error(
+              "Failed to send claim notification email to owner",
+              err,
+            );
+          });
+        })
+        .catch((err) => {
+          console.error(
+            "Failed to dynamically import email helper for user notification",
+            err,
+          );
+        });
+    }
+  } catch (err) {
+    console.error("Failed to initiate owner email notification", err);
+  }
+
   return result;
 }
 
@@ -1139,7 +1241,9 @@ function getPrismaErrorCode(error: unknown) {
   return null;
 }
 
-async function repairMissingCreatorConfirmationRelationships(creatorId: string) {
+async function repairMissingCreatorConfirmationRelationships(
+  creatorId: string,
+) {
   try {
     const claimedPlaceholders = await prisma.placeholderPerson.findMany({
       where: {
@@ -1180,7 +1284,9 @@ async function repairMissingCreatorConfirmationRelationships(creatorId: string) 
       }
 
       const claimConfirmedAt = new Date().toISOString();
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const expiresAt = new Date(
+        Date.now() + 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
 
       try {
         await prisma.relationship.create({
@@ -1281,7 +1387,11 @@ export async function getPendingCreatorConfirmations(
       select: { name: true, handle: true },
     });
 
-    const parsedType = parseStoredRelationshipType(rel.type, rel.user1Id, rel.user2Id);
+    const parsedType = parseStoredRelationshipType(
+      rel.type,
+      rel.user1Id,
+      rel.user2Id,
+    );
 
     results.push({
       relationshipId: rel.id,
