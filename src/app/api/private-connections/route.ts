@@ -399,14 +399,14 @@ export async function POST(request: Request) {
         });
         const ownerName = owner?.name ?? owner?.handle ?? "Someone";
 
-        // Fire-and-forget sending; errors are non-fatal
-        sendInviteEmail(
+        // Non-fatal: the connection should still be created if email delivery fails.
+        await sendInviteEmail(
           normalizedEmail,
           token,
           ownerName,
           relationshipType,
           note?.trim() ?? null,
-        ).catch(() => {});
+        );
 
         // Reflect the updated invite token in the response placeholder
         placeholder = {
@@ -544,13 +544,13 @@ export async function PATCH(request: Request) {
           select: { name: true, handle: true },
         });
         const ownerName = owner?.name ?? owner?.handle ?? "Someone";
-        sendInviteEmail(
+        await sendInviteEmail(
           targetEmail,
           token,
           ownerName,
           updated.relationshipType,
           updated.note ?? null,
-        ).catch(() => {});
+        );
       }
     } catch (e) {
       console.error("Failed to send invite email:", e);
