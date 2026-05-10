@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { sendModerationNotification } from "@/lib/email";
 
 export type ModerationReportStatus = "open" | "resolved" | "dismissed";
 export type ModerationReportKind =
@@ -138,6 +139,21 @@ export async function createModerationReport(input: {
       NOW()
     )
   `;
+
+  // Notify moderators via email. Fire-and-forget so report creation isn't blocked by email delivery.
+  try {
+    sendModerationNotification({
+      kind: input.kind,
+      targetId: input.targetId,
+      targetLabel: input.targetLabel ?? null,
+      reason: input.reason ?? null,
+      reporterLabel: input.reporterLabel ?? null,
+    }).catch((err) => {
+      console.error("Failed to send moderation notification", err);
+    });
+  } catch (err) {
+    console.error("Failed to initiate moderation notification", err);
+  }
 
   return id;
 }
@@ -293,7 +309,9 @@ function toUserLock(row: UserLockRow): ModerationUserLock {
   };
 }
 
-export async function listUserLocks(limit = 200): Promise<ModerationUserLock[]> {
+export async function listUserLocks(
+  limit = 200,
+): Promise<ModerationUserLock[]> {
   await ensureModerationUserLockTable();
 
   await prisma.$executeRaw`

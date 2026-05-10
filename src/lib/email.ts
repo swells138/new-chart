@@ -90,3 +90,63 @@ export async function sendTestEmail(to: string) {
 
   return res;
 }
+
+export async function sendModerationNotification(input: {
+  kind: string;
+  targetId: string;
+  targetLabel?: string | null;
+  reason?: string | null;
+  reporterLabel?: string | null;
+}) {
+  const config = getEmailConfig();
+  if (!config) return null;
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    process.env.BASE_URL ??
+    "";
+
+  const modEmails = (process.env.MODERATOR_EMAILS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (modEmails.length === 0) return null;
+
+  sgMail.setApiKey(config.apiKey);
+
+  const subject = `Moderation: new ${input.kind} — ${
+    input.targetLabel ?? input.targetId
+  }`;
+
+  const moderationUrl = siteUrl
+    ? `${siteUrl.replace(/\/+$/, "")}/moderation`
+    : "";
+
+  const plainText = [
+    `A new moderation report was submitted:`,
+    "",
+    `Kind: ${input.kind}`,
+    `Target: ${input.targetLabel ?? input.targetId}`,
+    input.reason ? `Reason:\n${input.reason}` : undefined,
+    input.reporterLabel ? `Reporter: ${input.reporterLabel}` : undefined,
+    moderationUrl ? "" : undefined,
+    moderationUrl ? `Review it here: ${moderationUrl}` : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const res = await sgMail.send({
+      to: modEmails,
+      from: config.from,
+      subject,
+      text: plainText,
+    });
+    return res;
+  } catch (err) {
+    console.error("sendModerationNotification failed", err);
+    return null;
+  }
+}
