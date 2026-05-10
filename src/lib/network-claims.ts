@@ -1162,6 +1162,7 @@ export async function claimPlaceholderForUser(
       relationshipType: placeholder.relationshipType,
       relationshipId,
       alreadyConnected,
+      placeholderName: placeholder.name,
     };
   });
 
@@ -1187,7 +1188,7 @@ export async function claimPlaceholderForUser(
   // a message in their inbox outside of the app.
   try {
     const subject = `MeshyLinks — review a pending connection`;
-    const body = `Someone accepted the placeholder you created as themselves for "${placeholder.name}". Please visit your moderation queue or profile to confirm this connection.`;
+    const body = `Someone accepted the placeholder you created as themselves for "${result.placeholderName ?? result.relationshipId}". Please visit your moderation queue or profile to confirm this connection.`;
     // Try to read owner email and send (fire-and-forget)
     const owner = await prisma.user.findUnique({
       where: { id: result.ownerId },
