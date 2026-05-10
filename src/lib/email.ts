@@ -1,14 +1,76 @@
 import sgMail from "@sendgrid/mail";
+import type { MailDataRequired } from "@sendgrid/mail";
+
+const DEFAULT_FROM_NAME = "Chart";
+const TRANSACTIONAL_TRACKING_SETTINGS = {
+  clickTracking: {
+    enable: false,
+    enableText: false,
+  },
+  openTracking: {
+    enable: false,
+  },
+} satisfies MailDataRequired["trackingSettings"];
 
 function getEmailConfig() {
   const apiKey = process.env.SENDGRID_API_KEY?.trim();
-  const from = process.env.SENDGRID_FROM_EMAIL?.trim();
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL?.trim();
+  const fromName =
+    process.env.SENDGRID_FROM_NAME?.trim() || DEFAULT_FROM_NAME;
+  const replyTo = process.env.SENDGRID_REPLY_TO_EMAIL?.trim();
 
-  if (!apiKey || !from) {
+  if (!apiKey || !fromEmail) {
     return null;
   }
 
-  return { apiKey, from };
+  return { apiKey, fromEmail, fromName, replyTo };
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function textToHtml(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const html = escapeHtml(paragraph).replaceAll("\n", "<br>");
+      return `<p>${html}</p>`;
+    })
+    .join("");
+}
+
+function buildTransactionalEmail(input: {
+  to: string | string[];
+  subject: string;
+  text: string;
+  category: string;
+}): MailDataRequired {
+  const config = getEmailConfig();
+  if (!config) {
+    throw new Error(
+      "SendGrid is missing SENDGRID_API_KEY or SENDGRID_FROM_EMAIL.",
+    );
+  }
+
+  return {
+    to: input.to,
+    from: {
+      email: config.fromEmail,
+      name: config.fromName,
+    },
+    replyTo: config.replyTo ? { email: config.replyTo } : undefined,
+    subject: input.subject,
+    text: input.text,
+    html: `<!doctype html><html><body style="font-family:Arial,sans-serif;font-size:16px;line-height:1.5;color:#111827">${textToHtml(input.text)}</body></html>`,
+    categories: [input.category],
+    trackingSettings: TRANSACTIONAL_TRACKING_SETTINGS,
+  };
 }
 
 export async function sendInviteEmail(
@@ -58,12 +120,14 @@ export async function sendInviteEmail(
     .join("\n");
 
   const msg = {
-    to,
-    from: config.from,
+    ...buildTransactionalEmail({
+      to,
+      subject,
+      text: plainText,
+      category: "invite",
+    }),
     subject,
-    text: plainText,
-    // You can add html if desired in the future
-  } as const;
+  };
 
   try {
     await sgMail.send(msg);
@@ -85,16 +149,16 @@ export async function sendTestEmail(to: string) {
   sgMail.setApiKey(config.apiKey);
 
   // Return the raw SendGrid response to allow callers to inspect headers/status for debugging
-  const res = await sgMail.send({
+  const res = await sgMail.send(buildTransactionalEmail({
     to,
-    from: config.from,
     subject: "Chart SendGrid production test",
     text: [
       "This is a test email from Chart.",
       "",
       "If you received this, SendGrid is configured correctly in this environment.",
     ].join("\n"),
-  });
+    category: "test",
+  }));
 
   return res;
 }
@@ -154,12 +218,12 @@ export async function sendModerationNotification(input: {
     .join("\n");
 
   try {
-    const res = await sgMail.send({
+    const res = await sgMail.send(buildTransactionalEmail({
       to: modEmails,
-      from: config.from,
       subject,
       text: plainText,
-    });
+      category: "moderation",
+    }));
     return res;
   } catch (err) {
     console.error("sendModerationNotification failed", err);
@@ -181,12 +245,12 @@ export async function sendUserNotificationEmail(opts: {
   sgMail.setApiKey(config.apiKey);
 
   try {
-    const res = await sgMail.send({
+    const res = await sgMail.send(buildTransactionalEmail({
       to: opts.to,
-      from: config.from,
       subject: opts.subject,
       text: opts.text,
-    });
+      category: "notification",
+    }));
     return res;
   } catch (err) {
     console.error("sendUserNotificationEmail failed", err);
