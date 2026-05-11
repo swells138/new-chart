@@ -8,6 +8,7 @@ import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { createModerationReport } from "@/lib/moderation/reports";
 import { recalculateConnectionScoresForUsers } from "@/lib/connection-score";
+import { sendUserNotificationEmail } from "@/lib/email";
 import {
   buildClaimMetaNote,
   composeClaimMeta,
@@ -86,6 +87,19 @@ const deleteRelationshipSchema = z
 
 const approvalInboxLink = "/map?chart=public&focus=approvals#pending-verification";
 
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    process.env.BASE_URL ??
+    ""
+  ).replace(/\/+$/, "");
+}
+
+function getDisplayName(user: { name?: string | null; handle?: string | null }) {
+  return user.name?.trim() || user.handle?.trim() || "Someone";
+}
+
 function normalizeRelationship(relationship: {
   id: string;
   user1Id: string;
@@ -127,6 +141,35 @@ async function sendNotification(senderId: string, recipientId: string, content: 
     });
   } catch (err) {
     console.error("Failed to send notification message", err);
+  }
+}
+
+async function sendRelationshipRequestEmail(input: {
+  senderName: string;
+  recipientEmail?: string | null;
+  relationshipType: RelationshipType;
+}) {
+  if (!input.recipientEmail) {
+    return;
+  }
+
+  const siteUrl = getSiteUrl();
+  const reviewUrl = siteUrl
+    ? `${siteUrl}${approvalInboxLink}`
+    : approvalInboxLink;
+
+  try {
+    await sendUserNotificationEmail({
+      to: input.recipientEmail,
+      subject: `${input.senderName} sent you a Chart connection request`,
+      text: [
+        `${input.senderName} sent you a ${input.relationshipType} connection request on Chart.`,
+        "",
+        `Review it here: ${reviewUrl}`,
+      ].join("\n"),
+    });
+  } catch (error) {
+    console.error("Failed to send relationship request email", error);
   }
 }
 
@@ -222,7 +265,7 @@ export async function POST(request: Request) {
     where: {
       id: { in: [user1Id, user2Id] },
     },
-    select: { id: true },
+    select: { id: true, name: true, handle: true, email: true },
   });
 
   if (users.length !== 2) {
@@ -265,6 +308,14 @@ export async function POST(request: Request) {
       responderId,
       `You have a new connection request (${type}). Review it on ${approvalInboxLink}.`
     );
+
+    const requester = users.find((user) => user.id === requesterId);
+    const responder = users.find((user) => user.id === responderId);
+    await sendRelationshipRequestEmail({
+      senderName: requester ? getDisplayName(requester) : "Someone",
+      recipientEmail: responder?.email ?? null,
+      relationshipType: type,
+    });
 
     return NextResponse.json({ relationship: normalizeRelationship(relationship) }, { status: 201 });
   } catch (error) {
