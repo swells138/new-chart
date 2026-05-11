@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/deploy-migrations.mjs && prisma generate && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
+    "deploy:migrate": "node scripts/deploy-migrations.mjs",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
