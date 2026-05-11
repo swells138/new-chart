@@ -164,6 +164,7 @@ export async function sendTestEmail(to: string) {
 }
 
 export async function sendModerationNotification(input: {
+  reportId?: string | null;
   kind: string;
   targetId: string;
   targetLabel?: string | null;
@@ -201,7 +202,11 @@ export async function sendModerationNotification(input: {
   }`;
 
   const moderationUrl = siteUrl
-    ? `${siteUrl.replace(/\/+$/, "")}/moderation`
+    ? `${siteUrl.replace(/\/+$/, "")}/moderation${
+        input.reportId
+          ? `?reportId=${encodeURIComponent(input.reportId)}#report-${encodeURIComponent(input.reportId)}`
+          : ""
+      }`
     : "";
 
   const plainText = [

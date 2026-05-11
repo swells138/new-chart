@@ -143,6 +143,7 @@ export async function createModerationReport(input: {
   // Notify moderators via email. Fire-and-forget so report creation isn't blocked by email delivery.
   try {
     sendModerationNotification({
+      reportId: id,
       kind: input.kind,
       targetId: input.targetId,
       targetLabel: input.targetLabel ?? null,

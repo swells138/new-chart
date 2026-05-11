@@ -91,7 +91,11 @@ function renderNotificationContent(content: string): ReactNode {
   return result.length > 0 ? result : content;
 }
 
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ notificationId?: string | string[] }>;
+}) {
   if (hasClerkKeys) {
     const { userId } = await auth();
     if (!userId) {
@@ -100,6 +104,12 @@ export default async function InboxPage() {
   } else {
     redirect("/login");
   }
+
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const notificationIdParam = resolvedSearchParams.notificationId;
+  const focusedNotificationId = Array.isArray(notificationIdParam)
+    ? notificationIdParam[0]
+    : notificationIdParam;
 
   let connectedSet = new Set<string>();
   let dbNotifications: {
@@ -283,7 +293,12 @@ export default async function InboxPage() {
                 actionRequired.map((n) => (
                   <div
                     key={n.id}
-                    className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                    id={`notification-${n.id}`}
+                    className={`scroll-mt-24 rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2 ${
+                      focusedNotificationId === n.id
+                        ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-white dark:ring-offset-black"
+                        : ""
+                    }`}
                   >
                     <div className="flex-1">
                       <p className="font-medium">{n.title}</p>
@@ -322,7 +337,12 @@ export default async function InboxPage() {
                 pendingReview.map((n) => (
                   <div
                     key={n.id}
-                    className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                    id={`notification-${n.id}`}
+                    className={`scroll-mt-24 rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2 ${
+                      focusedNotificationId === n.id
+                        ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-white dark:ring-offset-black"
+                        : ""
+                    }`}
                   >
                     <div className="flex-1">
                       <p className="font-medium">{n.title}</p>
@@ -361,7 +381,12 @@ export default async function InboxPage() {
                 activity.map((n) => (
                   <div
                     key={n.id}
-                    className="rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2"
+                    id={`notification-${n.id}`}
+                    className={`scroll-mt-24 rounded-xl border border-[var(--border-soft)] p-3 flex items-start justify-between gap-2 ${
+                      focusedNotificationId === n.id
+                        ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-white dark:ring-offset-black"
+                        : ""
+                    }`}
                   >
                     <div className="flex-1">
                       <p className="font-medium">{n.title}</p>

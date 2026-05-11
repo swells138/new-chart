@@ -151,6 +151,7 @@ describe("/api/relationships POST", () => {
       isPublic: false,
       publicRequestedBy: null,
     });
+    messageCreateMock.mockResolvedValue({ id: "msg_1" });
 
     const request = new Request("http://localhost/api/relationships", {
       method: "POST",
@@ -179,7 +180,7 @@ describe("/api/relationships POST", () => {
       text: [
         "Sydney Wells sent you a Talking connection request on Chart.",
         "",
-        "Review it here: https://chart.example/map?chart=public&focus=approvals#pending-verification",
+        "Review it here: https://chart.example/inbox?notificationId=msg_1#notification-msg_1",
       ].join("\n"),
     });
   });

@@ -143,11 +143,12 @@ function normalizeRelationship(relationship: {
 
 async function sendNotification(senderId: string, recipientId: string, content: string) {
   try {
-    await prisma.message.create({
+    return await prisma.message.create({
       data: { senderId, recipientId, content },
     });
   } catch (err) {
     console.error("Failed to send notification message", err);
+    return null;
   }
 }
 
@@ -156,6 +157,7 @@ async function sendRelationshipRequestEmail(input: {
   senderName: string;
   recipientEmail?: string | null;
   relationshipType: RelationshipType;
+  notificationId?: string | null;
 }) {
   const recipientEmail = input.recipientEmail?.trim();
   if (!isDeliverableEmail(recipientEmail)) {
@@ -167,9 +169,10 @@ async function sendRelationshipRequestEmail(input: {
   }
 
   const siteUrl = getSiteUrl();
-  const reviewUrl = siteUrl
-    ? `${siteUrl}${approvalInboxLink}`
+  const notificationLink = input.notificationId
+    ? `/inbox?notificationId=${encodeURIComponent(input.notificationId)}#notification-${encodeURIComponent(input.notificationId)}`
     : approvalInboxLink;
+  const reviewUrl = siteUrl ? `${siteUrl}${notificationLink}` : notificationLink;
 
   try {
     const result = await sendUserNotificationEmail({
@@ -360,7 +363,7 @@ export async function POST(request: Request) {
     });
     await recalculateConnectionScoresForUsers([user1Id, user2Id]);
 
-    await sendNotification(
+    const notification = await sendNotification(
       requesterId,
       responderId,
       `You have a new connection request (${type}). Review it on ${approvalInboxLink}.`
@@ -375,6 +378,7 @@ export async function POST(request: Request) {
         ? await resolveRelationshipEmail(responder)
         : null,
       relationshipType: type,
+      notificationId: notification?.id ?? null,
     });
 
     return NextResponse.json({ relationship: normalizeRelationship(relationship) }, { status: 201 });

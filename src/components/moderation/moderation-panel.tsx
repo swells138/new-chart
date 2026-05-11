@@ -11,6 +11,7 @@ import type {
 interface Props {
   initialReports: ModerationReport[];
   initialLocks: ModerationUserLock[];
+  focusedReportId?: string;
 }
 
 type ReportQueueFilter = "all" | "report-remove-requests" | "node-reports";
@@ -39,7 +40,11 @@ function reportKindLabel(report: ModerationReport) {
   return "Public Node";
 }
 
-export function ModerationPanel({ initialReports, initialLocks }: Props) {
+export function ModerationPanel({
+  initialReports,
+  initialLocks,
+  focusedReportId,
+}: Props) {
   const [reports, setReports] = useState(initialReports);
   const [locks, setLocks] = useState(initialLocks);
   const [query, setQuery] = useState("");
@@ -383,10 +388,16 @@ export function ModerationPanel({ initialReports, initialLocks }: Props) {
             {filteredReports.map((report) => {
               const isWorking = workingId === report.id;
               const isReportRemove = isReportRemoveRequest(report);
+              const isFocused = focusedReportId === report.id;
               return (
                 <article
+                  id={`report-${report.id}`}
                   key={report.id}
-                  className={`rounded-xl border p-4 ${
+                  className={`scroll-mt-24 rounded-xl border p-4 ${
+                    isFocused
+                      ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-white dark:ring-offset-black"
+                      : ""
+                  } ${
                     isReportRemove
                       ? "border-amber-300/70 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-950/20"
                       : "border-[var(--border-soft)]"

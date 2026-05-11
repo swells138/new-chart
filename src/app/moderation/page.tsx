@@ -6,11 +6,21 @@ import { listModerationReports, listUserLocks } from "@/lib/moderation/reports";
 
 export const dynamic = "force-dynamic";
 
-export default async function ModerationPage() {
+export default async function ModerationPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ reportId?: string | string[] }>;
+}) {
   const allowed = await isCurrentUserModerator();
   if (!allowed) {
     redirect("/");
   }
+
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const reportIdParam = resolvedSearchParams.reportId;
+  const focusedReportId = Array.isArray(reportIdParam)
+    ? reportIdParam[0]
+    : reportIdParam;
 
   const [reports, locks] = await Promise.all([
     listModerationReports(300),
@@ -23,7 +33,11 @@ export default async function ModerationPage() {
         title="Moderation"
         subtitle="Private moderation area for reviewing reported nodes and tracking decisions."
       />
-      <ModerationPanel initialReports={reports} initialLocks={locks} />
+      <ModerationPanel
+        initialReports={reports}
+        initialLocks={locks}
+        focusedReportId={focusedReportId}
+      />
     </div>
   );
 }
