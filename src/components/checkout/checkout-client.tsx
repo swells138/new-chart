@@ -3,10 +3,8 @@
 import React from "react";
 
 export default function CheckoutClient({
-  dbUserId,
   priceInfo,
 }: {
-  dbUserId: string;
   priceInfo: {
     id: string | null;
     display: string;
@@ -23,10 +21,7 @@ export default function CheckoutClient({
       const res = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          origin: window.location.origin,
-          userId: dbUserId,
-        }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (data?.url) {

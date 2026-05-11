@@ -76,7 +76,7 @@ export default async function CheckoutPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-[#06040a] to-[#0f0819] p-6">
       <div className="w-full max-w-md rounded-2xl border border-white/8 bg-white/4 backdrop-blur-lg p-8 shadow-[0_18px_40px_rgba(0,0,0,0.6)]">
-        <CheckoutClient dbUserId={dbUser.id} priceInfo={priceData} />
+        <CheckoutClient priceInfo={priceData} />
       </div>
     </div>
   );

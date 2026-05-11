@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export default function GoProButton({ dbUserId }: { dbUserId?: string }) {
+export default function GoProButton() {
   const [loading, setLoading] = React.useState(false);
 
   async function handleClick() {

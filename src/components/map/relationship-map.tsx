@@ -2140,8 +2140,6 @@ export function RelationshipMap({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           purchaseType: "connection_unlock",
-          origin: window.location.origin,
-          userId: sourceId,
           targetUserId: unlockTargetUserId,
         }),
       });

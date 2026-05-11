@@ -1,5 +1,65 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { z } from "zod";
+import { resolveClerkUserId } from "@/lib/clerk-auth";
+import { ensureDbUserIdByClerkId } from "@/lib/db-user-bootstrap";
+import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
+
+const checkoutSchema = z
+  .object({
+    purchaseType: z.enum(["connection_unlock", "pro"]).optional(),
+    targetUserId: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
+
+const hasClerkKeys =
+  Boolean(process.env.CLERK_SECRET_KEY) &&
+  Boolean(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+      process.env.CLERK_PUBLISHABLE_KEY,
+  );
+
+function normalizeOrigin(input: string | null | undefined) {
+  if (!input) {
+    return null;
+  }
+
+  try {
+    const origin = input.startsWith("http") ? input : `https://${input}`;
+    return new URL(origin).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getConfiguredOrigin() {
+  return (
+    normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ??
+    normalizeOrigin(process.env.NEXT_PUBLIC_SITE_URL) ??
+    normalizeOrigin(process.env.NEXT_PUBLIC_BASE_URL) ??
+    normalizeOrigin(process.env.BASE_URL) ??
+    normalizeOrigin(process.env.VERCEL_URL)
+  );
+}
+
+function getTrustedOrigin(req: Request) {
+  const requestUrlOrigin = new URL(req.url).origin;
+  const headerOrigin = normalizeOrigin(req.headers.get("origin"));
+  const configuredOrigin = getConfiguredOrigin();
+  const allowedOrigins = new Set(
+    [configuredOrigin, requestUrlOrigin].filter(
+      (origin): origin is string => Boolean(origin),
+    ),
+  );
+
+  if (headerOrigin && !allowedOrigins.has(headerOrigin)) {
+    return {
+      error: NextResponse.json({ error: "Invalid checkout origin." }, { status: 403 }),
+    };
+  }
+
+  return { origin: configuredOrigin ?? requestUrlOrigin };
+}
 
 export async function GET() {
   // Help callers who accidentally hit this route with GET
@@ -14,12 +74,52 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const origin =
-      (body && body.origin) ||
-      req.headers.get("origin") ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+    if (!hasClerkKeys) {
+      return NextResponse.json(
+        { error: "Auth is not configured." },
+        { status: 503 },
+      );
+    }
+
+    const clerkUserId = await resolveClerkUserId(req);
+    if (!clerkUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const dbUserId = await ensureDbUserIdByClerkId(clerkUserId);
+    const ip = getRequestIp(req);
+    const rateLimit = await checkRateLimit(`stripe-checkout:${dbUserId}:${ip}`, {
+      windowMs: 5 * 60 * 1000,
+      maxRequests: 10,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many checkout attempts. Please try again shortly." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        },
+      );
+    }
+
+    const originResult = getTrustedOrigin(req);
+    if (originResult.error) {
+      return originResult.error;
+    }
+    const origin = originResult.origin;
+
+    let payload: unknown;
+    try {
+      payload = await req.json();
+    } catch {
+      payload = {};
+    }
+
+    const parsed = checkoutSchema.safeParse(payload);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid checkout payload." }, { status: 400 });
+    }
 
     // Validate secret key presence before constructing Stripe client
     const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -31,8 +131,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const purchaseType =
-      body.purchaseType === "connection_unlock" ? "connection_unlock" : "pro";
+    const purchaseType = parsed.data.purchaseType ?? "pro";
     const isConnectionUnlock = purchaseType === "connection_unlock";
 
     const priceOrProductId = isConnectionUnlock
@@ -93,10 +192,7 @@ export async function POST(req: Request) {
       priceId = resolvedPriceId;
     }
 
-    // Allow the client to pass the local DB user id so it can be associated with the checkout session.
-    const dbUserId = typeof body.userId === "string" ? body.userId : undefined;
-    const targetUserId =
-      typeof body.targetUserId === "string" ? body.targetUserId : undefined;
+    const targetUserId = parsed.data.targetUserId;
     const connectionUnlockSuccessUrl = new URL("/map", origin);
     connectionUnlockSuccessUrl.searchParams.set("connection_unlock", "success");
     if (targetUserId) {

@@ -328,7 +328,7 @@ export default async function ProfilePage({
           />
 
           <div className="mt-6">
-            {!isPro ? <GoProButton dbUserId={user.id} /> : null}
+            {!isPro ? <GoProButton /> : null}
           </div>
         </aside>
       </div>

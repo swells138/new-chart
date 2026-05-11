@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 
 const MAX_RESULTS = 8;
 
@@ -34,21 +35,39 @@ function shapeSearchResult(user: {
 }
 
 export async function GET(request: Request) {
+  const clerkUserId = await resolveClerkUserId(request);
+  if (!clerkUserId) {
+    return NextResponse.json({ error: "Unauthorized", users: [] }, { status: 401 });
+  }
+
+  const ip = getRequestIp(request);
+  const rateLimit = await checkRateLimit(`user-search:${clerkUserId}:${ip}`, {
+    windowMs: 5 * 60 * 1000,
+    maxRequests: 60,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many search requests. Please try again shortly.", users: [] },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const query = normalizeQuery(searchParams.get("q"));
 
-  if (!query) {
+  if (query.length < 2) {
     return NextResponse.json({ users: [] });
   }
 
   try {
-    const clerkUserId = await resolveClerkUserId(request);
-    const currentUser = clerkUserId
-      ? await prisma.user.findUnique({
-          where: { clerkId: clerkUserId },
-          select: { id: true },
-        })
-      : null;
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+      select: { id: true },
+    });
     const users = await prisma.user.findMany({
       where: {
         id: currentUser?.id ? { not: currentUser.id } : undefined,

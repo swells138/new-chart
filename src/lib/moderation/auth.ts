@@ -1,7 +1,10 @@
 import { currentUser } from "@clerk/nextjs/server";
 
 const MODERATOR_EMAILS = new Set(
-  (process.env.MODERATOR_EMAILS ?? "sydneywells103@gmail.com")
+  (
+    process.env.MODERATOR_EMAILS ??
+    (process.env.NODE_ENV === "production" ? "" : "sydneywells103@gmail.com")
+  )
     .split(",")
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean),

@@ -46,7 +46,7 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
           </Link>
 
           <div className="hidden items-center gap-3 md:flex">
-            <PersonSearch />
+            {hasClerkKeys ? <SignedInPersonSearch /> : null}
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
@@ -83,7 +83,7 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
 
         {menuOpen && (
           <div className="mt-3 grid gap-2 border-t border-[var(--border-soft)] pt-3 md:hidden">
-            <PersonSearch />
+            {hasClerkKeys ? <SignedInPersonSearch /> : null}
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
@@ -110,6 +110,12 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
       </nav>
     </header>
   );
+}
+
+function SignedInPersonSearch() {
+  const { isLoaded, isSignedIn } = useUser();
+  if (!isLoaded || !isSignedIn) return null;
+  return <PersonSearch />;
 }
 
 function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {

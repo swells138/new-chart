@@ -282,6 +282,7 @@ export async function getMemberDirectoryData(): Promise<{
     prisma.post.findMany({ orderBy: { timestamp: "desc" } }),
     prisma.relationship.findMany({
       where: {
+        isPublic: true,
         NOT: { type: { startsWith: pendingTypePrefix } },
       },
     }),
@@ -298,6 +299,7 @@ export async function getMemberDirectoryData(): Promise<{
 export async function getAllRelationships(): Promise<Relationship[]> {
   const relationships = await prisma.relationship.findMany({
     where: {
+      isPublic: true,
       NOT: { type: { startsWith: pendingTypePrefix } },
     },
   });
