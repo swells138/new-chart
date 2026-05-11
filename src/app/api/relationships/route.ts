@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { z } from "zod";
+import { clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { RelationshipType } from "@/types/models";
@@ -86,6 +87,7 @@ const deleteRelationshipSchema = z
   .strict();
 
 const approvalInboxLink = "/map?chart=public&focus=approvals#pending-verification";
+const internalEmailDomain = "@placeholder.meshylinks.local";
 
 function getSiteUrl() {
   return (
@@ -98,6 +100,11 @@ function getSiteUrl() {
 
 function getDisplayName(user: { name?: string | null; handle?: string | null }) {
   return user.name?.trim() || user.handle?.trim() || "Someone";
+}
+
+function isDeliverableEmail(email?: string | null): email is string {
+  const normalized = email?.trim().toLowerCase();
+  return Boolean(normalized && !normalized.endsWith(internalEmailDomain));
 }
 
 function normalizeRelationship(relationship: {
@@ -145,11 +152,17 @@ async function sendNotification(senderId: string, recipientId: string, content: 
 }
 
 async function sendRelationshipRequestEmail(input: {
+  recipientId: string;
   senderName: string;
   recipientEmail?: string | null;
   relationshipType: RelationshipType;
 }) {
-  if (!input.recipientEmail) {
+  const recipientEmail = input.recipientEmail?.trim();
+  if (!isDeliverableEmail(recipientEmail)) {
+    console.warn("Skipped relationship request email: no deliverable recipient email", {
+      recipientId: input.recipientId,
+      hasEmail: Boolean(input.recipientEmail),
+    });
     return;
   }
 
@@ -159,8 +172,8 @@ async function sendRelationshipRequestEmail(input: {
     : approvalInboxLink;
 
   try {
-    await sendUserNotificationEmail({
-      to: input.recipientEmail,
+    const result = await sendUserNotificationEmail({
+      to: recipientEmail,
       subject: `${input.senderName} sent you a Chart connection request`,
       text: [
         `${input.senderName} sent you a ${input.relationshipType} connection request on Chart.`,
@@ -168,9 +181,53 @@ async function sendRelationshipRequestEmail(input: {
         `Review it here: ${reviewUrl}`,
       ].join("\n"),
     });
+
+    if (!result) {
+      console.warn("Relationship request email was not accepted by SendGrid", {
+        recipientId: input.recipientId,
+      });
+    }
   } catch (error) {
     console.error("Failed to send relationship request email", error);
   }
+}
+
+async function getPrimaryClerkEmail(clerkId?: string | null) {
+  if (!clerkId) {
+    return null;
+  }
+
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(clerkId);
+    const primary = user.primaryEmailAddress?.emailAddress;
+    if (isDeliverableEmail(primary)) {
+      return primary;
+    }
+
+    return (
+      user.emailAddresses.find((email) =>
+        isDeliverableEmail(email.emailAddress),
+      )?.emailAddress ?? null
+    );
+  } catch (error) {
+    console.error("Failed to load Clerk email for relationship notification", {
+      clerkId,
+      error,
+    });
+    return null;
+  }
+}
+
+async function resolveRelationshipEmail(user: {
+  email?: string | null;
+  clerkId?: string | null;
+}) {
+  if (isDeliverableEmail(user.email)) {
+    return user.email;
+  }
+
+  return getPrimaryClerkEmail(user.clerkId);
 }
 
 async function getOrCreateCurrentDbUserId(clerkId: string) {
@@ -265,7 +322,7 @@ export async function POST(request: Request) {
     where: {
       id: { in: [user1Id, user2Id] },
     },
-    select: { id: true, name: true, handle: true, email: true },
+    select: { id: true, clerkId: true, name: true, handle: true, email: true },
   });
 
   if (users.length !== 2) {
@@ -312,8 +369,11 @@ export async function POST(request: Request) {
     const requester = users.find((user) => user.id === requesterId);
     const responder = users.find((user) => user.id === responderId);
     await sendRelationshipRequestEmail({
+      recipientId: responderId,
       senderName: requester ? getDisplayName(requester) : "Someone",
-      recipientEmail: responder?.email ?? null,
+      recipientEmail: responder
+        ? await resolveRelationshipEmail(responder)
+        : null,
       relationshipType: type,
     });
 

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMock = vi.fn();
 const currentUserMock = vi.fn();
+const clerkClientMock = vi.fn();
+const clerkGetUserMock = vi.fn();
 
 const userFindUniqueMock = vi.fn();
 const userCreateMock = vi.fn();
@@ -18,6 +20,7 @@ const recalculateConnectionScoresForUsersMock = vi.fn();
 vi.mock("@clerk/nextjs/server", () => ({
   auth: authMock,
   currentUser: currentUserMock,
+  clerkClient: clerkClientMock,
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -55,6 +58,8 @@ describe("/api/relationships POST", () => {
     vi.resetModules();
     authMock.mockReset();
     currentUserMock.mockReset();
+    clerkClientMock.mockReset();
+    clerkGetUserMock.mockReset();
     userFindUniqueMock.mockReset();
     userCreateMock.mockReset();
     userFindManyMock.mockReset();
@@ -72,6 +77,11 @@ describe("/api/relationships POST", () => {
     process.env.NEXT_PUBLIC_SITE_URL = "https://chart.example";
 
     authMock.mockResolvedValue({ userId: "clerk_1" });
+    clerkClientMock.mockResolvedValue({
+      users: {
+        getUser: clerkGetUserMock,
+      },
+    });
     userFindUniqueMock.mockResolvedValue({ id: "db_1" });
   });
 
@@ -118,12 +128,14 @@ describe("/api/relationships POST", () => {
     userFindManyMock.mockResolvedValue([
       {
         id: "db_1",
+        clerkId: "clerk_1",
         name: "Sydney Wells",
         handle: "sydney",
         email: "sydney@example.com",
       },
       {
         id: "db_2",
+        clerkId: "clerk_2",
         name: "Jordan Lee",
         handle: "jordan",
         email: "jordan@example.com",
@@ -171,6 +183,63 @@ describe("/api/relationships POST", () => {
       ].join("\n"),
     });
   });
+
+  it("falls back to Clerk primary email when the target DB email is missing", async () => {
+    const { POST } = await import("./route");
+
+    userFindManyMock.mockResolvedValue([
+      {
+        id: "db_1",
+        clerkId: "clerk_1",
+        name: "Sydney Wells",
+        handle: "sydney",
+        email: "sydney@example.com",
+      },
+      {
+        id: "db_2",
+        clerkId: "clerk_2",
+        name: "Jordan Lee",
+        handle: "jordan",
+        email: "db2.seed@placeholder.meshylinks.local",
+      },
+    ]);
+    clerkGetUserMock.mockResolvedValue({
+      primaryEmailAddress: {
+        emailAddress: "real-jordan@example.com",
+      },
+      emailAddresses: [],
+    });
+    relationshipFindFirstMock.mockResolvedValue(null);
+    relationshipCreateMock.mockResolvedValue({
+      id: "rel_1",
+      user1Id: "db_1",
+      user2Id: "db_2",
+      type: "pending::Talking::db_1::db_2",
+      note: "{\"status\":\"pending_claim\"}",
+      isPublic: false,
+      publicRequestedBy: null,
+    });
+
+    const request = new Request("http://localhost/api/relationships", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        source: "db_1",
+        target: "db_2",
+        type: "Talking",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(clerkGetUserMock).toHaveBeenCalledWith("clerk_2");
+    expect(sendUserNotificationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "real-jordan@example.com",
+      }),
+    );
+  });
 });
 
 describe("/api/relationships PATCH", () => {
@@ -178,6 +247,8 @@ describe("/api/relationships PATCH", () => {
     vi.resetModules();
     authMock.mockReset();
     currentUserMock.mockReset();
+    clerkClientMock.mockReset();
+    clerkGetUserMock.mockReset();
     userFindUniqueMock.mockReset();
     userCreateMock.mockReset();
     userFindManyMock.mockReset();
@@ -194,6 +265,11 @@ describe("/api/relationships PATCH", () => {
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "test_publishable";
 
     authMock.mockResolvedValue({ userId: "clerk_1" });
+    clerkClientMock.mockResolvedValue({
+      users: {
+        getUser: clerkGetUserMock,
+      },
+    });
     userFindUniqueMock.mockResolvedValue({ id: "db_1" });
   });
 
