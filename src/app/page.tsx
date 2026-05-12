@@ -223,7 +223,7 @@ export default async function Home() {
                   </h2>
                   <p className="mt-2 text-sm text-black/60 dark:text-white/60">
                     @{mostConnectedPerson.user.handle} has the highest count on
-                    the public chart, counting each person only once.
+                    the public chart.
                   </p>
                 </>
               ) : (
