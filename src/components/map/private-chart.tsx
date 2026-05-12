@@ -2000,15 +2000,18 @@ export function PrivateChart({
         </div>
       </div>
 
-      <section id="add-connection-panel" className="paper-card rounded-2xl p-4 sm:p-5">
-        <div className="flex flex-col gap-3 border-b border-[var(--border-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+      <section
+        id="add-connection-panel"
+        className="paper-card min-w-0 rounded-2xl p-4 sm:p-5"
+      >
+        <div className="flex min-w-0 flex-col gap-3 border-b border-[var(--border-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold">Build your private chart</h2>
             <p className="mt-1 text-xs text-black/60 dark:text-white/60">
               Private until both people verify.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06]">
+          <div className="grid w-full min-w-0 grid-cols-3 gap-1 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06] sm:w-auto">
             {[
               { id: "add" as const, label: "Add Person" },
               { id: "connect" as const, label: "Connect People" },
@@ -2018,7 +2021,7 @@ export function PrivateChart({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveWorkflowTab(tab.id)}
-                className={`rounded-lg px-2.5 py-2 text-xs font-semibold transition sm:px-3 ${
+                className={`min-w-0 rounded-lg px-2 py-2 text-xs font-semibold leading-snug transition sm:px-3 ${
                   activeWorkflowTab === tab.id
                     ? "bg-[var(--accent)] text-white"
                     : "text-black/65 hover:bg-black/5 dark:text-white/68 dark:hover:bg-white/10"
@@ -2287,8 +2290,8 @@ export function PrivateChart({
         ) : null}
 
         {activeWorkflowTab === "pending" ? (
-          <div className="space-y-3 pt-4">
-            <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
+          <div className="min-w-0 space-y-3 pt-4">
+            <details className="min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
               <summary className="cursor-pointer text-sm font-semibold">
                 Private connections ({combinedWebEdges.length})
               </summary>
@@ -2297,17 +2300,17 @@ export function PrivateChart({
                   No private people-to-people connections yet.
                 </p>
               ) : (
-                <div className="mt-3 grid gap-2">
+                <div className="mt-3 grid min-w-0 gap-2">
                   {combinedWebEdges.map((edge) => (
                     <div
                       key={`guided-${edge.id}`}
-                      className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border-soft)] bg-white/45 px-3 py-2 text-xs dark:bg-black/20"
+                      className="min-w-0 rounded-lg border border-[var(--border-soft)] bg-white/45 px-3 py-2 text-xs dark:bg-black/20 sm:flex sm:flex-wrap sm:items-center sm:gap-2"
                     >
-                      <span className="font-semibold">
+                      <span className="block min-w-0 break-words font-semibold sm:inline">
                         {edge.sourceName} ↔ {edge.targetName}
                       </span>
                       <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                        className="mt-2 inline-flex max-w-full rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:mt-0"
                         style={{
                           backgroundColor: `${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}22`,
                           color: TYPE_COLORS[edge.relationshipType] ?? "#9ca3af",
@@ -2316,10 +2319,10 @@ export function PrivateChart({
                       >
                         {edge.relationshipType}
                       </span>
-                      <span className="text-[11px] text-black/55 dark:text-white/55">
+                      <span className="ml-1 text-[11px] text-black/55 dark:text-white/55 sm:ml-0">
                         Private connection
                       </span>
-                      <details className="ml-auto">
+                      <details className="relative mt-2 sm:mt-0 sm:ml-auto">
                         <summary className="cursor-pointer rounded-full border border-[var(--border-soft)] px-2 py-0.5 text-[11px] font-semibold text-black/60 dark:text-white/60">
                           Actions
                         </summary>
@@ -2340,7 +2343,7 @@ export function PrivateChart({
               )}
             </details>
 
-            <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
+            <details className="min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
               <summary className="cursor-pointer text-sm font-semibold">
                 Waiting for signup ({placeholders.length})
               </summary>
@@ -2349,7 +2352,7 @@ export function PrivateChart({
                   Added people will appear here until they verify.
                 </p>
               ) : (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
                   {placeholders.map((p) => {
                     const color = TYPE_COLORS[p.relationshipType] ?? "#888";
                     const isWorking = workingId === p.id;
@@ -2369,11 +2372,11 @@ export function PrivateChart({
                     return (
                       <div
                         key={`guided-placeholder-${p.id}`}
-                        className="rounded-xl border border-white/10 bg-[#0f0819] p-3 text-white"
+                        className="min-w-0 rounded-xl border border-white/10 bg-[#0f0819] p-3 text-white"
                         style={{ boxShadow: `0 0 0 1px ${color}18 inset` }}
                       >
                         {isEditing ? (
-                          <div className="space-y-2">
+                          <div className="min-w-0 space-y-2">
                             <input
                               type="text"
                               value={editName}
@@ -2452,14 +2455,14 @@ export function PrivateChart({
                           </div>
                         ) : (
                           <>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
+                            <div className="flex min-w-0 items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-semibold">
                                   {p.name}
                                 </p>
-                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                <div className="mt-1 flex min-w-0 flex-wrap gap-1.5">
                                   <span
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                    className="max-w-full rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
                                     style={{
                                       backgroundColor: `${color}24`,
                                       color,
@@ -2468,23 +2471,23 @@ export function PrivateChart({
                                   >
                                     {p.relationshipType}
                                   </span>
-                                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
+                                  <span className="max-w-full rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
                                     Claim suggestions: {p.offerToNameMatch ? "On" : "Off"}
                                   </span>
-                                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
+                                  <span className="max-w-full rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
                                     Status: Waiting for signup
                                   </span>
                                 </div>
                               </div>
                             </div>
                             {inviteLink ? (
-                              <div className="mt-3 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
-                                <p className="text-[11px] font-semibold text-white/72">
+                              <div className="mt-3 min-w-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                <p className="break-words text-[11px] font-semibold text-white/72">
                                   To become public, {p.name} has to join and claim
                                   this node. Share the invite link with them so
                                   they can verify it.
                                 </p>
-                                <div className="mt-2 flex items-center gap-2">
+                                <div className="mt-2 flex min-w-0 items-center gap-2">
                                   <p className="min-w-0 flex-1 truncate text-[10px] text-white/42">
                                     {inviteLink}
                                   </p>
@@ -2498,7 +2501,7 @@ export function PrivateChart({
                                 </div>
                               </div>
                             ) : null}
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
                               {isOwned &&
                               p.claimStatus !== "claimed" &&
                               p.claimStatus !== "denied" &&
@@ -2530,7 +2533,7 @@ export function PrivateChart({
                                   {isPublicConnecting ? "Sending..." : "Connect publicly"}
                                 </button>
                               ) : null}
-                              <details>
+                              <details className="relative">
                                 <summary className="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/58">
                                   More
                                 </summary>
