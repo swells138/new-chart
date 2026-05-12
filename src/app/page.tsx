@@ -1,7 +1,13 @@
 import { auth } from "@clerk/nextjs/server";
 import { DemoGraph } from "@/components/home/demo-graph";
 import { GuestChartBuilder } from "@/components/home/guest-chart-builder";
+import {
+  relationships as fallbackRelationships,
+  users as fallbackUsers,
+} from "@/lib/data";
 import { prisma } from "@/lib/prisma";
+import { getAllRelationships, getAllUsers } from "@/lib/prisma-queries";
+import type { Relationship, User } from "@/types/models";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +23,81 @@ const EDGE_LEGEND = [
   { label: "Complicated", color: "#7aa2ff" },
 ];
 
+type MostConnectedStats = {
+  person: {
+    user: User;
+    connectionCount: number;
+  } | null;
+  uniqueRelationshipCount: number;
+};
+
+type MostConnectedPerson = {
+  user: User;
+  connectionCount: number;
+} | null;
+
+function getUniquePairKey(source: string, target: string) {
+  return [source, target].sort().join(":");
+}
+
+function getMostConnectedPerson(
+  chartUsers: User[],
+  chartRelationships: Relationship[],
+): MostConnectedStats {
+  const usersById = new Map(chartUsers.map((user) => [user.id, user]));
+  const neighborsByUserId = new Map<string, Set<string>>();
+  const uniqueRelationshipKeys = new Set<string>();
+
+  for (const relationship of chartRelationships) {
+    const { source, target } = relationship;
+
+    if (!source || !target || source === target) {
+      continue;
+    }
+
+    if (!usersById.has(source) || !usersById.has(target)) {
+      continue;
+    }
+
+    const uniqueKey = getUniquePairKey(source, target);
+    if (uniqueRelationshipKeys.has(uniqueKey)) {
+      continue;
+    }
+
+    uniqueRelationshipKeys.add(uniqueKey);
+
+    const sourceNeighbors = neighborsByUserId.get(source) ?? new Set<string>();
+    sourceNeighbors.add(target);
+    neighborsByUserId.set(source, sourceNeighbors);
+
+    const targetNeighbors = neighborsByUserId.get(target) ?? new Set<string>();
+    targetNeighbors.add(source);
+    neighborsByUserId.set(target, targetNeighbors);
+  }
+
+  let mostConnected: MostConnectedPerson = null;
+
+  for (const user of chartUsers) {
+    const connectionCount = neighborsByUserId.get(user.id)?.size ?? 0;
+
+    if (!mostConnected || connectionCount > mostConnected.connectionCount) {
+      mostConnected = {
+        user,
+        connectionCount,
+      };
+    }
+  }
+
+  return {
+    person: mostConnected?.connectionCount ? mostConnected : null,
+    uniqueRelationshipCount: uniqueRelationshipKeys.size,
+  };
+}
+
 export default async function Home() {
   let currentUserDbId: string | null = null;
+  let chartUsers = fallbackUsers;
+  let chartRelationships = fallbackRelationships;
 
   if (hasClerkKeys) {
     const { userId } = await auth();
@@ -31,7 +110,21 @@ export default async function Home() {
     }
   }
 
+  try {
+    [chartUsers, chartRelationships] = await Promise.all([
+      getAllUsers(),
+      getAllRelationships(),
+    ]);
+  } catch (error) {
+    console.error("Home page failed to load public network data", error);
+  }
+
   const isSignedIn = Boolean(currentUserDbId);
+  const mostConnectedStats = getMostConnectedPerson(
+    chartUsers,
+    chartRelationships,
+  );
+  const mostConnectedPerson = mostConnectedStats.person;
 
   return (
     <div className="space-y-16 pb-12">
@@ -113,6 +206,52 @@ export default async function Home() {
           Connections are private until confirmed by both users. Either user can
           remove a connection at any time.
         </p>
+      </section>
+
+      {/* ─── MOST CONNECTED ──────────────────────────────────── */}
+      <section className="mx-auto max-w-4xl px-6">
+        <div className="paper-card overflow-hidden rounded-3xl border border-(--border-soft)">
+          <div className="grid gap-0 sm:grid-cols-[1fr_auto]">
+            <div className="p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-widest text-(--accent)/70">
+                Most connected right now
+              </p>
+              {mostConnectedPerson ? (
+                <>
+                  <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">
+                    {mostConnectedPerson.user.name}
+                  </h2>
+                  <p className="mt-2 text-sm text-black/60 dark:text-white/60">
+                    @{mostConnectedPerson.user.handle} has the highest count on
+                    the public chart, counting each person only once.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">
+                    No public leader yet
+                  </h2>
+                  <p className="mt-2 text-sm text-black/60 dark:text-white/60">
+                    Confirmed public connections will appear here once the
+                    chart has enough data.
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="flex min-w-48 flex-col justify-center border-t border-(--border-soft) bg-white/50 p-6 text-center dark:bg-black/20 sm:border-t-0 sm:border-l">
+              <p className="text-5xl font-bold text-(--accent)">
+                {mostConnectedPerson?.connectionCount ?? 0}
+              </p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-black/50 dark:text-white/50">
+                Unique connections
+              </p>
+              <p className="mt-3 text-xs text-black/50 dark:text-white/50">
+                {mostConnectedStats.uniqueRelationshipCount} unique chart links
+                counted
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ─── DEMO GRAPH ───────────────────────────────────────── */}
