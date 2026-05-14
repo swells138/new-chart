@@ -264,6 +264,7 @@ describe("/api/relationships PATCH", () => {
 
     process.env.CLERK_SECRET_KEY = "test_secret";
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "test_publishable";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://chart.example";
 
     authMock.mockResolvedValue({ userId: "clerk_1" });
     clerkClientMock.mockResolvedValue({
@@ -318,5 +319,80 @@ describe("/api/relationships PATCH", () => {
     expect(body.relationship?.id).toBe("rel_1");
     expect(body.relationship?.type).toBe("Married");
     expect(body.relationship?.note).toContain("\"status\":\"pending_claim\"");
+  });
+
+  it("emails the original creator when the other user verifies a pending claim", async () => {
+    const { PATCH } = await import("./route");
+
+    userFindUniqueMock.mockResolvedValue({ id: "db_holly" });
+    relationshipFindUniqueMock.mockResolvedValue({
+      id: "rel_1",
+      user1Id: "db_holly",
+      user2Id: "db_kourtney",
+      type: "pending::Talking::db_kourtney::db_holly",
+      note: JSON.stringify({
+        status: "pending_claim",
+        creatorId: "db_kourtney",
+        claimedByUserId: "db_holly",
+        claimConfirmedAt: null,
+        expiresAt: null,
+        disputeReason: null,
+      }),
+    });
+    relationshipUpdateMock.mockResolvedValue({
+      id: "rel_1",
+      user1Id: "db_holly",
+      user2Id: "db_kourtney",
+      type: "pending::Talking::db_kourtney::db_holly",
+      note: JSON.stringify({
+        status: "pending_creator_confirmation",
+        creatorId: "db_kourtney",
+        claimedByUserId: "db_holly",
+      }),
+      isPublic: false,
+      publicRequestedBy: null,
+    });
+    messageCreateMock.mockResolvedValue({ id: "msg_2" });
+    userFindManyMock.mockResolvedValue([
+      {
+        id: "db_holly",
+        clerkId: "clerk_holly",
+        name: "Holly",
+        handle: "holly",
+        email: "holly@example.com",
+      },
+      {
+        id: "db_kourtney",
+        clerkId: "clerk_kourtney",
+        name: "Kourtney",
+        handle: "kourtney",
+        email: "kourtney@example.com",
+      },
+    ]);
+
+    const request = new Request("http://localhost/api/relationships", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "rel_1",
+        action: "approve",
+        actorNodeId: "db_holly",
+      }),
+    });
+
+    const response = await PATCH(request);
+
+    expect(response.status).toBe(200);
+    expect(sendUserNotificationEmailMock).toHaveBeenCalledWith({
+      to: "kourtney@example.com",
+      subject: "Holly verified your Chart connection",
+      text: [
+        "Holly verified your Talking connection on Chart.",
+        "",
+        "It is waiting for your final confirmation before it becomes public.",
+        "",
+        "Review it here: https://chart.example/inbox?notificationId=msg_2#notification-msg_2",
+      ].join("\n"),
+    });
   });
 });

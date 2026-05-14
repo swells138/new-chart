@@ -195,6 +195,51 @@ async function sendRelationshipRequestEmail(input: {
   }
 }
 
+async function sendCreatorConfirmationEmail(input: {
+  recipientId: string;
+  recipientEmail?: string | null;
+  verifierName: string;
+  relationshipType: RelationshipType;
+  notificationId?: string | null;
+}) {
+  const recipientEmail = input.recipientEmail?.trim();
+  if (!isDeliverableEmail(recipientEmail)) {
+    console.warn("Skipped creator confirmation email: no deliverable recipient email", {
+      recipientId: input.recipientId,
+      hasEmail: Boolean(input.recipientEmail),
+    });
+    return;
+  }
+
+  const siteUrl = getSiteUrl();
+  const notificationLink = input.notificationId
+    ? `/inbox?notificationId=${encodeURIComponent(input.notificationId)}#notification-${encodeURIComponent(input.notificationId)}`
+    : approvalInboxLink;
+  const reviewUrl = siteUrl ? `${siteUrl}${notificationLink}` : notificationLink;
+
+  try {
+    const result = await sendUserNotificationEmail({
+      to: recipientEmail,
+      subject: `${input.verifierName} verified your Chart connection`,
+      text: [
+        `${input.verifierName} verified your ${input.relationshipType} connection on Chart.`,
+        "",
+        "It is waiting for your final confirmation before it becomes public.",
+        "",
+        `Review it here: ${reviewUrl}`,
+      ].join("\n"),
+    });
+
+    if (!result) {
+      console.warn("Creator confirmation email was not accepted by SendGrid", {
+        recipientId: input.recipientId,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send creator confirmation email", error);
+  }
+}
+
 async function getPrimaryClerkEmail(clerkId?: string | null) {
   if (!clerkId) {
     return null;
@@ -602,11 +647,27 @@ export async function PATCH(request: Request) {
         },
       });
 
-      await sendNotification(
+      const notification = await sendNotification(
         currentDbUserId,
         claimMeta.creatorId,
         "A claimed connection is ready for your final confirmation.",
       );
+
+      const users = await prisma.user.findMany({
+        where: {
+          id: { in: [currentDbUserId, claimMeta.creatorId] },
+        },
+        select: { id: true, clerkId: true, name: true, handle: true, email: true },
+      });
+      const verifier = users.find((user) => user.id === currentDbUserId);
+      const creator = users.find((user) => user.id === claimMeta.creatorId);
+      await sendCreatorConfirmationEmail({
+        recipientId: claimMeta.creatorId,
+        recipientEmail: creator ? await resolveRelationshipEmail(creator) : null,
+        verifierName: verifier ? getDisplayName(verifier) : "Someone",
+        relationshipType: parsed.baseType,
+        notificationId: notification?.id ?? null,
+      });
 
       return NextResponse.json({ relationship: normalizeRelationship(updated) });
     }
