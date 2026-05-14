@@ -13,6 +13,7 @@ import type {
 } from "@/types/models";
 import type { PrivateDuplicateMatch } from "@/lib/private-duplicate-matches";
 import { chooseExistingPrivatePerson } from "@/lib/private-duplicate-flow";
+import { SmsConsentCheckbox } from "@/components/ui/sms-consent-checkbox";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -67,7 +68,7 @@ function getOrganicChartPosition(
   const seed = hashNumber(id);
   const safeTotal = Math.max(total, 1);
   const baseAngle = (index / safeTotal) * Math.PI * 2;
-  const angleJitter = (((seed % 1000) / 1000) * 0.72) - 0.36;
+  const angleJitter = ((seed % 1000) / 1000) * 0.72 - 0.36;
   const angle = baseAngle - Math.PI / 2 + angleJitter;
 
   const radiusBase = kind === "public" ? 190 : 145;
@@ -177,23 +178,26 @@ export function PrivateChart({
     }, 1400);
   }
 
-  const authFetch = useCallback(async (input: string, init?: RequestInit) => {
-    const headers = new Headers(init?.headers);
+  const authFetch = useCallback(
+    async (input: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
 
-    try {
-      const token = await getToken();
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
+      try {
+        const token = await getToken();
+        if (token) {
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+      } catch {
+        // Continue without token if Clerk token retrieval fails.
       }
-    } catch {
-      // Continue without token if Clerk token retrieval fails.
-    }
 
-    return fetch(input, {
-      ...init,
-      headers,
-    });
-  }, [getToken]);
+      return fetch(input, {
+        ...init,
+        headers,
+      });
+    },
+    [getToken],
+  );
 
   const currentUserName = useMemo(() => {
     if (!currentUserId) return "You";
@@ -202,7 +206,9 @@ export function PrivateChart({
 
   const currentUserProfileImage = useMemo(() => {
     if (!currentUserId) return null;
-    return users.find((user) => user.id === currentUserId)?.profileImage ?? null;
+    return (
+      users.find((user) => user.id === currentUserId)?.profileImage ?? null
+    );
   }, [users, currentUserId]);
 
   const chartConnections = useMemo(() => {
@@ -254,24 +260,24 @@ export function PrivateChart({
     [chartConnections],
   );
 
-  const [privateWebEdges, setPrivateWebEdges] = useState<PrivateConnectionEdge[]>(
-    [],
-  );
+  const [privateWebEdges, setPrivateWebEdges] = useState<
+    PrivateConnectionEdge[]
+  >([]);
   const [webRelationshipType, setWebRelationshipType] =
     useState<RelationshipType>("Talking");
   const [webNote, setWebNote] = useState("");
   const [confirmedWebEdges, setConfirmedWebEdges] = useState<
     PrivateConfirmedConnectionEdge[]
   >([]);
-  const [mixedWebEdges, setMixedWebEdges] = useState<PrivateMixedConnectionEdge[]>(
-    [],
-  );
+  const [mixedWebEdges, setMixedWebEdges] = useState<
+    PrivateMixedConnectionEdge[]
+  >([]);
   const [sourceNodeKey, setSourceNodeKey] = useState("");
   const [targetNodeKey, setTargetNodeKey] = useState("");
   const [isSavingAnyWebEdge, setIsSavingAnyWebEdge] = useState(false);
-  const [deletingAnyWebEdgeId, setDeletingAnyWebEdgeId] = useState<string | null>(
-    null,
-  );
+  const [deletingAnyWebEdgeId, setDeletingAnyWebEdgeId] = useState<
+    string | null
+  >(null);
 
   const confirmedDirectNodes = useMemo(() => {
     const usersById = new Map(users.map((u) => [u.id, u]));
@@ -429,6 +435,11 @@ export function PrivateChart({
   const [isAdding, setIsAdding] = useState(false);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
 
+  // SMS consent state for sending phone invites
+  const [smsConsentByPlaceholderId, setSmsConsentByPlaceholderId] = useState<
+    Record<string, boolean>
+  >({});
+
   function getAddErrorMessage(status: number, apiMessage?: string) {
     if (apiMessage && apiMessage.trim()) {
       return apiMessage;
@@ -521,8 +532,7 @@ export function PrivateChart({
         if (!res.ok) {
           if (!cancelled) {
             setActionError(
-              body.error ??
-                "Could not load private confirmed web connections.",
+              body.error ?? "Could not load private confirmed web connections.",
             );
           }
           return;
@@ -582,11 +592,17 @@ export function PrivateChart({
       return;
     }
 
-    if (!sourceNodeKey || !webNodeOptions.some((node) => node.key === sourceNodeKey)) {
+    if (
+      !sourceNodeKey ||
+      !webNodeOptions.some((node) => node.key === sourceNodeKey)
+    ) {
       setSourceNodeKey(webNodeOptions[0]?.key ?? "");
     }
 
-    if (!targetNodeKey || !webNodeOptions.some((node) => node.key === targetNodeKey)) {
+    if (
+      !targetNodeKey ||
+      !webNodeOptions.some((node) => node.key === targetNodeKey)
+    ) {
       const fallback = webNodeOptions.find(
         (node) => node.key !== (sourceNodeKey || webNodeOptions[0]?.key),
       );
@@ -643,7 +659,9 @@ export function PrivateChart({
         }
 
         setPrivateWebEdges((prev) => {
-          const withoutSameId = prev.filter((item) => item.id !== body.edge!.id);
+          const withoutSameId = prev.filter(
+            (item) => item.id !== body.edge!.id,
+          );
           return [body.edge!, ...withoutSameId];
         });
         setWebNote("");
@@ -673,7 +691,9 @@ export function PrivateChart({
         }
 
         setConfirmedWebEdges((prev) => {
-          const withoutSameId = prev.filter((item) => item.id !== body.edge!.id);
+          const withoutSameId = prev.filter(
+            (item) => item.id !== body.edge!.id,
+          );
           return [body.edge!, ...withoutSameId];
         });
         setWebNote("");
@@ -704,7 +724,9 @@ export function PrivateChart({
         }
 
         setMixedWebEdges((prev) => {
-          const withoutSameId = prev.filter((item) => item.id !== body.edge!.id);
+          const withoutSameId = prev.filter(
+            (item) => item.id !== body.edge!.id,
+          );
           return [body.edge!, ...withoutSameId];
         });
         setWebNote("");
@@ -743,16 +765,18 @@ export function PrivateChart({
       };
 
       if (!res.ok || !body.deleted) {
-        setActionError(
-          body.error ?? "Could not remove that private link.",
-        );
+        setActionError(body.error ?? "Could not remove that private link.");
         return;
       }
 
       if (edge.edgeKind === "placeholder") {
-        setPrivateWebEdges((prev) => prev.filter((item) => item.id !== edge.id));
+        setPrivateWebEdges((prev) =>
+          prev.filter((item) => item.id !== edge.id),
+        );
       } else if (edge.edgeKind === "confirmed") {
-        setConfirmedWebEdges((prev) => prev.filter((item) => item.id !== edge.id));
+        setConfirmedWebEdges((prev) =>
+          prev.filter((item) => item.id !== edge.id),
+        );
       } else {
         setMixedWebEdges((prev) => prev.filter((item) => item.id !== edge.id));
       }
@@ -938,27 +962,36 @@ export function PrivateChart({
     setWorkingId(id);
     setActionError(null);
     setActionMessage(null);
+
+    const placeholder = placeholders.find((p) => p.id === id) ?? null;
+    const hasPhone = Boolean((placeholder?.phoneNumber ?? "").trim());
+    const smsConsentProvided = Boolean(smsConsentByPlaceholderId[id]);
+
     try {
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action: "generateInvite" }),
+        body: JSON.stringify({
+          id,
+          action: "generateInvite",
+          smsConsent: hasPhone ? smsConsentProvided : undefined,
+          consentSource: hasPhone ? "private-chart-card" : undefined,
+        }),
       });
       const body = (await res.json()) as {
         placeholder?: PlaceholderPerson;
-        message?: string;
         error?: string;
       };
       if (!res.ok || !body.placeholder) {
-        setActionError(
-          body.error ?? "Could not generate invite. Please try again.",
-        );
+        setActionError(body.error ?? "Could not generate invite link.");
         return;
       }
       setPlaceholders((prev) =>
         prev.map((p) => (p.id === id ? body.placeholder! : p)),
       );
-      setActionMessage(body.message ?? "Invite sent.");
+      setActionMessage("Invite link generated.");
+    } catch {
+      setActionError("Could not generate invite link.");
     } finally {
       setWorkingId(null);
     }
@@ -1273,9 +1306,7 @@ export function PrivateChart({
                 type="button"
                 onClick={() => void handleConnectSuggestedUser()}
                 disabled={
-                  isAdding ||
-                  isPublicSuggestionConnecting ||
-                  !currentUserId
+                  isAdding || isPublicSuggestionConnecting || !currentUserId
                 }
                 className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
               >
@@ -1294,6 +1325,7 @@ export function PrivateChart({
             </div>
           </div>
         ) : null}
+
         {duplicateMatches.length > 0 ? (
           <>
             <div>
@@ -1304,15 +1336,23 @@ export function PrivateChart({
                 They may already be on your chart.
               </p>
             </div>
-            <div className={hasMultipleMatches ? "grid gap-2 md:grid-cols-2" : "grid gap-2"}>
+            <div
+              className={
+                hasMultipleMatches ? "grid gap-2 md:grid-cols-2" : "grid gap-2"
+              }
+            >
               {duplicateMatches.map((match) => {
                 const details = [
                   match.phoneNumber ? `Phone: ${match.phoneNumber}` : null,
                   match.email ? `Email: ${match.email}` : null,
                   match.location ? `Location: ${match.location}` : null,
                   match.handle ? `Handle: @${match.handle}` : null,
-                  match.relationshipType ? `Type: ${match.relationshipType}` : null,
-                  match.claimStatus ? `Status: ${STATUS_LABELS[match.claimStatus] ?? match.claimStatus}` : null,
+                  match.relationshipType
+                    ? `Type: ${match.relationshipType}`
+                    : null,
+                  match.claimStatus
+                    ? `Status: ${STATUS_LABELS[match.claimStatus] ?? match.claimStatus}`
+                    : null,
                   match.note ? `Note: ${match.note}` : null,
                 ].filter((item): item is string => Boolean(item));
 
@@ -1353,6 +1393,7 @@ export function PrivateChart({
             </div>
           </>
         ) : null}
+
         {duplicateMatches.length > 0 ? (
           <button
             type="button"
@@ -1367,6 +1408,7 @@ export function PrivateChart({
     );
   }
 
+  // --- main render ---
   return (
     <div id="manage-connections" className="space-y-6">
       {/* Privacy banner */}
@@ -1546,7 +1588,9 @@ export function PrivateChart({
           })}
 
           {visibleMixedWebEdges.map((edge) => {
-            const source = chartPositionById.get(`private-${edge.placeholderId}`);
+            const source = chartPositionById.get(
+              `private-${edge.placeholderId}`,
+            );
             const target = chartPositionById.get(`public-${edge.userId}`);
 
             if (!source || !target) {
@@ -2003,1218 +2047,25 @@ export function PrivateChart({
         id="add-connection-panel"
         className="paper-card min-w-0 rounded-2xl p-4 sm:p-5"
       >
-        <div className="flex min-w-0 flex-col gap-3 border-b border-[var(--border-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Manage your private chart</h2>
-            <p className="mt-1 text-xs text-black/60 dark:text-white/60">
-              Create private nodes, copy invite links, and connect people.
-            </p>
-          </div>
-          <div className="grid w-full min-w-0 grid-cols-3 gap-1 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06] sm:w-auto">
-            {[
-              { id: "pending" as const, label: "Invite Links" },
-              { id: "add" as const, label: "Add Person" },
-              { id: "connect" as const, label: "Connect People" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveWorkflowTab(tab.id)}
-                className={`min-w-0 rounded-lg px-2 py-2 text-xs font-semibold leading-snug transition sm:px-3 ${
-                  activeWorkflowTab === tab.id
-                    ? "bg-[var(--accent)] text-white"
-                    : "text-black/65 hover:bg-black/5 dark:text-white/68 dark:hover:bg-white/10"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Add-connection form */}
+        <div id="legacy-add-connection-panel" className="hidden">
+          {/* ...existing code... */}
         </div>
 
-        {activeWorkflowTab === "add" ? (
-          <div className="pt-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider">
-              Add someone to your chart
-            </h3>
-            <p className="mt-1 text-xs text-black/65 dark:text-white/65">
-              Start private. They only become public after invite + verification.
-            </p>
-            <form className="mt-4 space-y-3" onSubmit={handleAdd}>
-              <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                    Name
-                  </span>
-                  <input
-                    type="text"
-                    value={addName}
-                    onChange={(e) => {
-                      setAddName(e.target.value);
-                      clearDuplicateCheckState();
-                    }}
-                    placeholder="Who are you adding?"
-                    maxLength={80}
-                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                    disabled={isAdding || isCheckingDuplicates}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                    Relationship type
-                  </span>
-                  <select
-                    value={addType}
-                    onChange={(e) => setAddType(e.target.value as RelationshipType)}
-                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                    disabled={isAdding || isCheckingDuplicates}
-                  >
-                    {ALL_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <details
-                open
-                className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 dark:bg-white/[0.04]"
-              >
-                <summary className="cursor-pointer text-xs font-semibold text-black/65 dark:text-white/68">
-                  Optional details
-                </summary>
-                <div className="mt-3 space-y-3">
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                        Their email
-                      </span>
-                      <input
-                        type="email"
-                        value={addEmail}
-                        onChange={(e) => {
-                          setAddEmail(e.target.value);
-                          clearDuplicateCheckState();
-                        }}
-                        placeholder="Connection's email"
-                        maxLength={200}
-                        className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                        disabled={isAdding || isCheckingDuplicates}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                        Their phone
-                      </span>
-                      <input
-                        type="text"
-                        value={addPhoneNumber}
-                        onChange={(e) => {
-                          setAddPhoneNumber(e.target.value);
-                          clearDuplicateCheckState();
-                        }}
-                        placeholder="Connection's phone"
-                        maxLength={40}
-                        className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                        disabled={isAdding || isCheckingDuplicates}
-                      />
-                    </label>
-                  </div>
-                  <label className="block">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                      Note about this connection
-                    </span>
-                    <input
-                      type="text"
-                      value={addNote}
-                      onChange={(e) => setAddNote(e.target.value)}
-                      placeholder="How you know them, context, or reminder"
-                      maxLength={500}
-                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                      disabled={isAdding || isCheckingDuplicates}
-                    />
-                  </label>
-                  <label className="flex items-start gap-3 rounded-xl border border-[var(--border-soft)] bg-white/55 p-3 text-sm text-black/72 dark:bg-white/[0.06] dark:text-white/78">
-                    <input
-                      type="checkbox"
-                      checked={addOfferToNameMatch}
-                      onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
-                      className="mt-0.5 h-5 w-5"
-                      disabled={isAdding || isCheckingDuplicates}
-                    />
-                    <span>Offer as a claim suggestion to matching signups.</span>
-                  </label>
-                </div>
-              </details>
-
-              {renderDuplicateCheckPanel()}
-              {addError ? (
-                <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
-              ) : null}
-              {addHint ? (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  {addHint}
-                </p>
-              ) : null}
-              {addSuccessMessage ? (
-                <p className="rounded-lg border border-green-600/20 bg-green-600/10 px-3 py-2 text-xs font-semibold text-green-700 dark:text-green-300">
-                  {addSuccessMessage}
-                </p>
-              ) : null}
-              <button
-                type="submit"
-                disabled={isAdding || isCheckingDuplicates || !addName.trim()}
-                className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60 sm:w-auto sm:px-5"
-              >
-                {isCheckingDuplicates
-                  ? "Checking..."
-                  : isAdding
-                    ? "Adding..."
-                    : "Add to private chart"}
-              </button>
-            </form>
-          </div>
+        {actionError ? (
+          <p className="text-xs text-red-700 dark:text-red-400">
+            {actionError}
+          </p>
+        ) : null}
+        {actionMessage ? (
+          <p className="text-xs text-green-700 dark:text-green-400">
+            {actionMessage}
+          </p>
         ) : null}
 
-        {activeWorkflowTab === "connect" ? (
-          <div className="pt-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider">
-              Connect people in your private chart
-            </h3>
-            <p className="mt-1 text-xs text-black/65 dark:text-white/65">
-              Map relationships between people you’ve added. These stay private unless verified.
-            </p>
-            {webNodeOptions.length < 2 ? (
-              <div className="mt-4 rounded-xl border border-dashed border-[var(--border-soft)] px-4 py-6 text-center">
-                <p className="text-sm font-semibold">Add two people first</p>
-                <p className="mt-1 text-xs text-black/60 dark:text-white/62">
-                  Once there are two nodes, you can connect them here.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveWorkflowTab("add")}
-                  className="mt-3 rounded-full border border-[var(--border-soft)] px-3 py-1.5 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10"
-                >
-                  Add Person
-                </button>
-              </div>
-            ) : (
-              <form className="mt-4 space-y-3" onSubmit={handleCreateAnyWebEdge}>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                      Person A
-                    </span>
-                    <select
-                      value={sourceNodeKey}
-                      onChange={(e) => setSourceNodeKey(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                      disabled={isSavingAnyWebEdge}
-                    >
-                      {webNodeOptions.map((node) => (
-                        <option key={`src-guided-${node.key}`} value={node.key}>
-                          {node.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                      Person B
-                    </span>
-                    <select
-                      value={targetNodeKey}
-                      onChange={(e) => setTargetNodeKey(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                      disabled={isSavingAnyWebEdge}
-                    >
-                      {webNodeOptions.map((node) => (
-                        <option key={`tgt-guided-${node.key}`} value={node.key}>
-                          {node.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                    Relationship type
-                  </span>
-                  <select
-                    value={webRelationshipType}
-                    onChange={(e) =>
-                      setWebRelationshipType(e.target.value as RelationshipType)
-                    }
-                    className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none md:max-w-xs"
-                    disabled={isSavingAnyWebEdge}
-                  >
-                    {ALL_TYPES.map((t) => (
-                      <option key={`guided-web-${t}`} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <details className="rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 dark:bg-white/[0.04]">
-                  <summary className="cursor-pointer text-xs font-semibold text-black/65 dark:text-white/68">
-                    Optional note
-                  </summary>
-                  <input
-                    type="text"
-                    value={webNote}
-                    onChange={(e) => setWebNote(e.target.value)}
-                    maxLength={500}
-                    placeholder="Add context"
-                    className="mt-3 w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                    disabled={isSavingAnyWebEdge}
-                  />
-                </details>
-                <button
-                  type="submit"
-                  disabled={
-                    isSavingAnyWebEdge ||
-                    !sourceNodeKey ||
-                    !targetNodeKey ||
-                    sourceNodeKey === targetNodeKey
-                  }
-                  className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60 sm:w-auto sm:px-5"
-                >
-                  {isSavingAnyWebEdge ? "Creating..." : "Create private connection"}
-                </button>
-              </form>
-            )}
-          </div>
-        ) : null}
-
-        {activeWorkflowTab === "pending" ? (
-          <div className="flex min-w-0 flex-col gap-3 pt-4">
-            <div className="order-1">
-              <h3 className="text-sm font-bold uppercase tracking-wider">
-                Invite people to claim their node
-              </h3>
-              <p className="mt-1 text-xs text-black/65 dark:text-white/65">
-                Generate a link for anyone you added privately, then copy it
-                and send it wherever you already talk to them.
-              </p>
-            </div>
-
-            <details className="order-3 min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
-              <summary className="cursor-pointer text-sm font-semibold">
-                Private connections ({combinedWebEdges.length})
-              </summary>
-              {combinedWebEdges.length === 0 ? (
-                <p className="mt-3 text-xs text-black/60 dark:text-white/62">
-                  No private people-to-people connections yet.
-                </p>
-              ) : (
-                <div className="mt-3 grid min-w-0 gap-2">
-                  {combinedWebEdges.map((edge) => (
-                    <div
-                      key={`guided-${edge.id}`}
-                      className="min-w-0 rounded-lg border border-[var(--border-soft)] bg-white/45 px-3 py-2 text-xs dark:bg-black/20 sm:flex sm:flex-wrap sm:items-center sm:gap-2"
-                    >
-                      <span className="block min-w-0 break-words font-semibold sm:inline">
-                        {edge.sourceName} ↔ {edge.targetName}
-                      </span>
-                      <span
-                        className="mt-2 inline-flex max-w-full rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:mt-0"
-                        style={{
-                          backgroundColor: `${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}22`,
-                          color: TYPE_COLORS[edge.relationshipType] ?? "#9ca3af",
-                          border: `1px solid ${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}44`,
-                        }}
-                      >
-                        {edge.relationshipType}
-                      </span>
-                      <span className="ml-1 text-[11px] text-black/55 dark:text-white/55 sm:ml-0">
-                        Private connection
-                      </span>
-                      <details className="relative mt-2 sm:mt-0 sm:ml-auto">
-                        <summary className="cursor-pointer rounded-full border border-[var(--border-soft)] px-2 py-0.5 text-[11px] font-semibold text-black/60 dark:text-white/60">
-                          Actions
-                        </summary>
-                        <div className="absolute z-20 mt-1 rounded-lg border border-[var(--border-soft)] bg-[var(--card)] p-1 shadow-lg">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAnyWebEdge(edge)}
-                            disabled={deletingAnyWebEdgeId === edge.id}
-                            className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-red-600 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
-                          >
-                            {deletingAnyWebEdgeId === edge.id ? "Removing..." : "Remove"}
-                          </button>
-                        </div>
-                      </details>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </details>
-
-            <details
-              open
-              className="order-2 min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]"
-            >
-              <summary className="cursor-pointer text-sm font-semibold">
-                Invite links and private nodes ({placeholders.length})
-              </summary>
-              {placeholders.length === 0 ? (
-                <p className="mt-3 text-xs text-black/60 dark:text-white/62">
-                  Added people will appear here until they verify.
-                </p>
-              ) : (
-                <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
-                  {placeholders.map((p) => {
-                    const color = TYPE_COLORS[p.relationshipType] ?? "#888";
-                    const isWorking = workingId === p.id;
-                    const isEditing = editingId === p.id;
-                    const isCopied = copiedId === p.id;
-                    const inviteLink = p.inviteToken
-                      ? `${baseUrl}/invite/${p.inviteToken}`
-                      : null;
-                    const isOwned =
-                      currentUserId !== null && p.ownerId === currentUserId;
-                    const hasInviteContact = Boolean(
-                      p.email.trim() || p.phoneNumber.trim(),
-                    );
-                    const publicConnectCandidate =
-                      publicConnectCandidates[p.id] ?? null;
-                    const isPublicConnecting =
-                      publicConnectingPlaceholderId === p.id;
-                    const isReporting = reportingId === p.id;
-
-                    return (
-                      <div
-                        key={`guided-placeholder-${p.id}`}
-                        className="min-w-0 rounded-xl border border-white/10 bg-[#0f0819] p-3 text-white"
-                        style={{ boxShadow: `0 0 0 1px ${color}18 inset` }}
-                      >
-                        {isEditing ? (
-                          <div className="min-w-0 space-y-2">
-                            <input
-                              type="text"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              maxLength={80}
-                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-sm text-white outline-none placeholder:text-white/30"
-                            />
-                            <select
-                              value={editType}
-                              onChange={(e) =>
-                                setEditType(e.target.value as RelationshipType)
-                              }
-                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none"
-                            >
-                              {ALL_TYPES.map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="email"
-                              value={editEmail}
-                              onChange={(e) => setEditEmail(e.target.value)}
-                              maxLength={200}
-                              placeholder="Email"
-                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                            />
-                            <input
-                              type="text"
-                              value={editPhoneNumber}
-                              onChange={(e) => setEditPhoneNumber(e.target.value)}
-                              maxLength={40}
-                              placeholder="Phone"
-                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                            />
-                            <input
-                              type="text"
-                              value={editNote}
-                              onChange={(e) => setEditNote(e.target.value)}
-                              maxLength={500}
-                              placeholder="Note"
-                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                            />
-                            <label className="flex items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[11px] text-white/80">
-                              <input
-                                type="checkbox"
-                                checked={editOfferToNameMatch}
-                                onChange={(e) =>
-                                  setEditOfferToNameMatch(e.target.checked)
-                                }
-                                className="mt-0.5 h-3.5 w-3.5"
-                              />
-                              <span>Claim suggestions on</span>
-                            </label>
-                            {editError ? (
-                              <p className="text-xs text-red-400">{editError}</p>
-                            ) : null}
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveEdit(p.id)}
-                                disabled={isSaving}
-                                className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
-                              >
-                                {isSaving ? "Saving..." : "Save"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingId(null)}
-                                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex min-w-0 items-start justify-between gap-3">
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold">
-                                  {p.name}
-                                </p>
-                                <div className="mt-1 flex min-w-0 flex-wrap gap-1.5">
-                                  <span
-                                    className="max-w-full rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                                    style={{
-                                      backgroundColor: `${color}24`,
-                                      color,
-                                      border: `1px solid ${color}44`,
-                                    }}
-                                  >
-                                    {p.relationshipType}
-                                  </span>
-                                  <span className="max-w-full rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
-                                    Claim suggestions: {p.offerToNameMatch ? "On" : "Off"}
-                                  </span>
-                                  <span className="max-w-full rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
-                                    Status: {STATUS_LABELS[p.claimStatus] ?? p.claimStatus}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            {!hasInviteContact ? (
-                              <p className="mt-2 text-[11px] text-white/45">
-                                No email needed. Create a link and send it yourself.
-                              </p>
-                            ) : null}
-                            {inviteLink ? (
-                              <div className="mt-3 min-w-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
-                                <p className="break-words text-[11px] font-semibold text-white/72">
-                                  Share this link with {p.name} so they can join
-                                  Chart and claim this node.
-                                </p>
-                                <div className="mt-2 flex min-w-0 items-center gap-2">
-                                  <p className="min-w-0 flex-1 truncate text-[10px] text-white/42">
-                                    {inviteLink}
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => copyInviteLink(p)}
-                                    className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
-                                  >
-                                    {isCopied ? "Copied!" : "Copy"}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : null}
-                            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
-                              {isOwned &&
-                              p.claimStatus !== "claimed" &&
-                              p.claimStatus !== "denied" ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleGenerateInvite(p.id)}
-                                  disabled={isWorking}
-                                  className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                                  title={
-                                    hasInviteContact
-                                      ? "Create a link and send an email invite"
-                                      : "Create an invite link to copy and send."
-                                  }
-                                >
-                                  {isWorking
-                                    ? "Creating..."
-                                    : p.inviteToken
-                                      ? "Refresh link"
-                                      : "Create invite link"}
-                                </button>
-                              ) : null}
-                              {publicConnectCandidate &&
-                              p.claimStatus !== "claimed" &&
-                              p.claimStatus !== "denied" ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleConnectPublicly(publicConnectCandidate)
-                                  }
-                                  disabled={
-                                    isWorking ||
-                                    isPublicConnecting ||
-                                    !currentUserId
-                                  }
-                                  className="rounded-full border border-[var(--accent)]/40 px-3 py-1 text-[11px] font-semibold text-[var(--accent)] disabled:opacity-60"
-                                >
-                                  {isPublicConnecting ? "Sending..." : "Connect publicly"}
-                                </button>
-                              ) : null}
-                              <details className="relative">
-                                <summary className="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/58">
-                                  More
-                                </summary>
-                                <div className="absolute z-20 mt-1 rounded-lg border border-white/10 bg-[#160d28] p-1 shadow-lg">
-                                  {isOwned ? (
-                                    <>
-                                      {p.inviteToken &&
-                                      p.claimStatus !== "claimed" &&
-                                      p.claimStatus !== "denied" ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRevokeInvite(p.id)}
-                                          disabled={isWorking}
-                                          className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-white/70 hover:bg-white/10 disabled:opacity-60"
-                                        >
-                                          Revoke link
-                                        </button>
-                                      ) : null}
-                                      <button
-                                        type="button"
-                                        onClick={() => startEdit(p)}
-                                        disabled={isWorking}
-                                        className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-white/70 hover:bg-white/10 disabled:opacity-60"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDelete(p.id)}
-                                        disabled={isWorking}
-                                        className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
-                                      >
-                                        {isWorking ? "Removing..." : "Remove"}
-                                      </button>
-                                    </>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleReport(p)}
-                                    disabled={isReporting}
-                                    className="block rounded-md px-3 py-1.5 text-left text-[11px] font-semibold text-amber-300 hover:bg-amber-500/10 disabled:opacity-60"
-                                  >
-                                    {isReporting ? "Reporting..." : "Report"}
-                                  </button>
-                                </div>
-                              </details>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </details>
-          </div>
-        ) : null}
+        {/* Legacy placeholder cards grid */}
+        <div className="hidden">{/* ...existing code... */}</div>
       </section>
-
-      {/* Add-connection form */}
-      <div id="legacy-add-connection-panel" className="hidden">
-        <h3 className="text-sm font-bold uppercase tracking-wider">
-          Add your first connection
-        </h3>
-        <p className="mt-2 text-xs text-black/65 dark:text-white/65">
-          Add one person. Reveal their world. New entries start as private
-          placeholders and become public only after invite + verification.
-        </p>
-        <form className="mt-3 space-y-3" onSubmit={handleAdd}>
-          <input
-            type="text"
-            value={addName}
-            onChange={(e) => {
-              setAddName(e.target.value);
-              clearDuplicateCheckState();
-            }}
-            placeholder="Name (required)"
-            maxLength={80}
-            className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-            disabled={isAdding || isCheckingDuplicates}
-          />
-          <div className="grid gap-2 md:grid-cols-2">
-            <input
-              type="email"
-              value={addEmail}
-              onChange={(e) => {
-                setAddEmail(e.target.value);
-                clearDuplicateCheckState();
-              }}
-              placeholder="Email (optional)"
-              maxLength={200}
-              className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-              disabled={isAdding || isCheckingDuplicates}
-            />
-            <input
-              type="text"
-              value={addPhoneNumber}
-              onChange={(e) => {
-                setAddPhoneNumber(e.target.value);
-                clearDuplicateCheckState();
-              }}
-              placeholder="Phone (optional)"
-              maxLength={40}
-              className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-              disabled={isAdding || isCheckingDuplicates}
-            />
-          </div>
-          <label className="flex items-start gap-2 rounded-xl border border-[var(--border-soft)] px-3 py-2.5 text-xs text-black/70 dark:text-white/75">
-            <input
-              type="checkbox"
-              checked={addOfferToNameMatch}
-              onChange={(e) => setAddOfferToNameMatch(e.target.checked)}
-              className="mt-0.5 h-4 w-4"
-              disabled={isAdding || isCheckingDuplicates}
-            />
-            <span>
-              Offer this node as a claim suggestion to matching signups (name-based).
-            </span>
-          </label>
-          <div className="flex gap-2">
-            <select
-              value={addType}
-              onChange={(e) => setAddType(e.target.value as RelationshipType)}
-              className="flex-1 rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-              disabled={isAdding || isCheckingDuplicates}
-            >
-              {ALL_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="-mt-1 text-[11px] text-black/55 dark:text-white/55">
-            Relationship type controls color/tagging in your chart.
-          </p>
-          <input
-            type="text"
-            value={addNote}
-            onChange={(e) => setAddNote(e.target.value)}
-            placeholder="Add a note (optional)"
-            maxLength={500}
-            className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-            disabled={isAdding || isCheckingDuplicates}
-          />
-          {renderDuplicateCheckPanel()}
-          {addError ? (
-            <p className="text-xs text-red-700 dark:text-red-400">{addError}</p>
-          ) : null}
-          {addHint ? (
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              {addHint}
-            </p>
-          ) : null}
-          <button
-            type="submit"
-            disabled={isAdding || isCheckingDuplicates || !addName.trim()}
-            className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
-          >
-            {isCheckingDuplicates
-              ? "Checking..."
-              : isAdding
-                ? "Adding..."
-                : "Add private connection"}
-          </button>
-          <p className="text-[11px] text-black/55 dark:text-white/55">
-            After adding, use <strong>Generate invite</strong> on their card to
-            start confirmation.
-          </p>
-        </form>
-        <div className="my-5 border-t border-[var(--border-soft)]" />
-        <h3 className="text-sm font-bold uppercase tracking-wider">
-          Build your private web (step 2)
-        </h3>
-        <p className="mt-2 text-xs text-black/65 dark:text-white/65">
-          Connect any two nodes (private placeholders or confirmed connections)
-          to map your full private web.
-        </p>
-        {webNodeOptions.length < 2 ? (
-          <p className="mt-3 text-xs text-black/60 dark:text-white/70">
-            Add at least two nodes to create private links.
-          </p>
-        ) : (
-          <form className="mt-3 space-y-3" onSubmit={handleCreateAnyWebEdge}>
-            <div className="grid gap-2 md:grid-cols-2">
-              <select
-                value={sourceNodeKey}
-                onChange={(e) => setSourceNodeKey(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                disabled={isSavingAnyWebEdge}
-              >
-                {webNodeOptions.map((node) => (
-                  <option key={`src-${node.key}`} value={node.key}>
-                    [{node.kindLabel}] {node.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={targetNodeKey}
-                onChange={(e) => setTargetNodeKey(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                disabled={isSavingAnyWebEdge}
-              >
-                {webNodeOptions.map((node) => (
-                  <option key={`tgt-${node.key}`} value={node.key}>
-                    [{node.kindLabel}] {node.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid gap-2 md:grid-cols-[1fr_1fr]">
-              <select
-                value={webRelationshipType}
-                onChange={(e) =>
-                  setWebRelationshipType(e.target.value as RelationshipType)
-                }
-                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none"
-                disabled={isSavingAnyWebEdge}
-              >
-                {ALL_TYPES.map((t) => (
-                  <option key={`web-${t}`} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={webNote}
-                onChange={(e) => setWebNote(e.target.value)}
-                maxLength={500}
-                placeholder="Optional note"
-                className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                disabled={isSavingAnyWebEdge}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={
-                isSavingAnyWebEdge ||
-                !sourceNodeKey ||
-                !targetNodeKey ||
-                sourceNodeKey === targetNodeKey
-              }
-              className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-sm font-bold text-white disabled:opacity-60"
-            >
-              {isSavingAnyWebEdge ? "Connecting..." : "Connect these nodes"}
-            </button>
-          </form>
-        )}
-
-        {combinedWebEdges.length > 0 ? (
-          <div className="mt-4 space-y-2">
-            {combinedWebEdges.map((edge) => {
-              return (
-                <div
-                  key={edge.id}
-                  className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.04]"
-                >
-                  <span className="font-semibold">
-                    {edge.sourceName} {" <-> "} {edge.targetName}
-                  </span>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                    style={{
-                      backgroundColor: `${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}33`,
-                      color: TYPE_COLORS[edge.relationshipType] ?? "#9ca3af",
-                      border: `1px solid ${TYPE_COLORS[edge.relationshipType] ?? "#9ca3af"}55`,
-                    }}
-                  >
-                    {edge.relationshipType}
-                  </span>
-                  {edge.note?.trim() ? (
-                    <span className="text-black/60 dark:text-white/65">
-                      {edge.note}
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAnyWebEdge(edge)}
-                    disabled={deletingAnyWebEdgeId === edge.id}
-                    className="ml-auto rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-300"
-                  >
-                    {deletingAnyWebEdgeId === edge.id ? "Removing..." : "Remove"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
-
-      {actionError ? (
-        <p className="text-xs text-red-700 dark:text-red-400">{actionError}</p>
-      ) : null}
-      {actionMessage ? (
-        <p className="text-xs text-green-700 dark:text-green-400">
-          {actionMessage}
-        </p>
-      ) : null}
-
-      {/* Legacy placeholder cards grid */}
-      <div className="hidden">
-      {placeholders.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/10 p-10 text-center"
-          style={{ background: "#0f0819" }}
-        >
-          <p className="text-3xl">👀</p>
-          <p className="mt-2 text-sm font-semibold text-white/80">
-            Your direct network is empty
-          </p>
-          <p className="mt-1 text-xs text-white/40">
-            Start adding people above. They can claim their node later or verify
-            the connection after signup.
-          </p>
-        </div>
-      ) : (
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "#0f0819",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {placeholders.map((p) => {
-              const color = TYPE_COLORS[p.relationshipType] ?? "#888";
-              const statusLabel = STATUS_LABELS[p.claimStatus] ?? p.claimStatus;
-              const isWorking = workingId === p.id;
-              const isEditing = editingId === p.id;
-              const isCopied = copiedId === p.id;
-              const inviteLink = p.inviteToken
-                ? `${baseUrl}/invite/${p.inviteToken}`
-                : null;
-              const isOwned =
-                currentUserId !== null && p.ownerId === currentUserId;
-              const hasInviteContact = Boolean(
-                p.email.trim() || p.phoneNumber.trim(),
-              );
-              const initial = (p.name?.[0] ?? "?").toUpperCase();
-              const publicConnectCandidate =
-                publicConnectCandidates[p.id] ?? null;
-              const isPublicConnecting = publicConnectingPlaceholderId === p.id;
-              const isReporting = reportingId === p.id;
-
-              return (
-                <div
-                  key={p.id}
-                  className="rounded-2xl p-4"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: `1px solid rgba(255,255,255,0.09)`,
-                    boxShadow: `0 0 0 1px ${color}22 inset`,
-                  }}
-                >
-                  {isEditing ? (
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        maxLength={80}
-                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-sm text-white outline-none placeholder:text-white/30"
-                      />
-                      <select
-                        value={editType}
-                        onChange={(e) =>
-                          setEditType(e.target.value as RelationshipType)
-                        }
-                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none"
-                      >
-                        {ALL_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="email"
-                        value={editEmail}
-                        onChange={(e) => setEditEmail(e.target.value)}
-                        maxLength={200}
-                        placeholder="Email (optional)"
-                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                      />
-                      <input
-                        type="text"
-                        value={editPhoneNumber}
-                        onChange={(e) => setEditPhoneNumber(e.target.value)}
-                        maxLength={40}
-                        placeholder="Phone (optional)"
-                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                      />
-                      <input
-                        type="text"
-                        value={editNote}
-                        onChange={(e) => setEditNote(e.target.value)}
-                        maxLength={500}
-                        placeholder="Note (optional)"
-                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                      />
-                      <label className="flex items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[11px] text-white/80">
-                        <input
-                          type="checkbox"
-                          checked={editOfferToNameMatch}
-                          onChange={(e) =>
-                            setEditOfferToNameMatch(e.target.checked)
-                          }
-                          className="mt-0.5 h-3.5 w-3.5"
-                        />
-                        <span>Offer this node as a claim suggestion.</span>
-                      </label>
-                      {editError ? (
-                        <p className="text-xs text-red-400">{editError}</p>
-                      ) : null}
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleSaveEdit(p.id)}
-                          disabled={isSaving}
-                          className="rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
-                        >
-                          {isSaving ? "Saving…" : "Save"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingId(null)}
-                          className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/70"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Header — avatar + name + status */}
-                      <div className="flex items-start gap-3">
-                        {/* Circle avatar */}
-                        <div
-                          className="shrink-0"
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: "50%",
-                            background: `radial-gradient(circle at 38% 32%, ${color} 0%, color-mix(in srgb, ${color}, #000 28%) 100%)`,
-                            boxShadow: `0 0 14px ${color}44, 0 3px 8px rgba(0,0,0,0.4)`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            border: "2px solid rgba(255,255,255,0.12)",
-                          }}
-                        >
-                          <span
-                            style={{
-                              color: "white",
-                              fontWeight: 700,
-                              fontSize: 14,
-                              fontFamily: "system-ui",
-                            }}
-                          >
-                            {initial}
-                          </span>
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-1">
-                            <p className="truncate font-semibold leading-snug text-white">
-                              {p.name}
-                            </p>
-                            <span
-                              className={`shrink-0 mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                p.claimStatus === "claimed"
-                                  ? "bg-green-500/20 text-green-400"
-                                  : p.claimStatus === "denied"
-                                    ? "bg-red-500/20 text-red-400"
-                                    : p.claimStatus === "invited"
-                                      ? "bg-amber-500/20 text-amber-400"
-                                      : "bg-white/10 text-white/55"
-                              }`}
-                            >
-                              {statusLabel}
-                            </span>
-                          </div>
-                          <span
-                            className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
-                            style={{
-                              backgroundColor: `${color}33`,
-                              color,
-                              border: `1px solid ${color}55`,
-                            }}
-                          >
-                            {p.relationshipType}
-                          </span>
-                          <span
-                            className={`ml-2 mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                              p.offerToNameMatch
-                                ? "border border-emerald-300/45 bg-emerald-400/15 text-emerald-200"
-                                : "border border-white/20 bg-white/10 text-white/60"
-                            }`}
-                          >
-                            Claim suggestions {p.offerToNameMatch ? "on" : "off"}
-                          </span>
-                          {publicConnectCandidate ? (
-                            <span className="ml-2 mt-1 inline-block rounded-full border border-amber-300/45 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
-                              Existing user match
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {p.note ? (
-                        <p className="mt-2 text-xs italic text-white/50">
-                          &quot;{p.note}&quot;
-                        </p>
-                      ) : null}
-
-                      {p.email || p.phoneNumber ? (
-                        <div className="mt-2 space-y-1 text-[11px] text-white/45">
-                          {p.email ? <p>{p.email}</p> : null}
-                          {p.phoneNumber ? <p>{p.phoneNumber}</p> : null}
-                        </div>
-                      ) : null}
-
-                      {!hasInviteContact ? (
-                        <p className="mt-2 text-[11px] text-white/45">
-                          Add an email or phone number before sending an invite.
-                        </p>
-                      ) : null}
-
-                      {!isOwned ? (
-                        <p className="mt-2 text-[11px] text-white/40">
-                          Only the person who created this entry can edit it.
-                        </p>
-                      ) : null}
-
-                      {/* Invite link display */}
-                      {inviteLink &&
-                      p.claimStatus !== "claimed" &&
-                      p.claimStatus !== "denied" ? (
-                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
-                          <p className="min-w-0 flex-1 truncate text-[10px] text-white/40">
-                            {inviteLink}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => copyInviteLink(p)}
-                            className="shrink-0 rounded-full bg-[var(--accent)] px-2.5 py-1 text-[10px] font-bold text-white"
-                          >
-                            {isCopied ? "Copied!" : "Copy"}
-                          </button>
-                        </div>
-                      ) : null}
-
-                      {/* Action buttons */}
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {isOwned &&
-                        p.claimStatus !== "claimed" &&
-                        p.claimStatus !== "denied" ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleGenerateInvite(p.id)}
-                              disabled={isWorking || !hasInviteContact}
-                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
-                              title={
-                                hasInviteContact
-                                  ? "Send an invite"
-                                  : "Add an email or phone number before sending an invite."
-                              }
-                            >
-                              {isWorking ? "Sending..." : "Invite User"}
-                            </button>
-                            {p.inviteToken ? (
-                              <button
-                                type="button"
-                                onClick={() => handleRevokeInvite(p.id)}
-                                disabled={isWorking}
-                                className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/50 transition hover:border-white/30 hover:text-white/70 disabled:opacity-60"
-                              >
-                                Revoke link
-                              </button>
-                            ) : null}
-                          </>
-                        ) : null}
-
-                        {isOwned ? (
-                          <>
-                            {publicConnectCandidate &&
-                            p.claimStatus !== "claimed" &&
-                            p.claimStatus !== "denied" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleConnectPublicly(publicConnectCandidate)
-                                }
-                                disabled={
-                                  isWorking ||
-                                  isPublicConnecting ||
-                                  !currentUserId
-                                }
-                                className="rounded-full border border-[var(--accent)]/50 bg-[var(--accent)]/15 px-3 py-1 text-[11px] font-semibold text-[var(--accent)] transition hover:brightness-110 disabled:opacity-60"
-                              >
-                                {isPublicConnecting
-                                  ? "Sending..."
-                                  : `Connect publicly with ${publicConnectCandidate.name}`}
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => startEdit(p)}
-                              disabled={isWorking}
-                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(p.id)}
-                              disabled={isWorking}
-                              className="rounded-full border border-red-500/30 px-3 py-1 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/10 disabled:opacity-60"
-                            >
-                              {isWorking ? "…" : "Remove"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleReport(p)}
-                              disabled={isReporting}
-                              className="rounded-full border border-amber-500/30 px-3 py-1 text-[11px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60"
-                            >
-                              {isReporting ? "Reporting..." : "Report"}
-                            </button>
-                          </>
-                        ) : null}
-
-                        {!isOwned ? (
-                          <button
-                            type="button"
-                            onClick={() => handleReport(p)}
-                            disabled={isReporting}
-                            className="rounded-full border border-amber-500/30 px-3 py-1 text-[11px] font-semibold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60"
-                          >
-                            {isReporting ? "Reporting..." : "Report"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      </div>
     </div>
   );
 }
