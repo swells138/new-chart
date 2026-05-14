@@ -9,6 +9,8 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 import { sendNodeInviteEmail } from "@/lib/email";
+import { sendTransactionalSms, recordSmsConsent } from "@/lib/sms";
+import { renderInviteSms } from "@/lib/sms-templates";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -44,19 +46,17 @@ const createSchema = z
   })
   .strict();
 
-const updateSchema = z
+const patchSchema = z
   .object({
-    id: z.string().trim().min(1).max(100),
-    action: z
-      .enum(["update", "generateInvite", "revokeInvite"])
-      .optional()
-      .default("update"),
-    name: z.string().trim().min(1).max(80).optional(),
-    offerToNameMatch: z.boolean().optional(),
-    email: z.string().trim().email().max(200).optional().or(z.literal("")),
+    id: z.string().trim().min(1),
+    action: z.enum(["update", "generateInvite", "revokeInvite"]),
+    name: z.string().trim().max(120).optional().or(z.literal("")),
+    email: z.string().trim().max(320).optional().or(z.literal("")),
     phoneNumber: z.string().trim().max(40).optional().or(z.literal("")),
-    relationshipType: z.enum(relationshipTypeValues).optional(),
-    note: z.string().trim().max(500).optional(),
+    relationshipType: z.string().trim().max(80).optional().or(z.literal("")),
+    note: z.string().trim().max(2000).optional().or(z.literal("")),
+    offerToNameMatch: z.boolean().optional(),
+    smsConsent: z.boolean().optional(),
   })
   .strict();
 
@@ -117,7 +117,7 @@ async function ensureNodeInviteTable() {
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "NodeInvite_pkey" PRIMARY KEY ("id")
-    )
+    );
   `;
   await prisma.$executeRaw`
     CREATE UNIQUE INDEX IF NOT EXISTS "NodeInvite_tokenHash_key"
@@ -226,10 +226,12 @@ async function insertNodeInvite(input: {
   contactMethod: "email" | "phone";
   contactValue: string;
   token: string;
-  status: "pending" | "failed";
-  sentAt?: Date | null;
-  failedAt?: Date | null;
-  failureReason?: string | null;
+  status: "pending" | "failed" | "expired" | "accepted" | "opted_out";
+  sentAt?: Date;
+  acceptedAt?: Date;
+  expiredAt?: Date;
+  failedAt?: Date;
+  failureReason?: string;
 }) {
   await ensureNodeInviteTable();
   await prisma.$executeRaw`
@@ -242,6 +244,8 @@ async function insertNodeInvite(input: {
       "tokenHash",
       "status",
       "sentAt",
+      "acceptedAt",
+      "expiredAt",
       "failedAt",
       "failureReason",
       "createdAt",
@@ -256,6 +260,8 @@ async function insertNodeInvite(input: {
       ${hashInviteToken(input.token)},
       ${input.status},
       ${input.sentAt ?? null},
+      ${input.acceptedAt ?? null},
+      ${input.expiredAt ?? null},
       ${input.failedAt ?? null},
       ${input.failureReason ?? null},
       ${new Date()},
@@ -636,7 +642,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const parsed = updateSchema.safeParse(payload);
+  const parsed = patchSchema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
   }
@@ -681,6 +687,41 @@ export async function PATCH(request: Request) {
     const targetPhone = (existing.phoneNumber ?? "").trim();
     const contactMethod = targetEmail ? "email" : targetPhone ? "phone" : null;
     const contactValue = targetEmail || targetPhone;
+
+    // Require at least one contact method
+    if (!contactMethod || !contactValue) {
+      // Still generate a token to allow copying, but don't send.
+    }
+
+    // If sending to phone, require UI consent flag.
+    const requestBody = parsed.data as {
+      smsConsent?: boolean;
+      consentSource?: string;
+    };
+
+    if (contactMethod === "phone") {
+      if (!requestBody.smsConsent) {
+        return NextResponse.json(
+          {
+            error:
+              "SMS consent is required to send an invite to a phone number.",
+          },
+          { status: 400 },
+        );
+      }
+
+      // record consent event (best-effort)
+      try {
+        await recordSmsConsent({
+          phoneNumber: contactValue,
+          consented: true,
+          source: "invite",
+          userId: currentDbUserId,
+        });
+      } catch {
+        // non-fatal
+      }
+    }
 
     if (contactMethod && contactValue) {
       const inviteSendLimit = await checkRateLimit(
@@ -734,24 +775,72 @@ export async function PATCH(request: Request) {
     }
 
     if (contactMethod === "phone") {
-      const failureReason =
-        "Phone invite UI is ready, but SMS delivery is not connected yet.";
-      await insertNodeInvite({
-        placeholderId: updated.id,
-        ownerId: existing.ownerId,
-        contactMethod,
-        contactValue,
-        token,
-        status: "failed",
-        failedAt: new Date(),
-        failureReason,
-      });
+      try {
+        const sms = await sendTransactionalSms({
+          to: contactValue,
+          body: renderInviteSms(token),
+          type: "invite",
+          userId: currentDbUserId,
+          inviteToken: token,
+        });
 
-      return NextResponse.json({
-        placeholder: normalizePlaceholder(updated),
-        message:
-          "Invite link ready. SMS delivery is not connected yet, so copy the link and send it manually.",
-      });
+        if (sms.skipped && sms.reason === "opted_out") {
+          await insertNodeInvite({
+            placeholderId: updated.id,
+            ownerId: existing.ownerId,
+            contactMethod,
+            contactValue,
+            token,
+            status: "opted_out",
+            failedAt: new Date(),
+            failureReason: "Recipient has opted out of SMS.",
+          });
+
+          return NextResponse.json(
+            {
+              placeholder: normalizePlaceholder(updated),
+              error:
+                "This phone number has opted out of SMS and cannot be invited by text.",
+            },
+            { status: 409 },
+          );
+        }
+
+        await insertNodeInvite({
+          placeholderId: updated.id,
+          ownerId: existing.ownerId,
+          contactMethod,
+          contactValue,
+          token,
+          status: "pending",
+          sentAt: new Date(),
+        });
+
+        return NextResponse.json({
+          placeholder: normalizePlaceholder(updated),
+          message: "Invite sent.",
+        });
+      } catch (e) {
+        const failureReason = getInviteFailureReason(e);
+        await insertNodeInvite({
+          placeholderId: updated.id,
+          ownerId: existing.ownerId,
+          contactMethod,
+          contactValue,
+          token,
+          status: "failed",
+          failedAt: new Date(),
+          failureReason,
+        });
+
+        return NextResponse.json(
+          {
+            error: "Could not send invite. Please try again.",
+            placeholder: normalizePlaceholder(updated),
+          },
+          { status: 502 },
+        );
+      }
     }
 
     try {

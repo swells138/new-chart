@@ -7,6 +7,7 @@ import "./globals.css";
 import { SiteNav } from "@/components/layout/site-nav";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { UsernameRequiredGate } from "@/components/auth/username-required-gate";
+import { ErrorAlertReporter } from "@/components/error/error-alert-reporter";
 
 const nunito = Nunito({
   variable: "--font-body",
@@ -76,6 +77,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full soft-grid">
+        <ErrorAlertReporter />
         {hasClerkKeys ? <ClerkProvider>{appShell}</ClerkProvider> : appShell}
       </body>
     </html>

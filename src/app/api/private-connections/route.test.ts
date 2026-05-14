@@ -326,4 +326,36 @@ describe("/api/private-connections PATCH invite actions", () => {
     expect(response.status).toBe(403);
     expect(placeholderUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("requires sms consent when sending a phone invite", async () => {
+    placeholderFindUniqueMock.mockResolvedValue({
+      id: "placeholder_123",
+      ownerId: "owner_123",
+      name: "Jordan Lee",
+      email: null,
+      phoneNumber: "+15555550123",
+      relationshipType: "Talking",
+      note: null,
+      inviteToken: null,
+      linkedUserId: null,
+      claimStatus: "unclaimed",
+      createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      offerToNameMatch: true,
+    });
+
+    const { PATCH } = await import("./route");
+
+    const response = await PATCH(
+      new Request("http://localhost/api/private-connections", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: "placeholder_123",
+          action: "generateInvite",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+  });
 });

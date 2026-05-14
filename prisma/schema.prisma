@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "binary"
 }
 
@@ -12,153 +12,157 @@ datasource db {
 
 // Sync with Clerk user records
 model User {
-  id              String    @id @default(cuid()) // App user ID
-  clerkId         String    @unique            // Clerk user ID
-  name            String?
-  firstName       String?   // New: user's first name
-  lastName        String?   // New: user's last name
-  handle          String?   @unique
-  email           String?   @unique
-  phoneNumber     String?   @unique
-  pronouns        String?
-  bio             String?
-  location        String?
-  interests       String[]  @default([]) // Array of interests
+  id                         String   @id @default(cuid()) // App user ID
+  clerkId                    String   @unique // Clerk user ID
+  name                       String?
+  firstName                  String? // New: user's first name
+  lastName                   String? // New: user's last name
+  handle                     String?  @unique
+  email                      String?  @unique
+  phoneNumber                String?  @unique
+  pronouns                   String?
+  bio                        String?
+  location                   String?
+  interests                  String[] @default([]) // Array of interests
   ignoredClaimPlaceholderIds String[] @default([])
-  relationshipStatus String?
-  featured        Boolean   @default(false)
+  relationshipStatus         String?
+  featured                   Boolean  @default(false)
   // Stripe fields
-  stripeCustomerId String?  @unique
-  stripeSubscriptionId String?
-  isPro           Boolean   @default(false)
-  connectionScore Int       @default(0)
-  totalConnections Int      @default(0)
-  secondDegreeConnections Int @default(0)
-  profileImage    String?   // Profile picture URL
-  links           Json?     // { website?: string; social?: string }
+  stripeCustomerId           String?  @unique
+  stripeSubscriptionId       String?
+  isPro                      Boolean  @default(false)
+  connectionScore            Int      @default(0)
+  totalConnections           Int      @default(0)
+  secondDegreeConnections    Int      @default(0)
+  profileImage               String? // Profile picture URL
+  links                      Json? // { website?: string; social?: string }
 
   // Relations
-  posts           Post[]
-  events          Event[]
-  articles        Article[]
-  sentMessages    Message[] @relation("Sender")
-  receivedMessages Message[] @relation("Recipient")
-  relationships   Relationship[] @relation("User1")
-  reverseRelationships Relationship[] @relation("User2")
-  eventAttendees  EventAttendee[]
-  ownedPlaceholders  PlaceholderPerson[] @relation("PlaceholderOwner")
-  claimedPlaceholders PlaceholderPerson[] @relation("PlaceholderLinked")
-  privateConnectionEdges PrivateConnectionEdge[] @relation("PrivateConnectionEdgeOwner")
-  privateConfirmedConnectionEdges PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeOwner")
+  posts                                 Post[]
+  events                                Event[]
+  articles                              Article[]
+  sentMessages                          Message[]                        @relation("Sender")
+  receivedMessages                      Message[]                        @relation("Recipient")
+  relationships                         Relationship[]                   @relation("User1")
+  reverseRelationships                  Relationship[]                   @relation("User2")
+  eventAttendees                        EventAttendee[]
+  ownedPlaceholders                     PlaceholderPerson[]              @relation("PlaceholderOwner")
+  claimedPlaceholders                   PlaceholderPerson[]              @relation("PlaceholderLinked")
+  privateConnectionEdges                PrivateConnectionEdge[]          @relation("PrivateConnectionEdgeOwner")
+  privateConfirmedConnectionEdges       PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeOwner")
   privateConfirmedConnectionEdgeSources PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeSource")
   privateConfirmedConnectionEdgeTargets PrivateConfirmedConnectionEdge[] @relation("PrivateConfirmedConnectionEdgeTarget")
-  privateMixedConnectionEdges PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgeOwner")
-  privateMixedConnectionEdgeUsers PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgeUser")
+  privateMixedConnectionEdges           PrivateMixedConnectionEdge[]     @relation("PrivateMixedConnectionEdgeOwner")
+  privateMixedConnectionEdgeUsers       PrivateMixedConnectionEdge[]     @relation("PrivateMixedConnectionEdgeUser")
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  smsConsentEvents SmsConsentEvent[]
+  smsOptOuts       SmsOptOut[]       @relation("SmsOptOutUser")
+  smsMessageLogs   SmsMessageLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Post {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   String
-  timestamp DateTime  @default(now())
+  timestamp DateTime @default(now())
   tags      String[]
-  likes     Int       @default(0)
-  comments  Int       @default(0)
-  updatedAt DateTime  @updatedAt
+  likes     Int      @default(0)
+  comments  Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 model Event {
-  id          String    @id @default(cuid())
+  id          String          @id @default(cuid())
   title       String
   description String?
   date        DateTime
   location    String?
   type        String?
   createdBy   String
-  organizer   User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  organizer   User            @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   attendees   EventAttendee[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
 
 model EventAttendee {
-  id        String    @id @default(cuid())
-  eventId   String
-  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  joinedAt  DateTime  @default(now())
-  
+  id       String   @id @default(cuid())
+  eventId  String
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
   @@unique([eventId, userId])
 }
 
 model Article {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   title     String
   excerpt   String?
   content   String?
   authorId  String
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   category  String?
-  published Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Message {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   senderId    String
-  sender      User      @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  sender      User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
   recipientId String
-  recipient   User      @relation("Recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("Recipient", fields: [recipientId], references: [id], onDelete: Cascade)
   content     String
-  read        Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 
 model Relationship {
-  id              String    @id @default(cuid())
-  user1Id         String
-  user1           User      @relation("User1", fields: [user1Id], references: [id], onDelete: Cascade)
-  user2Id         String
-  user2           User      @relation("User2", fields: [user2Id], references: [id], onDelete: Cascade)
-  type            String    // "Talking" | "Dating" | "Situationship" | "Exes" | "Married" | "Sneaky Link" | "Lovers" | "One Night Stand" | "complicated" | "FWB"
-  note            String?
-  isPublic        Boolean   @default(false)
-  publicRequestedBy String?  // DB user ID of whoever requested to make this public
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  id                String   @id @default(cuid())
+  user1Id           String
+  user1             User     @relation("User1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id           String
+  user2             User     @relation("User2", fields: [user2Id], references: [id], onDelete: Cascade)
+  type              String // "Talking" | "Dating" | "Situationship" | "Exes" | "Married" | "Sneaky Link" | "Lovers" | "One Night Stand" | "complicated" | "FWB"
+  note              String?
+  isPublic          Boolean  @default(false)
+  publicRequestedBy String? // DB user ID of whoever requested to make this public
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
   @@unique([user1Id, user2Id])
 }
 
 // Private "placeholder" person — added by a user without requiring the other party to have an account.
 // Lives only on the owner's private chart until the invite is claimed and approved.
 model PlaceholderPerson {
-  id              String    @id @default(cuid())
-  ownerId         String
-  owner           User      @relation("PlaceholderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  name            String    // Friendly name chosen by the owner; no account required
-  offerToNameMatch Boolean   @default(true) // Owner opt-in for name-based claim suggestions
-  email           String?
-  phoneNumber     String?
-  relationshipType String   // One of the RelationshipType values
-  note            String?
-  inviteToken     String?   @unique  // Generated on demand; null means no invite sent yet
-  linkedUserId    String?
-  linkedUser      User?     @relation("PlaceholderLinked", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  privateConnectionEdgeSources PrivateConnectionEdge[] @relation("PrivateConnectionEdgeSource")
-  privateConnectionEdgeTargets PrivateConnectionEdge[] @relation("PrivateConnectionEdgeTarget")
-  privateMixedConnectionEdges PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgePlaceholder")
-  nodeInvites     NodeInvite[] @relation("NodeInvitePlaceholder")
+  id                           String                       @id @default(cuid())
+  ownerId                      String
+  owner                        User                         @relation("PlaceholderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  name                         String // Friendly name chosen by the owner; no account required
+  offerToNameMatch             Boolean                      @default(true) // Owner opt-in for name-based claim suggestions
+  email                        String?
+  phoneNumber                  String?
+  relationshipType             String // One of the RelationshipType values
+  note                         String?
+  inviteToken                  String?                      @unique // Generated on demand; null means no invite sent yet
+  linkedUserId                 String?
+  linkedUser                   User?                        @relation("PlaceholderLinked", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  privateConnectionEdgeSources PrivateConnectionEdge[]      @relation("PrivateConnectionEdgeSource")
+  privateConnectionEdgeTargets PrivateConnectionEdge[]      @relation("PrivateConnectionEdgeTarget")
+  privateMixedConnectionEdges  PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgePlaceholder")
+  nodeInvites                  NodeInvite[]                 @relation("NodeInvitePlaceholder")
   // claimStatus: "unclaimed" | "invited" | "claimed" | "denied"
-  claimStatus     String    @default("unclaimed")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  claimStatus                  String                       @default("unclaimed")
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @updatedAt
 }
 
 model NodeInvite {
@@ -181,6 +185,50 @@ model NodeInvite {
   @@index([placeholderId, status])
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([contactValue, createdAt(sort: Desc)])
+}
+
+// SMS consent events (checkbox consent captured in-app)
+model SmsConsentEvent {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phoneNumber String
+  consented   Boolean
+  source      String // signup | login | invite | profile | unknown
+  createdAt   DateTime @default(now())
+
+  @@index([phoneNumber, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// Global opt-out registry (do not message these numbers)
+model SmsOptOut {
+  phoneNumber    String   @id
+  optedOutAt     DateTime
+  optedOutUserId String?
+  optedOutUser   User?    @relation("SmsOptOutUser", fields: [optedOutUserId], references: [id], onDelete: SetNull)
+  lastMessageSid String?
+  updatedAt      DateTime @updatedAt
+}
+
+// Outbound message logging (Twilio SID + delivery status callbacks)
+model SmsMessageLog {
+  id               String   @id @default(cuid())
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phoneNumber      String
+  inviteToken      String?
+  messageType      String
+  body             String
+  twilioMessageSid String?
+  status           String // queued | sent | delivered | failed | blocked_opted_out | skipped_missing_config | ...
+  error            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([phoneNumber, createdAt(sort: Desc)])
+  @@index([twilioMessageSid])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model PrivateConnectionEdge {
@@ -258,6 +306,4 @@ model ModerationUserLock {
   lockedUntil DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@index([lockedUntil])
 }

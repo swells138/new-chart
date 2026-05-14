@@ -2,6 +2,7 @@ import sgMail from "@sendgrid/mail";
 import type { MailDataRequired } from "@sendgrid/mail";
 
 const DEFAULT_FROM_NAME = "Chart";
+const DEFAULT_ERROR_ALERT_EMAIL = "sydneywells103@gmail.com";
 const TRANSACTIONAL_TRACKING_SETTINGS = {
   clickTracking: {
     enable: false,
@@ -299,6 +300,56 @@ export async function sendUserNotificationEmail(opts: {
     return res;
   } catch (err) {
     console.error("sendUserNotificationEmail failed", err);
+    return null;
+  }
+}
+
+function getErrorAlertEmails() {
+  const configured =
+    process.env.ERROR_ALERT_EMAILS ??
+    process.env.OPERATIONAL_ALERT_EMAILS ??
+    DEFAULT_ERROR_ALERT_EMAIL;
+
+  return configured
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
+export async function sendOperationalErrorNotification(input: {
+  subject: string;
+  text: string;
+}) {
+  const config = getEmailConfig();
+  if (!config) {
+    console.warn(
+      "sendOperationalErrorNotification skipped: missing SendGrid config",
+    );
+    return null;
+  }
+
+  const to = getErrorAlertEmails();
+  if (to.length === 0) {
+    console.warn(
+      "sendOperationalErrorNotification skipped: no alert recipients",
+    );
+    return null;
+  }
+
+  sgMail.setApiKey(config.apiKey);
+
+  try {
+    const res = await sgMail.send(
+      buildTransactionalEmail({
+        to,
+        subject: input.subject,
+        text: input.text,
+        category: "operational-error",
+      }),
+    );
+    return res;
+  } catch (err) {
+    console.error("sendOperationalErrorNotification failed", err);
     return null;
   }
 }

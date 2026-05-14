@@ -106,7 +106,22 @@ npm run db:seed
 
 This creates sample users and relationships.
 
-## Step 5: Browse Your Database
+## Step 5: Error Alert Emails (Optional)
+
+Server and browser error alerts are sent with the existing SendGrid config. They default to `sydneywells103@gmail.com`, or you can override recipients:
+
+```env
+ERROR_ALERT_EMAILS="you@example.com,other@example.com"
+```
+
+Required SendGrid values:
+
+```env
+SENDGRID_API_KEY="SG..."
+SENDGRID_FROM_EMAIL="alerts@yourdomain.com"
+```
+
+## Step 6: Browse Your Database
 
 Open Prisma Studio:
 
