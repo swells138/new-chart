@@ -154,10 +154,33 @@ model PlaceholderPerson {
   privateConnectionEdgeSources PrivateConnectionEdge[] @relation("PrivateConnectionEdgeSource")
   privateConnectionEdgeTargets PrivateConnectionEdge[] @relation("PrivateConnectionEdgeTarget")
   privateMixedConnectionEdges PrivateMixedConnectionEdge[] @relation("PrivateMixedConnectionEdgePlaceholder")
+  nodeInvites     NodeInvite[] @relation("NodeInvitePlaceholder")
   // claimStatus: "unclaimed" | "invited" | "claimed" | "denied"
   claimStatus     String    @default("unclaimed")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model NodeInvite {
+  id            String            @id @default(cuid())
+  placeholderId String
+  placeholder   PlaceholderPerson @relation("NodeInvitePlaceholder", fields: [placeholderId], references: [id], onDelete: Cascade)
+  ownerId       String
+  contactMethod String
+  contactValue  String
+  tokenHash     String            @unique
+  status        String            @default("pending") // pending | accepted | expired | failed
+  sentAt        DateTime?
+  acceptedAt    DateTime?
+  expiredAt     DateTime?
+  failedAt      DateTime?
+  failureReason String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([placeholderId, status])
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([contactValue, createdAt(sort: Desc)])
 }
 
 model PrivateConnectionEdge {

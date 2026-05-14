@@ -946,6 +946,7 @@ export function PrivateChart({
       });
       const body = (await res.json()) as {
         placeholder?: PlaceholderPerson;
+        message?: string;
         error?: string;
       };
       if (!res.ok || !body.placeholder) {
@@ -957,9 +958,7 @@ export function PrivateChart({
       setPlaceholders((prev) =>
         prev.map((p) => (p.id === id ? body.placeholder! : p)),
       );
-      setActionMessage(
-        "Invite generated. Share this link with them so they can join, claim their node, and help make the connection public.",
-      );
+      setActionMessage(body.message ?? "Invite sent.");
     } finally {
       setWorkingId(null);
     }
@@ -2363,6 +2362,9 @@ export function PrivateChart({
                       : null;
                     const isOwned =
                       currentUserId !== null && p.ownerId === currentUserId;
+                    const hasInviteContact = Boolean(
+                      p.email.trim() || p.phoneNumber.trim(),
+                    );
                     const publicConnectCandidate =
                       publicConnectCandidates[p.id] ?? null;
                     const isPublicConnecting =
@@ -2475,11 +2477,16 @@ export function PrivateChart({
                                     Claim suggestions: {p.offerToNameMatch ? "On" : "Off"}
                                   </span>
                                   <span className="max-w-full rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold text-white/60">
-                                    Status: Waiting for signup
+                                    Status: {STATUS_LABELS[p.claimStatus] ?? p.claimStatus}
                                   </span>
                                 </div>
                               </div>
                             </div>
+                            {!hasInviteContact ? (
+                              <p className="mt-2 text-[11px] text-white/45">
+                                Add an email or phone number before sending an invite.
+                              </p>
+                            ) : null}
                             {inviteLink ? (
                               <div className="mt-3 min-w-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
                                 <p className="break-words text-[11px] font-semibold text-white/72">
@@ -2504,15 +2511,19 @@ export function PrivateChart({
                             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
                               {isOwned &&
                               p.claimStatus !== "claimed" &&
-                              p.claimStatus !== "denied" &&
-                              !p.inviteToken ? (
+                              p.claimStatus !== "denied" ? (
                                 <button
                                   type="button"
                                   onClick={() => handleGenerateInvite(p.id)}
-                                  disabled={isWorking}
+                                  disabled={isWorking || !hasInviteContact}
                                   className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                                  title={
+                                    hasInviteContact
+                                      ? "Send an invite"
+                                      : "Add an email or phone number before sending an invite."
+                                  }
                                 >
-                                  Generate invite
+                                  {isWorking ? "Sending..." : "Invite User"}
                                 </button>
                               ) : null}
                               {publicConnectCandidate &&
@@ -2870,6 +2881,9 @@ export function PrivateChart({
                 : null;
               const isOwned =
                 currentUserId !== null && p.ownerId === currentUserId;
+              const hasInviteContact = Boolean(
+                p.email.trim() || p.phoneNumber.trim(),
+              );
               const initial = (p.name?.[0] ?? "?").toUpperCase();
               const publicConnectCandidate =
                 publicConnectCandidates[p.id] ?? null;
@@ -3054,6 +3068,12 @@ export function PrivateChart({
                         </div>
                       ) : null}
 
+                      {!hasInviteContact ? (
+                        <p className="mt-2 text-[11px] text-white/45">
+                          Add an email or phone number before sending an invite.
+                        </p>
+                      ) : null}
+
                       {!isOwned ? (
                         <p className="mt-2 text-[11px] text-white/40">
                           Only the person who created this entry can edit it.
@@ -3084,16 +3104,20 @@ export function PrivateChart({
                         p.claimStatus !== "claimed" &&
                         p.claimStatus !== "denied" ? (
                           <>
-                            {!p.inviteToken ? (
-                              <button
-                                type="button"
-                                onClick={() => handleGenerateInvite(p.id)}
-                                disabled={isWorking}
-                                className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
-                              >
-                                Generate invite
-                              </button>
-                            ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleGenerateInvite(p.id)}
+                              disabled={isWorking || !hasInviteContact}
+                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
+                              title={
+                                hasInviteContact
+                                  ? "Send an invite"
+                                  : "Add an email or phone number before sending an invite."
+                              }
+                            >
+                              {isWorking ? "Sending..." : "Invite User"}
+                            </button>
+                            {p.inviteToken ? (
                               <button
                                 type="button"
                                 onClick={() => handleRevokeInvite(p.id)}
@@ -3102,7 +3126,7 @@ export function PrivateChart({
                               >
                                 Revoke link
                               </button>
-                            )}
+                            ) : null}
                           </>
                         ) : null}
 

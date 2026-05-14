@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import type { PlaceholderPerson, RelationshipType } from "@/types/models";
@@ -8,7 +8,7 @@ import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
-import { sendInviteEmail } from "@/lib/email";
+import { sendNodeInviteEmail } from "@/lib/email";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -29,6 +29,8 @@ const relationshipTypeValues = [
   "complicated",
   "FWB",
 ] as const;
+
+const inviteResendWindowMs = 24 * 60 * 60 * 1000;
 
 const createSchema = z
   .object({
@@ -70,6 +72,88 @@ function getPrismaErrorCode(error: unknown) {
   }
 
   return null;
+}
+
+function hashInviteToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function getInviteFailureReason(error: unknown) {
+  if (error instanceof Error) {
+    return error.message.slice(0, 500);
+  }
+
+  return "Invite delivery failed.";
+}
+
+function getDuplicateInviteMessage(method: string) {
+  return method === "phone"
+    ? "An invite was already attempted for this phone number recently."
+    : "An invite was already sent to this email recently.";
+}
+
+async function findRecentInvite(input: {
+  placeholderId: string;
+  contactValue: string;
+}) {
+  const since = new Date(Date.now() - inviteResendWindowMs);
+  const rows = await prisma.$queryRaw<
+    Array<{ status: string; contactMethod: string; sentAt: Date | null }>
+  >`
+    SELECT "status", "contactMethod", "sentAt"
+    FROM "NodeInvite"
+    WHERE "placeholderId" = ${input.placeholderId}
+      AND "contactValue" = ${input.contactValue}
+      AND "status" IN ('pending', 'accepted')
+      AND COALESCE("sentAt", "createdAt") >= ${since}
+    ORDER BY COALESCE("sentAt", "createdAt") DESC
+    LIMIT 1
+  `;
+
+  return rows[0] ?? null;
+}
+
+async function insertNodeInvite(input: {
+  placeholderId: string;
+  ownerId: string;
+  contactMethod: "email" | "phone";
+  contactValue: string;
+  token: string;
+  status: "pending" | "failed";
+  sentAt?: Date | null;
+  failedAt?: Date | null;
+  failureReason?: string | null;
+}) {
+  await prisma.$executeRaw`
+    INSERT INTO "NodeInvite" (
+      "id",
+      "placeholderId",
+      "ownerId",
+      "contactMethod",
+      "contactValue",
+      "tokenHash",
+      "status",
+      "sentAt",
+      "failedAt",
+      "failureReason",
+      "createdAt",
+      "updatedAt"
+    )
+    VALUES (
+      ${randomBytes(12).toString("hex")},
+      ${input.placeholderId},
+      ${input.ownerId},
+      ${input.contactMethod},
+      ${input.contactValue},
+      ${hashInviteToken(input.token)},
+      ${input.status},
+      ${input.sentAt ?? null},
+      ${input.failedAt ?? null},
+      ${input.failureReason ?? null},
+      ${new Date()},
+      ${new Date()}
+    )
+  `;
 }
 
 function makeLegacyUserId(clerkId: string) {
@@ -382,44 +466,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // If an email was provided, create an invite token and mark as invited,
-    // then send an email notifying the target that someone is waiting.
-    if (normalizedEmail) {
-      try {
-        const token = randomBytes(24).toString("hex");
-        const updated = await prisma.placeholderPerson.update({
-          where: { id: placeholder.id },
-          data: { inviteToken: token, claimStatus: "invited" },
-        });
-
-        // Attempt to resolve owner's public name for the email copy
-        const owner = await prisma.user.findUnique({
-          where: { id: currentDbUserId },
-          select: { name: true, handle: true },
-        });
-        const ownerName = owner?.name ?? owner?.handle ?? "Someone";
-
-        // Non-fatal: the connection should still be created if email delivery fails.
-        await sendInviteEmail(
-          normalizedEmail,
-          token,
-          ownerName,
-          relationshipType,
-          note?.trim() ?? null,
-        );
-
-        // Reflect the updated invite token in the response placeholder
-        placeholder = {
-          ...placeholder,
-          inviteToken: updated.inviteToken,
-          claimStatus: updated.claimStatus,
-        };
-      } catch (e) {
-        // Non-fatal; continue without blocking creation
-        console.error("Failed to generate/send invite email:", e);
-      }
-    }
-
     return NextResponse.json(
       {
         placeholder: normalizePlaceholder(placeholder),
@@ -523,8 +569,51 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "generateInvite") {
-    // Idempotent — return existing token if already generated
-    const token = existing.inviteToken ?? randomBytes(24).toString("hex");
+    const targetEmail = (existing.email ?? "").trim();
+    const targetPhone = (existing.phoneNumber ?? "").trim();
+    const contactMethod = targetEmail ? "email" : targetPhone ? "phone" : null;
+    const contactValue = targetEmail || targetPhone;
+
+    if (!contactMethod || !contactValue) {
+      return NextResponse.json(
+        {
+          error: "Add an email or phone number before sending an invite.",
+        },
+        { status: 422 },
+      );
+    }
+
+    const inviteSendLimit = await checkRateLimit(
+      `private-connections-invite-send:${currentDbUserId}:${contactValue}`,
+      {
+        windowMs: 60 * 60 * 1000,
+        maxRequests: 3,
+      },
+    );
+    if (!inviteSendLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many invite attempts. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(inviteSendLimit.retryAfterSeconds),
+          },
+        },
+      );
+    }
+
+    const recentInvite = await findRecentInvite({
+      placeholderId: existing.id,
+      contactValue,
+    });
+    if (recentInvite) {
+      return NextResponse.json(
+        { error: getDuplicateInviteMessage(recentInvite.contactMethod) },
+        { status: 429 },
+      );
+    }
+
+    const token = randomBytes(24).toString("hex");
     const updated = await prisma.placeholderPerson.update({
       where: { id },
       data: {
@@ -535,27 +624,76 @@ export async function PATCH(request: Request) {
             : existing.claimStatus,
       },
     });
-    // If the placeholder has an email address, send an invite notification.
-    try {
-      const targetEmail = updated.email ?? existing.email ?? null;
-      if (targetEmail) {
-        const owner = await prisma.user.findUnique({
-          where: { id: existing.ownerId },
-          select: { name: true, handle: true },
-        });
-        const ownerName = owner?.name ?? owner?.handle ?? "Someone";
-        await sendInviteEmail(
-          targetEmail,
-          token,
-          ownerName,
-          updated.relationshipType,
-          updated.note ?? null,
-        );
-      }
-    } catch (e) {
-      console.error("Failed to send invite email:", e);
+
+    if (contactMethod === "phone") {
+      const failureReason =
+        "Phone invite UI is ready, but SMS delivery is not connected yet.";
+      await insertNodeInvite({
+        placeholderId: updated.id,
+        ownerId: existing.ownerId,
+        contactMethod,
+        contactValue,
+        token,
+        status: "failed",
+        failedAt: new Date(),
+        failureReason,
+      });
+
+      return NextResponse.json(
+        {
+          error:
+            "Phone invites are not connected yet. Add an email to send an invite now.",
+          placeholder: normalizePlaceholder(updated),
+        },
+        { status: 501 },
+      );
     }
-    return NextResponse.json({ placeholder: normalizePlaceholder(updated) });
+
+    try {
+      const owner = await prisma.user.findUnique({
+        where: { id: existing.ownerId },
+        select: { name: true, handle: true },
+      });
+      const ownerName = owner?.name ?? owner?.handle ?? "Someone";
+      await sendNodeInviteEmail({
+        to: contactValue,
+        token,
+        inviterName: ownerName,
+      });
+      await insertNodeInvite({
+        placeholderId: updated.id,
+        ownerId: existing.ownerId,
+        contactMethod,
+        contactValue,
+        token,
+        status: "pending",
+        sentAt: new Date(),
+      });
+    } catch (e) {
+      const failureReason = getInviteFailureReason(e);
+      await insertNodeInvite({
+        placeholderId: updated.id,
+        ownerId: existing.ownerId,
+        contactMethod,
+        contactValue,
+        token,
+        status: "failed",
+        failedAt: new Date(),
+        failureReason,
+      });
+      console.error("Failed to send invite email:", e);
+      return NextResponse.json(
+        {
+          error: "Could not send invite. Please try again.",
+          placeholder: normalizePlaceholder(updated),
+        },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({
+      placeholder: normalizePlaceholder(updated),
+      message: "Invite sent.",
+    });
   }
 
   if (action === "revokeInvite") {

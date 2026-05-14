@@ -137,6 +137,46 @@ export async function sendInviteEmail(
   }
 }
 
+export async function sendNodeInviteEmail(input: {
+  to: string;
+  token: string;
+  inviterName: string;
+}) {
+  const config = getEmailConfig();
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    process.env.BASE_URL ??
+    "";
+
+  if (!config || !siteUrl) {
+    throw new Error("SendGrid config or site URL is missing.");
+  }
+
+  sgMail.setApiKey(config.apiKey);
+
+  const inviteUrl = `${siteUrl.replace(/\/+$/, "")}/invite/${input.token}`;
+  const inviterName = input.inviterName || "Someone";
+  const subject = `${inviterName} invited you to MeshyLinks`;
+  const plainText = [
+    `You've been invited to MeshyLinks by ${inviterName}.`,
+    "",
+    "Someone added you as a node on MeshyLinks.",
+    "Sign up to claim your node and approve or manage the connection.",
+    "",
+    `Sign up here to claim your node and manage your connections: ${inviteUrl}`,
+  ].join("\n");
+
+  return sgMail.send(
+    buildTransactionalEmail({
+      to: input.to,
+      subject,
+      text: plainText,
+      category: "node-invite",
+    }),
+  );
+}
+
 export async function sendTestEmail(to: string) {
   const config = getEmailConfig();
 

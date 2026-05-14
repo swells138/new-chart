@@ -1,4 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { claimPlaceholderForUser } from "@/lib/network-claims";
@@ -13,12 +14,53 @@ const hasClerkKeys =
 const claimDebugEnabled =
   process.env.DEBUG_CLAIMS === "1" || process.env.NODE_ENV !== "production";
 
+const inviteExpiresMs = 30 * 24 * 60 * 60 * 1000;
+
 function logClaimDebug(event: string, details?: Record<string, unknown>) {
   if (!claimDebugEnabled) {
     return;
   }
 
   console.info("[claim-debug]", event, details ?? {});
+}
+
+function hashInviteToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+async function getInviteAudit(token: string) {
+  const rows = await prisma.$queryRaw<
+    Array<{ id: string; status: string; sentAt: Date | null; createdAt: Date }>
+  >`
+    SELECT "id", "status", "sentAt", "createdAt"
+    FROM "NodeInvite"
+    WHERE "tokenHash" = ${hashInviteToken(token)}
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `;
+
+  return rows[0] ?? null;
+}
+
+async function expireInvite(inviteId: string) {
+  await prisma.$executeRaw`
+    UPDATE "NodeInvite"
+    SET "status" = 'expired',
+        "expiredAt" = ${new Date()},
+        "updatedAt" = ${new Date()}
+    WHERE "id" = ${inviteId}
+  `;
+}
+
+async function markInviteAccepted(token: string) {
+  await prisma.$executeRaw`
+    UPDATE "NodeInvite"
+    SET "status" = 'accepted',
+        "acceptedAt" = ${new Date()},
+        "updatedAt" = ${new Date()}
+    WHERE "tokenHash" = ${hashInviteToken(token)}
+      AND "status" = 'pending'
+  `;
 }
 
 interface RouteContext {
@@ -81,6 +123,23 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: "This invite link is invalid or has expired." },
       { status: 404 },
+    );
+  }
+
+  const inviteAudit = await getInviteAudit(token);
+  const inviteCreatedAt = inviteAudit?.sentAt ?? inviteAudit?.createdAt;
+  if (
+    inviteAudit?.status === "expired" ||
+    (inviteCreatedAt &&
+      Date.now() - inviteCreatedAt.getTime() > inviteExpiresMs)
+  ) {
+    if (inviteAudit.status !== "expired") {
+      await expireInvite(inviteAudit.id);
+    }
+    logClaimDebug("invite.get.expired", { placeholderId: placeholder.id });
+    return NextResponse.json(
+      { error: "This invite link is invalid or has expired." },
+      { status: 410 },
     );
   }
 
@@ -196,6 +255,26 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  const inviteAudit = await getInviteAudit(token);
+  const inviteCreatedAt = inviteAudit?.sentAt ?? inviteAudit?.createdAt;
+  if (
+    inviteAudit?.status === "expired" ||
+    (inviteCreatedAt &&
+      Date.now() - inviteCreatedAt.getTime() > inviteExpiresMs)
+  ) {
+    if (inviteAudit.status !== "expired") {
+      await expireInvite(inviteAudit.id);
+    }
+    logClaimDebug("invite.post.expired", {
+      placeholderId: placeholder.id,
+      dbUserId: claimerDbId,
+    });
+    return NextResponse.json(
+      { error: "This invite link is invalid or has expired." },
+      { status: 410 },
+    );
+  }
+
   if (placeholder.claimStatus === "claimed") {
     logClaimDebug("invite.post.already-claimed", {
       placeholderId: placeholder.id,
@@ -235,6 +314,9 @@ export async function POST(request: Request, context: RouteContext) {
       where: { id: placeholder.id },
       data: { claimStatus: "denied", linkedUserId: claimerDbId },
     });
+    if (inviteAudit) {
+      await expireInvite(inviteAudit.id);
+    }
 
     logClaimDebug("invite.post.denied-success", {
       placeholderId: placeholder.id,
@@ -259,6 +341,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   // action === "approve"
   const result = await claimPlaceholderForUser(claimerDbId, placeholder.id);
+  await markInviteAccepted(token);
   logClaimDebug("invite.post.approved-success", {
     placeholderId: placeholder.id,
     dbUserId: claimerDbId,
