@@ -194,7 +194,8 @@ describe("/api/private-connections PATCH invite actions", () => {
     });
   });
 
-  it("requires contact information before sending an invite", async () => {
+  it("creates a copyable invite link without contact information", async () => {
+    const createdAt = new Date("2026-05-01T00:00:00.000Z");
     placeholderFindUniqueMock.mockResolvedValue({
       id: "placeholder_123",
       ownerId: "owner_123",
@@ -206,7 +207,21 @@ describe("/api/private-connections PATCH invite actions", () => {
       inviteToken: null,
       linkedUserId: null,
       claimStatus: "unclaimed",
-      createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      createdAt,
+      offerToNameMatch: true,
+    });
+    placeholderUpdateMock.mockResolvedValue({
+      id: "placeholder_123",
+      ownerId: "owner_123",
+      name: "Jordan Lee",
+      email: null,
+      phoneNumber: null,
+      relationshipType: "Talking",
+      note: null,
+      inviteToken: "generated-token",
+      linkedUserId: null,
+      claimStatus: "invited",
+      createdAt,
       offerToNameMatch: true,
     });
 
@@ -223,8 +238,23 @@ describe("/api/private-connections PATCH invite actions", () => {
       }),
     );
 
-    expect(response.status).toBe(422);
-    expect(placeholderUpdateMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(sendNodeInviteEmailMock).not.toHaveBeenCalled();
+    expect(placeholderUpdateMock).toHaveBeenCalledWith({
+      where: { id: "placeholder_123" },
+      data: {
+        inviteToken: expect.stringMatching(/^[a-f0-9]{48}$/),
+        claimStatus: "invited",
+      },
+    });
+
+    const body = (await response.json()) as {
+      message?: string;
+      placeholder: { inviteToken: string; claimStatus: string };
+    };
+    expect(body.message).toBe("Invite link ready.");
+    expect(body.placeholder.inviteToken).toBe("generated-token");
+    expect(body.placeholder.claimStatus).toBe("invited");
   });
 
   it("prevents duplicate invite sends too often", async () => {

@@ -682,43 +682,36 @@ export async function PATCH(request: Request) {
     const contactMethod = targetEmail ? "email" : targetPhone ? "phone" : null;
     const contactValue = targetEmail || targetPhone;
 
-    if (!contactMethod || !contactValue) {
-      return NextResponse.json(
+    if (contactMethod && contactValue) {
+      const inviteSendLimit = await checkRateLimit(
+        `private-connections-invite-send:${currentDbUserId}:${contactValue}`,
         {
-          error: "Add an email or phone number before sending an invite.",
+          windowMs: 60 * 60 * 1000,
+          maxRequests: 3,
         },
-        { status: 422 },
       );
-    }
-
-    const inviteSendLimit = await checkRateLimit(
-      `private-connections-invite-send:${currentDbUserId}:${contactValue}`,
-      {
-        windowMs: 60 * 60 * 1000,
-        maxRequests: 3,
-      },
-    );
-    if (!inviteSendLimit.allowed) {
-      return NextResponse.json(
-        { error: "Too many invite attempts. Please try again later." },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(inviteSendLimit.retryAfterSeconds),
+      if (!inviteSendLimit.allowed) {
+        return NextResponse.json(
+          { error: "Too many invite attempts. Please try again later." },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": String(inviteSendLimit.retryAfterSeconds),
+            },
           },
-        },
-      );
-    }
+        );
+      }
 
-    const recentInvite = await findRecentInvite({
-      placeholderId: existing.id,
-      contactValue,
-    });
-    if (recentInvite) {
-      return NextResponse.json(
-        { error: getDuplicateInviteMessage(recentInvite.contactMethod) },
-        { status: 429 },
-      );
+      const recentInvite = await findRecentInvite({
+        placeholderId: existing.id,
+        contactValue,
+      });
+      if (recentInvite) {
+        return NextResponse.json(
+          { error: getDuplicateInviteMessage(recentInvite.contactMethod) },
+          { status: 429 },
+        );
+      }
     }
 
     const token = randomBytes(24).toString("hex");
@@ -732,6 +725,13 @@ export async function PATCH(request: Request) {
             : existing.claimStatus,
       },
     });
+
+    if (!contactMethod || !contactValue) {
+      return NextResponse.json({
+        placeholder: normalizePlaceholder(updated),
+        message: "Invite link ready.",
+      });
+    }
 
     if (contactMethod === "phone") {
       const failureReason =
@@ -747,14 +747,11 @@ export async function PATCH(request: Request) {
         failureReason,
       });
 
-      return NextResponse.json(
-        {
-          error:
-            "Phone invites are not connected yet. Add an email to send an invite now.",
-          placeholder: normalizePlaceholder(updated),
-        },
-        { status: 501 },
-      );
+      return NextResponse.json({
+        placeholder: normalizePlaceholder(updated),
+        message:
+          "Invite link ready. SMS delivery is not connected yet, so copy the link and send it manually.",
+      });
     }
 
     try {

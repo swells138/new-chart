@@ -42,7 +42,7 @@ const TYPE_COLORS: Record<RelationshipType, string> = {
 
 const STATUS_LABELS: Record<PlaceholderPerson["claimStatus"], string> = {
   unclaimed: "Waiting for signup",
-  invited: "Invite sent",
+  invited: "Invite link ready",
   claimed: "Moved to verification",
   denied: "Declined",
 };
@@ -420,7 +420,7 @@ export function PrivateChart({
   const [existingUserSuggestion, setExistingUserSuggestion] =
     useState<ExistingUserSuggestion | null>(null);
   const [activeWorkflowTab, setActiveWorkflowTab] =
-    useState<WorkflowTab>("add");
+    useState<WorkflowTab>("pending");
   const [publicConnectCandidates, setPublicConnectCandidates] = useState<
     Record<string, PublicConnectCandidate>
   >({});
@@ -2005,16 +2005,16 @@ export function PrivateChart({
       >
         <div className="flex min-w-0 flex-col gap-3 border-b border-[var(--border-soft)] pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Build your private chart</h2>
+            <h2 className="text-lg font-semibold">Manage your private chart</h2>
             <p className="mt-1 text-xs text-black/60 dark:text-white/60">
-              Private until both people verify.
+              Create private nodes, copy invite links, and connect people.
             </p>
           </div>
           <div className="grid w-full min-w-0 grid-cols-3 gap-1 rounded-xl bg-black/[0.035] p-1 dark:bg-white/[0.06] sm:w-auto">
             {[
+              { id: "pending" as const, label: "Invite Links" },
               { id: "add" as const, label: "Add Person" },
               { id: "connect" as const, label: "Connect People" },
-              { id: "pending" as const, label: "Pending / Private Nodes" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -2289,8 +2289,18 @@ export function PrivateChart({
         ) : null}
 
         {activeWorkflowTab === "pending" ? (
-          <div className="min-w-0 space-y-3 pt-4">
-            <details className="min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
+          <div className="flex min-w-0 flex-col gap-3 pt-4">
+            <div className="order-1">
+              <h3 className="text-sm font-bold uppercase tracking-wider">
+                Invite people to claim their node
+              </h3>
+              <p className="mt-1 text-xs text-black/65 dark:text-white/65">
+                Generate a link for anyone you added privately, then copy it
+                and send it wherever you already talk to them.
+              </p>
+            </div>
+
+            <details className="order-3 min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
               <summary className="cursor-pointer text-sm font-semibold">
                 Private connections ({combinedWebEdges.length})
               </summary>
@@ -2342,9 +2352,12 @@ export function PrivateChart({
               )}
             </details>
 
-            <details className="min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]">
+            <details
+              open
+              className="order-2 min-w-0 rounded-xl border border-[var(--border-soft)] bg-black/[0.02] p-3 dark:bg-white/[0.04]"
+            >
               <summary className="cursor-pointer text-sm font-semibold">
-                Waiting for signup ({placeholders.length})
+                Invite links and private nodes ({placeholders.length})
               </summary>
               {placeholders.length === 0 ? (
                 <p className="mt-3 text-xs text-black/60 dark:text-white/62">
@@ -2484,15 +2497,14 @@ export function PrivateChart({
                             </div>
                             {!hasInviteContact ? (
                               <p className="mt-2 text-[11px] text-white/45">
-                                Add an email or phone number before sending an invite.
+                                No email needed. Create a link and send it yourself.
                               </p>
                             ) : null}
                             {inviteLink ? (
                               <div className="mt-3 min-w-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
                                 <p className="break-words text-[11px] font-semibold text-white/72">
-                                  To become public, {p.name} has to join and claim
-                                  this node. Share the invite link with them so
-                                  they can verify it.
+                                  Share this link with {p.name} so they can join
+                                  Chart and claim this node.
                                 </p>
                                 <div className="mt-2 flex min-w-0 items-center gap-2">
                                   <p className="min-w-0 flex-1 truncate text-[10px] text-white/42">
@@ -2515,15 +2527,19 @@ export function PrivateChart({
                                 <button
                                   type="button"
                                   onClick={() => handleGenerateInvite(p.id)}
-                                  disabled={isWorking || !hasInviteContact}
+                                  disabled={isWorking}
                                   className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
                                   title={
                                     hasInviteContact
-                                      ? "Send an invite"
-                                      : "Add an email or phone number before sending an invite."
+                                      ? "Create a link and send an email invite"
+                                      : "Create an invite link to copy and send."
                                   }
                                 >
-                                  {isWorking ? "Sending..." : "Invite User"}
+                                  {isWorking
+                                    ? "Creating..."
+                                    : p.inviteToken
+                                      ? "Refresh link"
+                                      : "Create invite link"}
                                 </button>
                               ) : null}
                               {publicConnectCandidate &&
