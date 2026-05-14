@@ -31,6 +31,7 @@ const relationshipTypeValues = [
 ] as const;
 
 const inviteResendWindowMs = 24 * 60 * 60 * 1000;
+let nodeInviteTableReady = false;
 
 const createSchema = z
   .object({
@@ -74,6 +75,85 @@ function getPrismaErrorCode(error: unknown) {
   return null;
 }
 
+function isMissingNodeInviteTableError(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const message =
+    "message" in error && typeof error.message === "string"
+      ? error.message
+      : "";
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : "";
+
+  return (
+    code === "P2010" ||
+    code === "42P01" ||
+    message.includes("NodeInvite") ||
+    (message.includes("relation") && message.includes("does not exist"))
+  );
+}
+
+async function ensureNodeInviteTable() {
+  if (nodeInviteTableReady) {
+    return;
+  }
+
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS "NodeInvite" (
+      "id" TEXT NOT NULL,
+      "placeholderId" TEXT NOT NULL,
+      "ownerId" TEXT NOT NULL,
+      "contactMethod" TEXT NOT NULL,
+      "contactValue" TEXT NOT NULL,
+      "tokenHash" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "sentAt" TIMESTAMP(3),
+      "acceptedAt" TIMESTAMP(3),
+      "expiredAt" TIMESTAMP(3),
+      "failedAt" TIMESTAMP(3),
+      "failureReason" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "NodeInvite_pkey" PRIMARY KEY ("id")
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE UNIQUE INDEX IF NOT EXISTS "NodeInvite_tokenHash_key"
+    ON "NodeInvite"("tokenHash")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "NodeInvite_placeholderId_status_idx"
+    ON "NodeInvite"("placeholderId", "status")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "NodeInvite_ownerId_createdAt_idx"
+    ON "NodeInvite"("ownerId", "createdAt" DESC)
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "NodeInvite_contactValue_createdAt_idx"
+    ON "NodeInvite"("contactValue", "createdAt" DESC)
+  `;
+
+  try {
+    await prisma.$executeRaw`
+      ALTER TABLE "NodeInvite"
+      ADD CONSTRAINT "NodeInvite_placeholderId_fkey"
+      FOREIGN KEY ("placeholderId") REFERENCES "PlaceholderPerson"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE
+    `;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : String(error ?? "");
+    if (!message.includes("already exists")) {
+      throw error;
+    }
+  }
+
+  nodeInviteTableReady = true;
+}
+
 function hashInviteToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -96,19 +176,46 @@ async function findRecentInvite(input: {
   placeholderId: string;
   contactValue: string;
 }) {
+  await ensureNodeInviteTable();
   const since = new Date(Date.now() - inviteResendWindowMs);
-  const rows = await prisma.$queryRaw<
-    Array<{ status: string; contactMethod: string; sentAt: Date | null }>
-  >`
-    SELECT "status", "contactMethod", "sentAt"
-    FROM "NodeInvite"
-    WHERE "placeholderId" = ${input.placeholderId}
-      AND "contactValue" = ${input.contactValue}
-      AND "status" IN ('pending', 'accepted')
-      AND COALESCE("sentAt", "createdAt") >= ${since}
-    ORDER BY COALESCE("sentAt", "createdAt") DESC
-    LIMIT 1
-  `;
+  let rows: Array<{
+    status: string;
+    contactMethod: string;
+    sentAt: Date | null;
+  }>;
+
+  try {
+    rows = await prisma.$queryRaw<
+      Array<{ status: string; contactMethod: string; sentAt: Date | null }>
+    >`
+      SELECT "status", "contactMethod", "sentAt"
+      FROM "NodeInvite"
+      WHERE "placeholderId" = ${input.placeholderId}
+        AND "contactValue" = ${input.contactValue}
+        AND "status" IN ('pending', 'accepted')
+        AND COALESCE("sentAt", "createdAt") >= ${since}
+      ORDER BY COALESCE("sentAt", "createdAt") DESC
+      LIMIT 1
+    `;
+  } catch (error) {
+    if (!isMissingNodeInviteTableError(error)) {
+      throw error;
+    }
+    nodeInviteTableReady = false;
+    await ensureNodeInviteTable();
+    rows = await prisma.$queryRaw<
+      Array<{ status: string; contactMethod: string; sentAt: Date | null }>
+    >`
+      SELECT "status", "contactMethod", "sentAt"
+      FROM "NodeInvite"
+      WHERE "placeholderId" = ${input.placeholderId}
+        AND "contactValue" = ${input.contactValue}
+        AND "status" IN ('pending', 'accepted')
+        AND COALESCE("sentAt", "createdAt") >= ${since}
+      ORDER BY COALESCE("sentAt", "createdAt") DESC
+      LIMIT 1
+    `;
+  }
 
   return rows[0] ?? null;
 }
@@ -124,6 +231,7 @@ async function insertNodeInvite(input: {
   failedAt?: Date | null;
   failureReason?: string | null;
 }) {
+  await ensureNodeInviteTable();
   await prisma.$executeRaw`
     INSERT INTO "NodeInvite" (
       "id",
