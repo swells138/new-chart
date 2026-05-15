@@ -164,10 +164,27 @@ function hashInviteToken(token: string) {
 
 function getInviteFailureReason(error: unknown) {
   if (error instanceof Error) {
-    return error.message.slice(0, 500);
+    const details: string[] = [error.message];
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "number"
+    ) {
+      details.push(`Twilio code ${error.code}`);
+    }
+
+    return details.join(" ").slice(0, 500);
   }
 
   return "Invite delivery failed.";
+}
+
+function getSmsInviteFailureMessage(reason: string) {
+  return reason.trim()
+    ? `Could not send invite by text: ${reason}`
+    : "Could not send invite by text. Please try again.";
 }
 
 function getDuplicateInviteMessage(method: string) {
@@ -801,6 +818,30 @@ export async function PATCH(request: Request) {
           inviteToken: token,
         });
 
+        if (sms.skipped && sms.reason === "missing_config") {
+          const failureReason =
+            "SMS delivery is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER.";
+          await insertNodeInvite({
+            placeholderId: updated.id,
+            ownerId: existing.ownerId,
+            contactMethod,
+            contactValue,
+            token,
+            status: "failed",
+            failedAt: new Date(),
+            failureReason,
+          });
+
+          return NextResponse.json(
+            {
+              placeholder: normalizePlaceholder(updated),
+              error: failureReason,
+              deliveryError: failureReason,
+            },
+            { status: 503 },
+          );
+        }
+
         if (sms.skipped && sms.reason === "opted_out") {
           await insertNodeInvite({
             placeholderId: updated.id,
@@ -839,6 +880,12 @@ export async function PATCH(request: Request) {
         });
       } catch (e) {
         const failureReason = getInviteFailureReason(e);
+        console.error("Failed to send private connection SMS invite", {
+          placeholderId: updated.id,
+          ownerId: existing.ownerId,
+          contactValue,
+          failureReason,
+        });
         await insertNodeInvite({
           placeholderId: updated.id,
           ownerId: existing.ownerId,
@@ -852,7 +899,8 @@ export async function PATCH(request: Request) {
 
         return NextResponse.json(
           {
-            error: "Could not send invite. Please try again.",
+            error: getSmsInviteFailureMessage(failureReason),
+            deliveryError: failureReason,
             placeholder: normalizePlaceholder(updated),
           },
           { status: 502 },
