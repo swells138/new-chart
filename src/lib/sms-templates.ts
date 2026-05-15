@@ -8,20 +8,20 @@ export type TransactionalSmsType =
 export const SMS_OPT_IN_KEYWORDS = new Set(["START", "YES", "UNSTOP"]);
 
 export const SMS_OPT_IN_CONFIRMATION_MESSAGE =
-  "MeshyLinks: You are now opted in to receive transactional SMS messages related to account verification, invitations, connection approvals, and service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for assistance or STOP to opt out.";
+  "MeshyLinks: You are now opted in to receive transactional SMS messages related to account verification, invitations, login authentication, and important service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for assistance or STOP to opt out.";
 
 export const SMS_HELP_MESSAGE =
-  "MeshyLinks: For help, visit https://meshylinks.com/contact or contact support through your account. Reply STOP to opt out.";
+  "MeshyLinks support: Reply STOP to unsubscribe from SMS messages. Message and data rates may apply. For assistance, contact support@meshylinks.com.";
 
 export const SMS_STOP_CONFIRMATION_MESSAGE =
-  "MeshyLinks: You have been opted out and will no longer receive SMS messages from MeshyLinks. Reply START to opt back in.";
+  "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe.";
 
 export function renderInviteSms(input: {
   inviterName?: string | null;
   link: string;
 }) {
   const inviterName = input.inviterName?.trim() || "Someone";
-  return `${inviterName} invited you to join MeshyLinks and verify a connection. Claim your profile here: ${input.link}. Reply STOP to opt out.`;
+  return `MeshyLinks: ${inviterName} invited you to join MeshyLinks and connect on the platform. Create your account here: ${input.link} Reply STOP to opt out.`;
 }
 
 export function renderVerificationSms(code: string) {
