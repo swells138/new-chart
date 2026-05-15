@@ -13,6 +13,7 @@ import type {
 } from "@/types/models";
 import type { PrivateDuplicateMatch } from "@/lib/private-duplicate-matches";
 import { chooseExistingPrivatePerson } from "@/lib/private-duplicate-flow";
+import { SmsConsentCheckbox } from "@/components/ui/sms-consent-checkbox";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -467,6 +468,9 @@ export function PrivateChart({
   // Invite/action state
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [smsConsentByPlaceholderId, setSmsConsentByPlaceholderId] = useState<
+    Record<string, boolean>
+  >({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
@@ -934,7 +938,28 @@ export function PrivateChart({
     highlightConnection(`private-${choice.existingPersonId}`);
   }
 
+  function requiresSmsConsentForInvite(p: PlaceholderPerson) {
+    return Boolean(!p.email.trim() && p.phoneNumber.trim());
+  }
+
+  function setPlaceholderSmsConsent(id: string, checked: boolean) {
+    setSmsConsentByPlaceholderId((prev) => ({
+      ...prev,
+      [id]: checked,
+    }));
+  }
+
   async function handleGenerateInvite(id: string) {
+    const placeholder = placeholders.find((p) => p.id === id);
+    const requiresSmsConsent = placeholder
+      ? requiresSmsConsentForInvite(placeholder)
+      : false;
+
+    if (requiresSmsConsent && !smsConsentByPlaceholderId[id]) {
+      setActionError("Confirm SMS consent before sending a text invite.");
+      return;
+    }
+
     setWorkingId(id);
     setActionError(null);
     setActionMessage(null);
@@ -942,7 +967,11 @@ export function PrivateChart({
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action: "generateInvite" }),
+        body: JSON.stringify({
+          id,
+          action: "generateInvite",
+          ...(requiresSmsConsent ? { smsConsent: true } : {}),
+        }),
       });
       const body = (await res.json()) as {
         placeholder?: PlaceholderPerson;
@@ -2378,6 +2407,10 @@ export function PrivateChart({
                     const hasInviteContact = Boolean(
                       p.email.trim() || p.phoneNumber.trim(),
                     );
+                    const requiresSmsConsent =
+                      requiresSmsConsentForInvite(p);
+                    const hasSmsConsent =
+                      smsConsentByPlaceholderId[p.id] ?? false;
                     const publicConnectCandidate =
                       publicConnectCandidates[p.id] ?? null;
                     const isPublicConnecting =
@@ -2520,6 +2553,19 @@ export function PrivateChart({
                                 </div>
                               </div>
                             ) : null}
+                            {requiresSmsConsent ? (
+                              <div className="mt-3 text-black dark:text-white">
+                                <SmsConsentCheckbox
+                                  checked={hasSmsConsent}
+                                  onChange={(checked) =>
+                                    setPlaceholderSmsConsent(p.id, checked)
+                                  }
+                                  required
+                                  label={`I confirm ${p.name} agreed to receive a transactional text invite from Chart at ${p.phoneNumber}. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for assistance.`}
+                                  consentSourceLabel="Pending connection invite"
+                                />
+                              </div>
+                            ) : null}
                             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
                               {isOwned &&
                               p.claimStatus !== "claimed" &&
@@ -2527,10 +2573,15 @@ export function PrivateChart({
                                 <button
                                   type="button"
                                   onClick={() => handleGenerateInvite(p.id)}
-                                  disabled={isWorking}
+                                  disabled={
+                                    isWorking ||
+                                    (requiresSmsConsent && !hasSmsConsent)
+                                  }
                                   className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
                                   title={
-                                    hasInviteContact
+                                    requiresSmsConsent && !hasSmsConsent
+                                      ? "Confirm SMS consent before sending a text invite."
+                                      : hasInviteContact
                                       ? "Create a link and send an email invite"
                                       : "Create an invite link to copy and send."
                                   }
@@ -2900,6 +2951,8 @@ export function PrivateChart({
               const hasInviteContact = Boolean(
                 p.email.trim() || p.phoneNumber.trim(),
               );
+              const requiresSmsConsent = requiresSmsConsentForInvite(p);
+              const hasSmsConsent = smsConsentByPlaceholderId[p.id] ?? false;
               const initial = (p.name?.[0] ?? "?").toUpperCase();
               const publicConnectCandidate =
                 publicConnectCandidates[p.id] ?? null;
@@ -3114,6 +3167,22 @@ export function PrivateChart({
                         </div>
                       ) : null}
 
+                      {requiresSmsConsent &&
+                      p.claimStatus !== "claimed" &&
+                      p.claimStatus !== "denied" ? (
+                        <div className="mt-3 text-black dark:text-white">
+                          <SmsConsentCheckbox
+                            checked={hasSmsConsent}
+                            onChange={(checked) =>
+                              setPlaceholderSmsConsent(p.id, checked)
+                            }
+                            required
+                            label={`I confirm ${p.name} agreed to receive a transactional text invite from Chart at ${p.phoneNumber}. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for assistance.`}
+                            consentSourceLabel="Pending connection invite"
+                          />
+                        </div>
+                      ) : null}
+
                       {/* Action buttons */}
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {isOwned &&
@@ -3123,10 +3192,16 @@ export function PrivateChart({
                             <button
                               type="button"
                               onClick={() => handleGenerateInvite(p.id)}
-                              disabled={isWorking || !hasInviteContact}
+                              disabled={
+                                isWorking ||
+                                !hasInviteContact ||
+                                (requiresSmsConsent && !hasSmsConsent)
+                              }
                               className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
                               title={
-                                hasInviteContact
+                                requiresSmsConsent && !hasSmsConsent
+                                  ? "Confirm SMS consent before sending a text invite."
+                                  : hasInviteContact
                                   ? "Send an invite"
                                   : "Add an email or phone number before sending an invite."
                               }
