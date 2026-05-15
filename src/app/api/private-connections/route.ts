@@ -36,6 +36,16 @@ const relationshipTypeValues = [
   "FWB",
 ] as const;
 
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.BASE_URL ??
+    "https://meshylinks.com"
+  ).replace(/\/+$/, "");
+}
+
 const inviteResendWindowMs = 24 * 60 * 60 * 1000;
 let nodeInviteTableReady = false;
 
@@ -60,6 +70,7 @@ const patchSchema = z
     relationshipType: z.string().trim().max(80).optional().or(z.literal("")),
     note: z.string().trim().max(2000).optional().or(z.literal("")),
     offerToNameMatch: z.boolean().optional(),
+    inviteConsent: z.boolean().optional(),
     smsConsent: z.boolean().optional(),
   })
   .strict();
@@ -717,11 +728,21 @@ export async function PATCH(request: Request) {
       // Still generate a token to allow copying, but don't send.
     }
 
-    // If sending to phone, require UI consent flag.
+    // If sending an email or SMS invite, require the sender to confirm permission.
     const requestBody = parsed.data as {
-      smsConsent?: boolean;
+      inviteConsent?: boolean;
       consentSource?: string;
     };
+
+    if (contactMethod && contactValue && !requestBody.inviteConsent) {
+      return NextResponse.json(
+        {
+          error:
+            "Confirm that you have permission to contact this person and send them an invitation to MeshyLinks.",
+        },
+        { status: 400 },
+      );
+    }
 
     if (contactMethod === "phone") {
       if (!normalizedTargetPhone) {
@@ -729,16 +750,6 @@ export async function PATCH(request: Request) {
           {
             error:
               "Enter a valid US phone number with 10 digits, or include a + country code.",
-          },
-          { status: 400 },
-        );
-      }
-
-      if (!requestBody.smsConsent) {
-        return NextResponse.json(
-          {
-            error:
-              "SMS consent is required to send an invite to a phone number.",
           },
           { status: 400 },
         );
@@ -808,11 +819,20 @@ export async function PATCH(request: Request) {
       });
     }
 
+    const owner = await prisma.user.findUnique({
+      where: { id: existing.ownerId },
+      select: { name: true, handle: true },
+    });
+    const ownerName = owner?.name ?? owner?.handle ?? "Someone";
+
     if (contactMethod === "phone") {
       try {
         const sms = await sendTransactionalSms({
           to: contactValue,
-          body: renderInviteSms(token),
+          body: renderInviteSms({
+            inviterName: ownerName,
+            link: `${getSiteUrl()}/invite/${token}`,
+          }),
           type: "invite",
           userId: currentDbUserId,
           inviteToken: token,
@@ -909,11 +929,6 @@ export async function PATCH(request: Request) {
     }
 
     try {
-      const owner = await prisma.user.findUnique({
-        where: { id: existing.ownerId },
-        select: { name: true, handle: true },
-      });
-      const ownerName = owner?.name ?? owner?.handle ?? "Someone";
       await sendNodeInviteEmail({
         to: contactValue,
         token,

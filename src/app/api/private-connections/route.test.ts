@@ -114,6 +114,7 @@ describe("/api/private-connections PATCH invite actions", () => {
         body: JSON.stringify({
           id: "placeholder_123",
           action: "generateInvite",
+          inviteConsent: true,
         }),
       }),
     );
@@ -180,6 +181,7 @@ describe("/api/private-connections PATCH invite actions", () => {
         body: JSON.stringify({
           id: "placeholder_123",
           action: "generateInvite",
+          inviteConsent: true,
         }),
       }),
     );
@@ -234,6 +236,7 @@ describe("/api/private-connections PATCH invite actions", () => {
         body: JSON.stringify({
           id: "placeholder_123",
           action: "generateInvite",
+          inviteConsent: true,
         }),
       }),
     );
@@ -285,6 +288,7 @@ describe("/api/private-connections PATCH invite actions", () => {
         body: JSON.stringify({
           id: "placeholder_123",
           action: "generateInvite",
+          inviteConsent: true,
         }),
       }),
     );
@@ -327,7 +331,7 @@ describe("/api/private-connections PATCH invite actions", () => {
     expect(placeholderUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("requires sms consent when sending a phone invite", async () => {
+  it("requires invite consent when sending a phone invite", async () => {
     placeholderFindUniqueMock.mockResolvedValue({
       id: "placeholder_123",
       ownerId: "owner_123",

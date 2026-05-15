@@ -24,10 +24,44 @@ const caveat = Caveat({
   subsets: ["latin"],
 });
 
+function getMetadataBase() {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://meshylinks.com");
+  } catch {
+    return new URL("https://meshylinks.com");
+  }
+}
+
 export const metadata: Metadata = {
-  title: "Meshy Links",
+  metadataBase: getMetadataBase(),
+  title: {
+    default: "MeshyLinks",
+    template: "%s | MeshyLinks",
+  },
   description:
-    "An original community-centered social platform concept focused on connections, stories, and shared creativity.",
+    "MeshyLinks helps people map, verify, and manage their private connection network with consent-first invitations.",
+  applicationName: "MeshyLinks",
+  keywords: [
+    "MeshyLinks",
+    "connection map",
+    "private network",
+    "relationship graph",
+    "verified connections",
+  ],
+  authors: [{ name: "MeshyLinks" }],
+  creator: "MeshyLinks",
+  publisher: "MeshyLinks",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "MeshyLinks",
+    title: "MeshyLinks",
+    description:
+      "Map, verify, and manage private connections with consent-first invitations.",
+    url: "https://meshylinks.com",
+  },
 };
 
 const hasClerkKeys =
@@ -59,6 +93,9 @@ export default function RootLayout({
             </Link>
             <Link href="/privacy" className="transition hover:text-[var(--accent)] hover:underline">
               Privacy Policy
+            </Link>
+            <Link href="/contact" className="transition hover:text-[var(--accent)] hover:underline">
+              Contact
             </Link>
             <Link href="/report" className="transition hover:text-[var(--accent)] hover:underline">
               Report / Remove Me

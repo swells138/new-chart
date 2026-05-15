@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 export const SMS_CONSENT_TEXT =
-  "I agree to receive transactional SMS messages from MeshyLinks related to account verification, invitations, connection approvals, and service notifications. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for assistance.";
+  "I confirm that I have permission to contact this person and send them an invitation to MeshyLinks.";
 
 export function SmsConsentCheckbox(input: {
   checked: boolean;

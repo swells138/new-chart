@@ -1,7 +1,7 @@
 import sgMail from "@sendgrid/mail";
 import type { MailDataRequired } from "@sendgrid/mail";
 
-const DEFAULT_FROM_NAME = "Chart";
+const DEFAULT_FROM_NAME = "MeshyLinks";
 const DEFAULT_ERROR_ALERT_EMAIL = "sydneywells103@gmail.com";
 const TRANSACTIONAL_TRACKING_SETTINGS = {
   clickTracking: {
@@ -105,17 +105,17 @@ export async function sendInviteEmail(
   sgMail.setApiKey(config.apiKey);
 
   const inviteUrl = `${siteUrl.replace(/\/+$/, "")}/invite/${token}`;
-  const subject = `${ownerName ?? "Someone"} invited you on Chart`;
+  const subject = `${ownerName ?? "Someone"} invited you to MeshyLinks`;
 
   const plainText = [
-    `${ownerName ?? "Someone"} added you as ${relationshipType} on Chart and is waiting for your confirmation.`,
+    `${ownerName ?? "Someone"} invited you to verify a ${relationshipType} connection on MeshyLinks.`,
     "",
     `Open the link to accept or decline: ${inviteUrl}`,
     note ? "" : undefined,
     note ? `Note from them: ${note}` : undefined,
     "",
     "Thanks,",
-    "Chart team",
+    "MeshyLinks team",
   ]
     .filter(Boolean)
     .join("\n");
@@ -162,10 +162,10 @@ export async function sendNodeInviteEmail(input: {
   const plainText = [
     `You've been invited to MeshyLinks by ${inviterName}.`,
     "",
-    "Someone added you as a node on MeshyLinks.",
-    "Sign up to claim your node and approve or manage the connection.",
+    "They invited you to verify a connection on MeshyLinks.",
+    "Sign up to claim your profile and approve or manage the connection.",
     "",
-    `Sign up here to claim your node and manage your connections: ${inviteUrl}`,
+    `Claim your profile here: ${inviteUrl}`,
   ].join("\n");
 
   return sgMail.send(

@@ -142,7 +142,7 @@ export default async function Home() {
 
         <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center justify-center lg:min-h-[56vh]">
           <h1 className="text-balance text-4xl leading-tight font-bold text-white sm:text-6xl lg:text-7xl">
-            See how everyone is secretly connected
+            See how your world is connected
           </h1>
           <p className="mt-6 max-w-2xl text-base text-white/70 sm:text-lg">
             Map your relationships, uncover hidden overlaps, and find out how
