@@ -9,6 +9,27 @@ export type SmsConsentSource =
   | "profile"
   | "unknown";
 
+export function normalizeSmsPhoneNumber(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed.startsWith("+")) {
+    const digits = trimmed.slice(1).replace(/\D/g, "");
+    return digits ? `+${digits}` : "";
+  }
+
+  const digits = trimmed.replace(/\D/g, "");
+
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  }
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `+${digits}`;
+  }
+
+  return "";
+}
+
 export async function recordSmsConsent(input: {
   phoneNumber: string;
   consented: boolean;
@@ -136,9 +157,11 @@ export async function sendTransactionalSms(input: {
   userId?: string | null;
   inviteToken?: string | null;
 }) {
-  const to = input.to.trim();
+  const to = normalizeSmsPhoneNumber(input.to);
   if (!to) {
-    throw new Error("Missing 'to' phone number.");
+    throw new Error(
+      "Enter a valid US phone number with 10 digits, or include a + country code.",
+    );
   }
 
   const optedOut = await isPhoneOptedOut(to);

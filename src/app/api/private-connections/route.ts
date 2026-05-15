@@ -9,7 +9,11 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 import { sendNodeInviteEmail } from "@/lib/email";
-import { sendTransactionalSms, recordSmsConsent } from "@/lib/sms";
+import {
+  normalizeSmsPhoneNumber,
+  sendTransactionalSms,
+  recordSmsConsent,
+} from "@/lib/sms";
 import { renderInviteSms } from "@/lib/sms-templates";
 
 const hasClerkKeys =
@@ -686,7 +690,10 @@ export async function PATCH(request: Request) {
     const targetEmail = (existing.email ?? "").trim();
     const targetPhone = (existing.phoneNumber ?? "").trim();
     const contactMethod = targetEmail ? "email" : targetPhone ? "phone" : null;
-    const contactValue = targetEmail || targetPhone;
+    const normalizedTargetPhone = targetPhone
+      ? normalizeSmsPhoneNumber(targetPhone)
+      : "";
+    const contactValue = targetEmail || normalizedTargetPhone;
 
     // Require at least one contact method
     if (!contactMethod || !contactValue) {
@@ -700,6 +707,16 @@ export async function PATCH(request: Request) {
     };
 
     if (contactMethod === "phone") {
+      if (!normalizedTargetPhone) {
+        return NextResponse.json(
+          {
+            error:
+              "Enter a valid US phone number with 10 digits, or include a + country code.",
+          },
+          { status: 400 },
+        );
+      }
+
       if (!requestBody.smsConsent) {
         return NextResponse.json(
           {
