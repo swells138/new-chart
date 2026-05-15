@@ -939,7 +939,7 @@ export function PrivateChart({
   }
 
   function requiresSmsConsentForInvite(p: PlaceholderPerson) {
-    return Boolean(!p.email.trim() && p.phoneNumber.trim());
+    return Boolean(p.phoneNumber.trim());
   }
 
   function setPlaceholderSmsConsent(id: string, checked: boolean) {
@@ -951,11 +951,13 @@ export function PrivateChart({
 
   async function handleGenerateInvite(id: string) {
     const placeholder = placeholders.find((p) => p.id === id);
+    const hasPhoneInviteContact = Boolean(placeholder?.phoneNumber.trim());
     const requiresSmsConsent = placeholder
       ? requiresSmsConsentForInvite(placeholder)
       : false;
+    const hasSmsConsent = Boolean(smsConsentByPlaceholderId[id]);
 
-    if (requiresSmsConsent && !smsConsentByPlaceholderId[id]) {
+    if (requiresSmsConsent && !hasSmsConsent) {
       setActionError("Confirm SMS consent before sending a text invite.");
       return;
     }
@@ -970,7 +972,7 @@ export function PrivateChart({
         body: JSON.stringify({
           id,
           action: "generateInvite",
-          ...(requiresSmsConsent ? { smsConsent: true } : {}),
+          ...(hasPhoneInviteContact ? { smsConsent: hasSmsConsent } : {}),
         }),
       });
       const body = (await res.json()) as {
