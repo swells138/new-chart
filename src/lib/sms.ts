@@ -2,12 +2,82 @@ import { prisma } from "@/lib/prisma";
 import type { TransactionalSmsType } from "@/lib/sms-templates";
 import { getTwilioClient, getTwilioFromNumber } from "@/lib/twilio";
 
+let smsTablesReady = false;
+
 export type SmsConsentSource =
   | "signup"
   | "login"
   | "invite"
   | "profile"
   | "unknown";
+
+async function ensureSmsTables() {
+  if (smsTablesReady) {
+    return;
+  }
+
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS "SmsConsentEvent" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT,
+      "phoneNumber" TEXT NOT NULL,
+      "consented" BOOLEAN NOT NULL,
+      "source" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SmsConsentEvent_pkey" PRIMARY KEY ("id")
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "SmsConsentEvent_phoneNumber_createdAt_idx"
+    ON "SmsConsentEvent"("phoneNumber", "createdAt" DESC)
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "SmsConsentEvent_userId_createdAt_idx"
+    ON "SmsConsentEvent"("userId", "createdAt" DESC)
+  `;
+
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS "SmsOptOut" (
+      "phoneNumber" TEXT NOT NULL,
+      "optedOutAt" TIMESTAMP(3) NOT NULL,
+      "optedOutUserId" TEXT,
+      "lastMessageSid" TEXT,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SmsOptOut_pkey" PRIMARY KEY ("phoneNumber")
+    )
+  `;
+
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS "SmsMessageLog" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT,
+      "phoneNumber" TEXT NOT NULL,
+      "inviteToken" TEXT,
+      "messageType" TEXT NOT NULL,
+      "body" TEXT NOT NULL,
+      "twilioMessageSid" TEXT,
+      "status" TEXT NOT NULL,
+      "error" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "SmsMessageLog_pkey" PRIMARY KEY ("id")
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "SmsMessageLog_phoneNumber_createdAt_idx"
+    ON "SmsMessageLog"("phoneNumber", "createdAt" DESC)
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "SmsMessageLog_twilioMessageSid_idx"
+    ON "SmsMessageLog"("twilioMessageSid")
+  `;
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS "SmsMessageLog_userId_createdAt_idx"
+    ON "SmsMessageLog"("userId", "createdAt" DESC)
+  `;
+
+  smsTablesReady = true;
+}
 
 export function normalizeSmsPhoneNumber(value: string) {
   const trimmed = value.trim();
@@ -36,6 +106,8 @@ export async function recordSmsConsent(input: {
   source: SmsConsentSource;
   userId?: string | null;
 }) {
+  await ensureSmsTables();
+
   await prisma.$executeRaw`
     INSERT INTO "SmsConsentEvent" (
       "id",
@@ -56,6 +128,8 @@ export async function recordSmsConsent(input: {
 }
 
 export async function isPhoneOptedOut(phoneNumber: string) {
+  await ensureSmsTables();
+
   const rows = await prisma.$queryRaw<Array<{ optedOutAt: Date }>>`
     SELECT "optedOutAt"
     FROM "SmsOptOut"
@@ -71,6 +145,8 @@ export async function markPhoneOptedOut(input: {
   userId?: string | null;
   messageSid?: string | null;
 }) {
+  await ensureSmsTables();
+
   await prisma.$executeRaw`
     INSERT INTO "SmsOptOut" (
       "phoneNumber",
@@ -94,6 +170,8 @@ export async function markPhoneOptedOut(input: {
 }
 
 export async function clearPhoneOptOut(phoneNumber: string) {
+  await ensureSmsTables();
+
   await prisma.$executeRaw`
     DELETE FROM "SmsOptOut" WHERE "phoneNumber" = ${phoneNumber}
   `;
@@ -107,6 +185,8 @@ async function createSmsLog(input: {
   body: string;
   status: string;
 }) {
+  await ensureSmsTables();
+
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     INSERT INTO "SmsMessageLog" (
       "id",
