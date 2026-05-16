@@ -1,21 +1,10 @@
 import { currentUser } from "@clerk/nextjs/server";
+import { isModeratorEmailAllowed } from "@/lib/moderation/config";
 
-const MODERATOR_EMAILS = new Set(
-  (
-    process.env.MODERATOR_EMAILS ??
-    (process.env.NODE_ENV === "production" ? "" : "sydneywells103@gmail.com")
-  )
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean),
-);
-
-function normalizeEmail(input: string | null | undefined) {
-  return (input ?? "").trim().toLowerCase();
-}
+const CONFIGURED_MODERATOR_EMAILS = process.env.MODERATOR_EMAILS ?? null;
 
 export function isAllowedModeratorEmail(email: string | null | undefined) {
-  return MODERATOR_EMAILS.has(normalizeEmail(email));
+  return isModeratorEmailAllowed(email, CONFIGURED_MODERATOR_EMAILS);
 }
 
 export async function getCurrentUserPrimaryEmail() {

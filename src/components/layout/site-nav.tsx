@@ -11,11 +11,12 @@ import {
   UserButton,
   useUser,
 } from "@clerk/nextjs";
+import { isModeratorEmailAllowed } from "@/lib/moderation/config";
 
-const MODERATOR_EMAIL = "sydneywells103@gmail.com";
+const PUBLIC_MODERATOR_EMAILS = process.env.NEXT_PUBLIC_MODERATOR_EMAILS ?? null;
 
 function isModeratorEmail(email: string | null | undefined) {
-  return (email ?? "").trim().toLowerCase() === MODERATOR_EMAIL;
+  return isModeratorEmailAllowed(email, PUBLIC_MODERATOR_EMAILS);
 }
 
 const links = [
