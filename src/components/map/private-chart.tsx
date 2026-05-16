@@ -48,6 +48,9 @@ const STATUS_LABELS: Record<PlaceholderPerson["claimStatus"], string> = {
   denied: "Declined",
 };
 
+const SMS_INVITES_UNAVAILABLE_MESSAGE =
+  "SMS invites unavailable temporarily pending carrier approval.";
+
 const CHART_CENTER_X = 440;
 const CHART_CENTER_Y = 220;
 
@@ -940,7 +943,7 @@ export function PrivateChart({
   }
 
   function requiresInviteConsentForInvite(p: PlaceholderPerson) {
-    return Boolean(p.email.trim() || p.phoneNumber.trim());
+    return Boolean(p.email.trim());
   }
 
   function setPlaceholderInviteConsent(id: string, checked: boolean) {
@@ -952,9 +955,7 @@ export function PrivateChart({
 
   async function handleGenerateInvite(id: string) {
     const placeholder = placeholders.find((p) => p.id === id);
-    const hasInviteContact = Boolean(
-      placeholder?.email.trim() || placeholder?.phoneNumber.trim(),
-    );
+    const hasInviteContact = Boolean(placeholder?.email.trim());
     const requiresInviteConsent = placeholder
       ? requiresInviteConsentForInvite(placeholder)
       : false;
@@ -2411,9 +2412,9 @@ export function PrivateChart({
                       : null;
                     const isOwned =
                       currentUserId !== null && p.ownerId === currentUserId;
-                    const hasInviteContact = Boolean(
-                      p.email.trim() || p.phoneNumber.trim(),
-                    );
+                    const hasInviteEmail = Boolean(p.email.trim());
+                    const hasInvitePhone = Boolean(p.phoneNumber.trim());
+                    const hasInviteContact = hasInviteEmail;
                     const requiresInviteConsent =
                       requiresInviteConsentForInvite(p);
                     const hasInviteConsent =
@@ -2535,9 +2536,17 @@ export function PrivateChart({
                                 </div>
                               </div>
                             </div>
-                            {!hasInviteContact ? (
+                            {!hasInviteContact && !hasInvitePhone ? (
                               <p className="mt-2 text-[11px] text-white/45">
                                 No email needed. Create a link and send it yourself.
+                              </p>
+                            ) : null}
+                            {hasInvitePhone ? (
+                              <p className="mt-2 text-[11px] font-semibold text-amber-200">
+                                {SMS_INVITES_UNAVAILABLE_MESSAGE}{" "}
+                                {hasInviteEmail
+                                  ? "Email will be used for this invite."
+                                  : "Create a link or add an email for now."}
                               </p>
                             ) : null}
                             {inviteLink ? (
@@ -2571,8 +2580,7 @@ export function PrivateChart({
                                   consentSourceLabel="Connection invite"
                                 />
                                 <p className="mt-2 text-[11px] text-white/55">
-                                  A text or email invitation will be sent. The
-                                  recipient can opt out at any time.
+                                  An email invitation will be sent.
                                 </p>
                               </div>
                             ) : null}
@@ -2962,9 +2970,9 @@ export function PrivateChart({
                 : null;
               const isOwned =
                 currentUserId !== null && p.ownerId === currentUserId;
-              const hasInviteContact = Boolean(
-                p.email.trim() || p.phoneNumber.trim(),
-              );
+              const hasInviteEmail = Boolean(p.email.trim());
+              const hasInvitePhone = Boolean(p.phoneNumber.trim());
+              const hasInviteContact = hasInviteEmail;
               const requiresInviteConsent = requiresInviteConsentForInvite(p);
               const hasInviteConsent =
                 inviteConsentByPlaceholderId[p.id] ?? false;
@@ -3152,9 +3160,17 @@ export function PrivateChart({
                         </div>
                       ) : null}
 
-                      {!hasInviteContact ? (
+                      {!hasInviteContact && !hasInvitePhone ? (
                         <p className="mt-2 text-[11px] text-white/45">
                           Add an email or phone number before sending an invite.
+                        </p>
+                      ) : null}
+                      {hasInvitePhone ? (
+                        <p className="mt-2 text-[11px] font-semibold text-amber-200">
+                          {SMS_INVITES_UNAVAILABLE_MESSAGE}{" "}
+                          {hasInviteEmail
+                            ? "Email will be used for this invite."
+                            : "Add an email to send the invite, or create a link to share yourself."}
                         </p>
                       ) : null}
 
@@ -3195,8 +3211,7 @@ export function PrivateChart({
                             consentSourceLabel="Connection invite"
                           />
                           <p className="mt-2 text-[11px] text-white/55">
-                            A text or email invitation will be sent. The
-                            recipient can opt out at any time.
+                            An email invitation will be sent.
                           </p>
                         </div>
                       ) : null}
@@ -3212,7 +3227,6 @@ export function PrivateChart({
                               onClick={() => handleGenerateInvite(p.id)}
                               disabled={
                                 isWorking ||
-                                !hasInviteContact ||
                                 (requiresInviteConsent && !hasInviteConsent)
                               }
                               className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
@@ -3221,10 +3235,14 @@ export function PrivateChart({
                                   ? "Confirm permission before sending an invite."
                                   : hasInviteContact
                                   ? "Send an invite to someone you know"
-                                  : "Add an email or phone number before sending an invite."
+                                  : "Create an invite link to copy and send."
                               }
                             >
-                              {isWorking ? "Sending..." : "Send invite"}
+                              {isWorking
+                                ? "Sending..."
+                                : hasInviteContact
+                                  ? "Send invite"
+                                  : "Create invite link"}
                             </button>
                             {p.inviteToken ? (
                               <button

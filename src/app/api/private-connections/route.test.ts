@@ -331,7 +331,8 @@ describe("/api/private-connections PATCH invite actions", () => {
     expect(placeholderUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("requires invite consent when sending a phone invite", async () => {
+  it("creates a copyable link instead of sending SMS while carrier approval is pending", async () => {
+    const createdAt = new Date("2026-05-01T00:00:00.000Z");
     placeholderFindUniqueMock.mockResolvedValue({
       id: "placeholder_123",
       ownerId: "owner_123",
@@ -343,9 +344,23 @@ describe("/api/private-connections PATCH invite actions", () => {
       inviteToken: null,
       linkedUserId: null,
       claimStatus: "unclaimed",
-      createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      createdAt,
       offerToNameMatch: true,
     });
+    placeholderUpdateMock.mockImplementation(async ({ data }) => ({
+      id: "placeholder_123",
+      ownerId: "owner_123",
+      name: "Jordan Lee",
+      email: null,
+      phoneNumber: "+15555550123",
+      relationshipType: "Talking",
+      note: null,
+      inviteToken: data.inviteToken,
+      linkedUserId: null,
+      claimStatus: data.claimStatus,
+      createdAt,
+      offerToNameMatch: true,
+    }));
 
     const { PATCH } = await import("./route");
 
@@ -360,6 +375,17 @@ describe("/api/private-connections PATCH invite actions", () => {
       }),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect(sendNodeInviteEmailMock).not.toHaveBeenCalled();
+
+    const body = (await response.json()) as {
+      message?: string;
+      placeholder: { inviteToken: string; claimStatus: string };
+    };
+    expect(body.message).toBe(
+      "Invite link ready. SMS invites unavailable temporarily pending carrier approval.",
+    );
+    expect(body.placeholder.inviteToken).toMatch(/^[a-f0-9]{48}$/);
+    expect(body.placeholder.claimStatus).toBe("invited");
   });
 });

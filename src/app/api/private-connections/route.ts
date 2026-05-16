@@ -9,12 +9,6 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 import { sendNodeInviteEmail } from "@/lib/email";
-import {
-  normalizeSmsPhoneNumber,
-  sendTransactionalSms,
-  recordSmsConsent,
-} from "@/lib/sms";
-import { renderInviteSms } from "@/lib/sms-templates";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -36,17 +30,9 @@ const relationshipTypeValues = [
   "FWB",
 ] as const;
 
-function getSiteUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.NEXT_PUBLIC_BASE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.BASE_URL ??
-    "https://meshylinks.com"
-  ).replace(/\/+$/, "");
-}
-
 const inviteResendWindowMs = 24 * 60 * 60 * 1000;
+const smsInvitesUnavailableMessage =
+  "SMS invites unavailable temporarily pending carrier approval.";
 let nodeInviteTableReady = false;
 
 const createSchema = z
@@ -190,12 +176,6 @@ function getInviteFailureReason(error: unknown) {
   }
 
   return "Invite delivery failed.";
-}
-
-function getSmsInviteFailureMessage(reason: string) {
-  return reason.trim()
-    ? `Could not send invite by text: ${reason}`
-    : "Could not send invite by text. Please try again.";
 }
 
 function getDuplicateInviteMessage(method: string) {
@@ -717,11 +697,8 @@ export async function PATCH(request: Request) {
   if (action === "generateInvite") {
     const targetEmail = (existing.email ?? "").trim();
     const targetPhone = (existing.phoneNumber ?? "").trim();
-    const contactMethod = targetEmail ? "email" : targetPhone ? "phone" : null;
-    const normalizedTargetPhone = targetPhone
-      ? normalizeSmsPhoneNumber(targetPhone)
-      : "";
-    const contactValue = targetEmail || normalizedTargetPhone;
+    const contactMethod = targetEmail ? "email" : null;
+    const contactValue = targetEmail;
 
     // Require at least one contact method
     if (!contactMethod || !contactValue) {
@@ -742,30 +719,6 @@ export async function PATCH(request: Request) {
         },
         { status: 400 },
       );
-    }
-
-    if (contactMethod === "phone") {
-      if (!normalizedTargetPhone) {
-        return NextResponse.json(
-          {
-            error:
-              "Enter a valid US phone number with 10 digits, or include a + country code.",
-          },
-          { status: 400 },
-        );
-      }
-
-      // record consent event (best-effort)
-      try {
-        await recordSmsConsent({
-          phoneNumber: contactValue,
-          consented: true,
-          source: "invite",
-          userId: currentDbUserId,
-        });
-      } catch {
-        // non-fatal
-      }
     }
 
     if (contactMethod && contactValue) {
@@ -815,7 +768,9 @@ export async function PATCH(request: Request) {
     if (!contactMethod || !contactValue) {
       return NextResponse.json({
         placeholder: normalizePlaceholder(updated),
-        message: "Invite link ready.",
+        message: targetPhone
+          ? `Invite link ready. ${smsInvitesUnavailableMessage}`
+          : "Invite link ready.",
       });
     }
 
@@ -824,109 +779,6 @@ export async function PATCH(request: Request) {
       select: { name: true, handle: true },
     });
     const ownerName = owner?.name ?? owner?.handle ?? "Someone";
-
-    if (contactMethod === "phone") {
-      try {
-        const sms = await sendTransactionalSms({
-          to: contactValue,
-          body: renderInviteSms({
-            inviterName: ownerName,
-            link: `${getSiteUrl()}/invite/${token}`,
-          }),
-          type: "invite",
-          userId: currentDbUserId,
-          inviteToken: token,
-        });
-
-        if (sms.skipped && sms.reason === "missing_config") {
-          const failureReason =
-            "SMS delivery is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER.";
-          await insertNodeInvite({
-            placeholderId: updated.id,
-            ownerId: existing.ownerId,
-            contactMethod,
-            contactValue,
-            token,
-            status: "failed",
-            failedAt: new Date(),
-            failureReason,
-          });
-
-          return NextResponse.json(
-            {
-              placeholder: normalizePlaceholder(updated),
-              error: failureReason,
-              deliveryError: failureReason,
-            },
-            { status: 503 },
-          );
-        }
-
-        if (sms.skipped && sms.reason === "opted_out") {
-          await insertNodeInvite({
-            placeholderId: updated.id,
-            ownerId: existing.ownerId,
-            contactMethod,
-            contactValue,
-            token,
-            status: "opted_out",
-            failedAt: new Date(),
-            failureReason: "Recipient has opted out of SMS.",
-          });
-
-          return NextResponse.json(
-            {
-              placeholder: normalizePlaceholder(updated),
-              error:
-                "This phone number has opted out of SMS and cannot be invited by text.",
-            },
-            { status: 409 },
-          );
-        }
-
-        await insertNodeInvite({
-          placeholderId: updated.id,
-          ownerId: existing.ownerId,
-          contactMethod,
-          contactValue,
-          token,
-          status: "pending",
-          sentAt: new Date(),
-        });
-
-        return NextResponse.json({
-          placeholder: normalizePlaceholder(updated),
-          message: "Invite sent.",
-        });
-      } catch (e) {
-        const failureReason = getInviteFailureReason(e);
-        console.error("Failed to send private connection SMS invite", {
-          placeholderId: updated.id,
-          ownerId: existing.ownerId,
-          contactValue,
-          failureReason,
-        });
-        await insertNodeInvite({
-          placeholderId: updated.id,
-          ownerId: existing.ownerId,
-          contactMethod,
-          contactValue,
-          token,
-          status: "failed",
-          failedAt: new Date(),
-          failureReason,
-        });
-
-        return NextResponse.json(
-          {
-            error: getSmsInviteFailureMessage(failureReason),
-            deliveryError: failureReason,
-            placeholder: normalizePlaceholder(updated),
-          },
-          { status: 502 },
-        );
-      }
-    }
 
     try {
       await sendNodeInviteEmail({
