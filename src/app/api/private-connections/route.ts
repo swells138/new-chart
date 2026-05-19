@@ -9,6 +9,12 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 import { sendNodeInviteEmail } from "@/lib/email";
+import { renderInviteSms } from "@/lib/sms-templates";
+import {
+  normalizeSmsPhoneNumber,
+  recordSmsConsent,
+  sendTransactionalSms,
+} from "@/lib/sms";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -31,8 +37,6 @@ const relationshipTypeValues = [
 ] as const;
 
 const inviteResendWindowMs = 24 * 60 * 60 * 1000;
-const smsInvitesUnavailableMessage =
-  "SMS invites unavailable temporarily pending carrier approval.";
 let nodeInviteTableReady = false;
 
 const createSchema = z
@@ -176,6 +180,16 @@ function getInviteFailureReason(error: unknown) {
   }
 
   return "Invite delivery failed.";
+}
+
+function getSiteUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.BASE_URL ??
+    "https://meshylinks.com"
+  ).replace(/\/+$/, "");
 }
 
 function getDuplicateInviteMessage(method: string) {
@@ -697,8 +711,16 @@ export async function PATCH(request: Request) {
   if (action === "generateInvite") {
     const targetEmail = (existing.email ?? "").trim();
     const targetPhone = (existing.phoneNumber ?? "").trim();
-    const contactMethod = targetEmail ? "email" : null;
-    const contactValue = targetEmail;
+    const normalizedTargetPhone = targetPhone
+      ? normalizeSmsPhoneNumber(targetPhone)
+      : "";
+    const contactMethod = normalizedTargetPhone
+      ? "phone"
+      : targetEmail
+        ? "email"
+        : null;
+    const contactValue =
+      contactMethod === "phone" ? normalizedTargetPhone : targetEmail;
 
     // Require at least one contact method
     if (!contactMethod || !contactValue) {
@@ -769,7 +791,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({
         placeholder: normalizePlaceholder(updated),
         message: targetPhone
-          ? `Invite link ready. ${smsInvitesUnavailableMessage}`
+          ? "Invite link ready. Enter a valid phone number to send by SMS."
           : "Invite link ready.",
       });
     }
@@ -781,11 +803,61 @@ export async function PATCH(request: Request) {
     const ownerName = owner?.name ?? owner?.handle ?? "Someone";
 
     try {
-      await sendNodeInviteEmail({
-        to: contactValue,
-        token,
-        inviterName: ownerName,
-      });
+      if (contactMethod === "phone") {
+        await recordSmsConsent({
+          phoneNumber: contactValue,
+          consented: true,
+          source: "invite",
+          userId: existing.ownerId,
+        });
+
+        const inviteLink = `${getSiteUrl()}/invite/${token}`;
+        const smsResult = await sendTransactionalSms({
+          to: contactValue,
+          body: renderInviteSms({
+            inviterName: ownerName,
+            link: inviteLink,
+          }),
+          type: "invite",
+          userId: existing.ownerId,
+          inviteToken: token,
+        });
+
+        if (smsResult.skipped) {
+          const reason =
+            smsResult.reason === "opted_out"
+              ? "Recipient replied STOP"
+              : "SMS configuration is missing";
+          await insertNodeInvite({
+            placeholderId: updated.id,
+            ownerId: existing.ownerId,
+            contactMethod,
+            contactValue,
+            token,
+            status: "failed",
+            failedAt: new Date(),
+            failureReason: reason,
+          });
+
+          return NextResponse.json(
+            {
+              error:
+                smsResult.reason === "opted_out"
+                  ? "This phone number has opted out of SMS. Share the invite link manually or ask them to reply START first."
+                  : "SMS is not configured. Share the invite link manually or add email delivery.",
+              placeholder: normalizePlaceholder(updated),
+            },
+            { status: 409 },
+          );
+        }
+      } else {
+        await sendNodeInviteEmail({
+          to: contactValue,
+          token,
+          inviterName: ownerName,
+        });
+      }
+
       await insertNodeInvite({
         placeholderId: updated.id,
         ownerId: existing.ownerId,
@@ -807,7 +879,7 @@ export async function PATCH(request: Request) {
         failedAt: new Date(),
         failureReason,
       });
-      console.error("Failed to send invite email:", e);
+      console.error("Failed to send invite:", e);
       return NextResponse.json(
         {
           error: "Could not send invite. Please try again.",
