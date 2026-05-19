@@ -21,15 +21,15 @@ export function renderInviteSms(input: {
   link: string;
 }) {
   const inviterName = input.inviterName?.trim() || "Someone";
-  return `MeshyLinks: ${inviterName} invited you to join MeshyLinks and connect on the platform. Create your account here: ${input.link} Reply STOP to opt out.`;
+  return `${inviterName} invited you to join MeshyLinks and connect on the platform. Create your account here: ${input.link} Reply STOP to opt out.`;
 }
 
 export function renderVerificationSms(code: string) {
-  return `MeshyLinks: Your verification code is ${code}. This code will expire in 10 minutes. Reply STOP to opt out.`;
+  return `Your MeshyLinks verification code is ${code}. This code expires in 10 minutes.`;
 }
 
-export function renderConnectionApprovalSms(userName: string) {
-  return `MeshyLinks: ${userName} requested to connect with you on MeshyLinks. Review and approve here: https://meshylinks.com/connections Reply STOP to opt out.`;
+export function renderConnectionApprovalSms(userName: string, link?: string) {
+  return `${userName} requested to connect with you on MeshyLinks. Review and approve here: ${link ?? "https://meshylinks.com/connections"} Reply STOP to opt out.`;
 }
 
 export function renderConnectionVerifiedSms(userName: string) {

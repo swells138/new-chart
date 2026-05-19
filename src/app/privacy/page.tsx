@@ -29,11 +29,12 @@ const sections = [
     ],
   },
   {
-    title: "Phone Numbers and SMS",
+    title: "SMS Messaging Policy",
     body: [
-      "Phone numbers may be used for transactional SMS messages related to invitations, verification, account activity, connection approvals, and service notifications.",
-      "Users manually send invitations. Recipients may receive SMS invites only when a MeshyLinks user enters a phone number and confirms they have permission to contact that person.",
-      "MeshyLinks does not sell phone numbers, purchase contact lists, scrape contacts, or provide bulk contact-list upload tools for mass texting.",
+      "MeshyLinks users send invitations manually. Each invitation is a one-time, user-initiated message sent only after the user enters recipient contact information and confirms they have permission to contact that person.",
+      "Recipients can reply STOP to opt out of future SMS from MeshyLinks. Opt-out requests are stored and future SMS to opted-out numbers are suppressed unless the recipient opts back in where supported.",
+      "MeshyLinks does not send unsolicited bulk marketing SMS, does not auto-import contacts, does not purchase or scrape contact lists, and does not provide bulk contact-list upload tools for mass texting.",
+      "Phone numbers may also be used for transactional account messages such as verification, authentication, connection approvals, and important service notices.",
     ],
   },
   {

@@ -32,57 +32,18 @@ export default function ContactPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
         <section className="paper-card rounded-2xl p-6 sm:p-8">
           <h2 className="text-lg font-semibold">Send a message</h2>
-          <form className="mt-5 space-y-4">
-            <label className="block text-sm font-semibold">
-              Name
-              <input
-                type="text"
-                name="name"
-                autoComplete="name"
-                className="mt-2 w-full rounded-xl border border-[var(--border-soft)] bg-white/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)] dark:bg-black/25"
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              Email
-              <input
-                type="email"
-                name="email"
-                autoComplete="email"
-                className="mt-2 w-full rounded-xl border border-[var(--border-soft)] bg-white/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)] dark:bg-black/25"
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              Topic
-              <select
-                name="topic"
-                className="mt-2 w-full rounded-xl border border-[var(--border-soft)] bg-white/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)] dark:bg-black/25"
-                defaultValue="support"
-              >
-                <option value="support">Account support</option>
-                <option value="privacy">Privacy request</option>
-                <option value="sms">SMS or invite question</option>
-                <option value="removal">Report or removal request</option>
-              </select>
-            </label>
-            <label className="block text-sm font-semibold">
-              Message
-              <textarea
-                name="message"
-                rows={6}
-                className="mt-2 w-full resize-y rounded-xl border border-[var(--border-soft)] bg-white/70 px-3 py-2 text-sm outline-none focus:border-[var(--accent)] dark:bg-black/25"
-              />
-            </label>
-            <button
-              type="button"
-              className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-95"
-            >
-              Send message
-            </button>
-            <p className="text-xs leading-relaxed text-black/60 dark:text-white/65">
-              This form is a support UI placeholder. For now, email the support
-              address directly for the fastest response.
+          <div className="mt-5 space-y-4 text-sm leading-relaxed text-black/75 dark:text-white/80">
+            <p>
+              Email MeshyLinks support for account help, privacy requests,
+              invitation questions, SMS opt-outs, and removal requests.
             </p>
-          </form>
+            <a
+              href="mailto:support@meshylinks.com?subject=MeshyLinks%20support%20request"
+              className="inline-flex rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-95"
+            >
+              Email support
+            </a>
+          </div>
         </section>
 
         <aside className="paper-card rounded-2xl p-6 text-sm leading-relaxed text-black/75 dark:text-white/80 sm:p-8">

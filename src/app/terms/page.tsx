@@ -51,42 +51,49 @@ const sections = [
   {
     title: "6. SMS and Service Messages",
     body: [
-      "Transactional SMS messages may include invitations, verification messages, account notices, connection approvals, and service notifications. Message frequency varies. Message and data rates may apply.",
-      "SMS recipients can reply STOP to opt out or HELP for assistance.",
+      "Transactional SMS messages may include one-time invitations, verification messages, account notices, connection approvals, and service notifications. Message frequency varies. Message and data rates may apply.",
+      "SMS recipients can reply STOP to opt out or HELP for assistance. MeshyLinks stores opt-out requests and suppresses future SMS to opted-out numbers unless the recipient opts back in where supported.",
     ],
   },
   {
-    title: "7. Content Review and Account Termination",
+    title: "7. SMS Messaging Policy",
+    body: [
+      "Users send invitations manually. Invitations are one-time, user-initiated messages sent only after a user takes direct action and confirms they have permission to contact the recipient.",
+      "MeshyLinks does not send unsolicited bulk marketing SMS, recurring promotional SMS campaigns, auto-imported contact messages, purchased-list messages, or scraped-contact messages.",
+    ],
+  },
+  {
+    title: "8. Content Review and Account Termination",
     body: [
       "MeshyLinks may remove content, limit features, suspend accounts, terminate accounts, or block invitations when we believe use may violate these Terms, create safety risks, or harm the service.",
     ],
   },
   {
-    title: "8. Third-Party Services",
+    title: "9. Third-Party Services",
     body: [
       "MeshyLinks may rely on third-party providers for authentication, hosting, payments, analytics, email, and SMS delivery. Your use of those features may also be subject to the applicable provider’s terms.",
     ],
   },
   {
-    title: "9. Disclaimers",
+    title: "10. Disclaimers",
     body: [
       "MeshyLinks is provided on an as-is and as-available basis. We do not guarantee that user-generated information is accurate, complete, available, or suitable for any particular purpose.",
     ],
   },
   {
-    title: "10. Limitation of Liability",
+    title: "11. Limitation of Liability",
     body: [
       "To the fullest extent permitted by law, MeshyLinks is not liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for loss of data, profits, goodwill, or business opportunities arising from use of the service.",
     ],
   },
   {
-    title: "11. Changes",
+    title: "12. Changes",
     body: [
       "We may update these Terms from time to time. Continued use of MeshyLinks after updates means you accept the revised Terms.",
     ],
   },
   {
-    title: "12. Contact",
+    title: "13. Contact",
     body: [
       "For questions about these Terms, contact support@meshylinks.com or use the Contact page.",
     ],

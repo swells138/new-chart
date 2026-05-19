@@ -13,7 +13,10 @@ import type {
 } from "@/types/models";
 import type { PrivateDuplicateMatch } from "@/lib/private-duplicate-matches";
 import { chooseExistingPrivatePerson } from "@/lib/private-duplicate-flow";
-import { SmsConsentCheckbox } from "@/components/ui/sms-consent-checkbox";
+import {
+  INVITE_ACTION_DISCLOSURE_TEXT,
+  SmsConsentCheckbox,
+} from "@/components/ui/sms-consent-checkbox";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -963,7 +966,7 @@ export function PrivateChart({
 
     if (requiresInviteConsent && !hasInviteConsent) {
       setActionError(
-        "Confirm that you have permission to contact this person and send them an invitation to MeshyLinks.",
+        "Confirm that you have permission to contact this person and send them a one-time invitation.",
       );
       return;
     }
@@ -2579,41 +2582,44 @@ export function PrivateChart({
                                   required
                                   consentSourceLabel="Connection invite"
                                 />
-                                <p className="mt-2 text-[11px] text-white/55">
-                                  An email invitation will be sent.
-                                </p>
                               </div>
                             ) : null}
-                            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+                            <div className="mt-3 flex min-w-0 flex-wrap items-start gap-2">
                               {isOwned &&
                               p.claimStatus !== "claimed" &&
                               p.claimStatus !== "denied" ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleGenerateInvite(p.id)}
-                                  disabled={
-                                    isWorking ||
-                                    (requiresInviteConsent && !hasInviteConsent)
-                                  }
-                                  className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                                  title={
-                                    requiresInviteConsent && !hasInviteConsent
-                                      ? "Confirm permission before sending an invite."
+                                <div className="min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGenerateInvite(p.id)}
+                                    disabled={
+                                      isWorking ||
+                                      (requiresInviteConsent &&
+                                        !hasInviteConsent)
+                                    }
+                                    className="rounded-full bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                                    title={
+                                      requiresInviteConsent && !hasInviteConsent
+                                        ? "Confirm permission before sending an invite."
+                                        : hasInviteContact
+                                        ? "Send a one-time invite to someone you know"
+                                        : "Create an invite link to copy and send."
+                                    }
+                                  >
+                                    {isWorking
+                                      ? "Sending..."
                                       : hasInviteContact
-                                      ? "Send an invite to someone you know"
-                                      : "Create an invite link to copy and send."
-                                  }
-                                >
-                                  {isWorking
-                                    ? "Sending..."
-                                    : p.inviteToken
-                                      ? hasInviteContact
-                                        ? "Send another invite"
-                                        : "Refresh link"
-                                      : hasInviteContact
-                                        ? "Send invite"
-                                        : "Create invite link"}
-                                </button>
+                                        ? "Invite User"
+                                        : p.inviteToken
+                                          ? "Refresh link"
+                                          : "Create invite link"}
+                                  </button>
+                                  {hasInviteContact ? (
+                                    <p className="mt-2 max-w-md text-[11px] leading-relaxed text-white/65">
+                                      {INVITE_ACTION_DISCLOSURE_TEXT}
+                                    </p>
+                                  ) : null}
+                                </div>
                               ) : null}
                               {publicConnectCandidate &&
                               p.claimStatus !== "claimed" &&
@@ -3210,40 +3216,44 @@ export function PrivateChart({
                             required
                             consentSourceLabel="Connection invite"
                           />
-                          <p className="mt-2 text-[11px] text-white/55">
-                            An email invitation will be sent.
-                          </p>
                         </div>
                       ) : null}
 
                       {/* Action buttons */}
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-3 flex flex-wrap items-start gap-1.5">
                         {isOwned &&
                         p.claimStatus !== "claimed" &&
                         p.claimStatus !== "denied" ? (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => handleGenerateInvite(p.id)}
-                              disabled={
-                                isWorking ||
-                                (requiresInviteConsent && !hasInviteConsent)
-                              }
-                              className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
-                              title={
-                                requiresInviteConsent && !hasInviteConsent
-                                  ? "Confirm permission before sending an invite."
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateInvite(p.id)}
+                                disabled={
+                                  isWorking ||
+                                  (requiresInviteConsent && !hasInviteConsent)
+                                }
+                                className="rounded-full border border-white/15 px-3 py-1 text-[11px] font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-60"
+                                title={
+                                  requiresInviteConsent && !hasInviteConsent
+                                    ? "Confirm permission before sending an invite."
+                                    : hasInviteContact
+                                    ? "Send a one-time invite to someone you know"
+                                    : "Create an invite link to copy and send."
+                                }
+                              >
+                                {isWorking
+                                  ? "Sending..."
                                   : hasInviteContact
-                                  ? "Send an invite to someone you know"
-                                  : "Create an invite link to copy and send."
-                              }
-                            >
-                              {isWorking
-                                ? "Sending..."
-                                : hasInviteContact
-                                  ? "Send invite"
-                                  : "Create invite link"}
-                            </button>
+                                    ? "Invite User"
+                                    : "Create invite link"}
+                              </button>
+                              {hasInviteContact ? (
+                                <p className="mt-2 max-w-md text-[11px] leading-relaxed text-white/65">
+                                  {INVITE_ACTION_DISCLOSURE_TEXT}
+                                </p>
+                              ) : null}
+                            </div>
                             {p.inviteToken ? (
                               <button
                                 type="button"

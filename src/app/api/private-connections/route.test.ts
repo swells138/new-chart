@@ -141,6 +141,44 @@ describe("/api/private-connections PATCH invite actions", () => {
     expect(body.placeholder.claimStatus).toBe("invited");
   });
 
+  it("requires sender permission confirmation before sending an invitation", async () => {
+    placeholderFindUniqueMock.mockResolvedValue({
+      id: "placeholder_123",
+      ownerId: "owner_123",
+      name: "Jordan Lee",
+      email: "jordan@example.com",
+      phoneNumber: null,
+      relationshipType: "Talking",
+      note: null,
+      inviteToken: null,
+      linkedUserId: null,
+      claimStatus: "unclaimed",
+      createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      offerToNameMatch: true,
+    });
+
+    const { PATCH } = await import("./route");
+
+    const response = await PATCH(
+      new Request("http://localhost/api/private-connections", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: "placeholder_123",
+          action: "generateInvite",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error:
+        "Confirm that you have permission to contact this person and send them a one-time invitation.",
+    });
+    expect(sendNodeInviteEmailMock).not.toHaveBeenCalled();
+    expect(placeholderUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("rotates an existing invite token when resending after the duplicate window", async () => {
     const createdAt = new Date("2026-05-01T00:00:00.000Z");
     placeholderFindUniqueMock.mockResolvedValue({

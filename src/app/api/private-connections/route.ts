@@ -715,7 +715,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Confirm that you have permission to contact this person and send them an invitation to MeshyLinks.",
+            "Confirm that you have permission to contact this person and send them a one-time invitation.",
         },
         { status: 400 },
       );
