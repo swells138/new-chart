@@ -5,13 +5,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  INVITE_ACTION_DISCLOSURE_TEXT,
+  INVITE_CONSENT_HELPER_TEXT,
+  SMS_CONSENT_TEXT,
+} from "@/components/ui/sms-consent-checkbox";
+import {
   demoInviteDefaults,
   demoNodes,
   sampleSmsMessages,
 } from "./demo-data";
 
-const inviteDisclosure =
-  "By clicking ‘Invite User,’ you confirm that you have an existing relationship with this person and permission to send them a one-time invitation to join MeshyLinks. MeshyLinks does not send recurring marketing messages to invited users. Msg & data rates may apply. Reply STOP to opt out.";
+const missingOriginatingNumber =
+  "Set TWILIO_FROM_NUMBER in production so reviewers can see the exact Twilio number attached to this A2P campaign.";
 
 function DemoChart() {
   const center = { x: 50, y: 52 };
@@ -193,8 +198,10 @@ function DemoInviteForm() {
             required
           />
           <span className="leading-relaxed text-black/80 dark:text-white/85">
-            I confirm I have permission to contact this person and send them a
-            one-time invitation.
+            {SMS_CONSENT_TEXT}
+            <span className="mt-2 block text-xs text-black/62 dark:text-white/68">
+              {INVITE_CONSENT_HELPER_TEXT}
+            </span>
           </span>
         </label>
 
@@ -207,7 +214,7 @@ function DemoInviteForm() {
             Invite User
           </button>
           <p className="mt-3 max-w-2xl text-xs leading-relaxed text-black/65 dark:text-white/70">
-            {inviteDisclosure}
+            {INVITE_ACTION_DISCLOSURE_TEXT}
           </p>
         </div>
 
@@ -221,7 +228,11 @@ function DemoInviteForm() {
   );
 }
 
-export function SmsConsentReviewClient() {
+export function SmsConsentReviewClient({
+  originatingNumber,
+}: {
+  originatingNumber: string | null;
+}) {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="paper-card rounded-2xl p-5 sm:p-8">
@@ -237,6 +248,52 @@ export function SmsConsentReviewClient() {
           users and does not send real SMS messages.
         </p>
       </header>
+
+      <section className="paper-card rounded-2xl p-4 text-sm leading-relaxed sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--accent)]">
+              A2P CTA submitted for review
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">
+              Manual one-time invitation opt-in flow
+            </h2>
+          </div>
+          <div className="rounded-xl border border-[var(--border-soft)] px-3 py-2 text-xs font-semibold text-black/70 dark:text-white/72">
+            Originating SMS number:{" "}
+            <span className="text-black dark:text-white">
+              {originatingNumber ?? "Configured Twilio campaign number"}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-[var(--border-soft)] bg-white/55 p-4 dark:bg-black/20">
+            <h3 className="text-sm font-semibold">Consent method</h3>
+            <p className="mt-2 text-black/72 dark:text-white/78">
+              A logged-in MeshyLinks user manually enters a known contact phone
+              number, confirms they have permission to contact that
+              recipient, and clicks Invite User. No SMS is sent unless the
+              consent checkbox is selected.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[var(--border-soft)] bg-white/55 p-4 dark:bg-black/20">
+            <h3 className="text-sm font-semibold">Program details</h3>
+            <p className="mt-2 text-black/72 dark:text-white/78">
+              Brand: MeshyLinks. Product: private connection chart invitations
+              and transactional account messages. Message frequency varies for
+              account notices and is one message per manual invitation.
+              Message and data rates may apply. Reply HELP for help or STOP to
+              opt out.
+            </p>
+          </div>
+        </div>
+        {originatingNumber ? null : (
+          <p className="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
+            {missingOriginatingNumber}
+          </p>
+        )}
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
         <DemoChart />

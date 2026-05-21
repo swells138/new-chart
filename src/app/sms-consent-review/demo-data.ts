@@ -87,11 +87,11 @@ export const demoInviteDefaults = {
 export const sampleSmsMessages = [
   {
     label: "Invitation SMS",
-    body: "Alex invited you to join MeshyLinks and connect on the platform. Create your account here: https://meshylinks.com/invite/demo Reply STOP to opt out.",
+    body: "Alex invited you to join MeshyLinks and connect on the platform. Create your account here: https://meshylinks.com/invite/demo Reply HELP for help or STOP to opt out.",
   },
   {
     label: "Connection Request SMS",
-    body: "Alex requested to connect with you on MeshyLinks. Review and approve here: https://meshylinks.com/connect/demo Reply STOP to opt out.",
+    body: "Alex requested to connect with you on MeshyLinks. Review and approve here: https://meshylinks.com/connect/demo Reply HELP for help or STOP to opt out.",
   },
   {
     label: "Verification Code SMS",

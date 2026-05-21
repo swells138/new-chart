@@ -34,6 +34,7 @@ const sections = [
       "MeshyLinks users send invitations manually. Each invitation is a one-time, user-initiated message sent only after the user enters recipient contact information and confirms they have permission to contact that person.",
       "Recipients can reply STOP to opt out of future SMS from MeshyLinks. Opt-out requests are stored and future SMS to opted-out numbers are suppressed unless the recipient opts back in where supported.",
       "MeshyLinks does not send unsolicited bulk marketing SMS, does not auto-import contacts, does not purchase or scrape contact lists, and does not provide bulk contact-list upload tools for mass texting.",
+      "Mobile phone numbers and SMS opt-in information are not shared with third parties or affiliates for marketing or promotional purposes.",
       "Phone numbers may also be used for transactional account messages such as verification, authentication, connection approvals, and important service notices.",
     ],
   },
@@ -70,7 +71,7 @@ const sections = [
     title: "Third-Party Services",
     body: [
       "MeshyLinks may use service providers to operate the platform, including Twilio for SMS delivery and opt-out processing, Clerk for authentication, Stripe for payments, Vercel for hosting and analytics, and email providers for transactional email.",
-      "These providers process information as needed to perform services for MeshyLinks and are not authorized by us to sell recipient phone numbers.",
+      "These providers process information as needed to perform services for MeshyLinks and are not authorized by us to sell recipient phone numbers or use mobile opt-in information for their own marketing or promotional purposes.",
     ],
   },
   {

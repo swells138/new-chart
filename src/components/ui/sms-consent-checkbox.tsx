@@ -3,16 +3,16 @@
 import Link from "next/link";
 
 export const SMS_DISCLOSURE_TEXT =
-  "By providing your phone number, you agree to receive transactional SMS messages from MeshyLinks related to account verification, invitations, login authentication, and important service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out.";
+  "By providing your phone number, you agree to receive transactional SMS messages from MeshyLinks related to account verification, invitations, login authentication, connection approvals, and important service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out.";
 
 export const SMS_CONSENT_TEXT =
   "I confirm I have permission to contact this person and send them a one-time invitation.";
 
 export const INVITE_ACTION_DISCLOSURE_TEXT =
-  "By clicking “Invite User,” you confirm that you have an existing relationship with this person and permission to send them a one-time invitation to join MeshyLinks. MeshyLinks does not send recurring marketing messages to invited users. Msg & data rates may apply. Reply STOP to opt out.";
+  "By clicking “Invite User,” you confirm that this recipient is a friend or known contact, that you have their permission to contact them, and that MeshyLinks may send them a one-time transactional invitation SMS. MeshyLinks does not send recurring marketing or promotional messages to invited users. Message frequency is one message per manual invitation. Message and data rates may apply. Reply HELP for help or STOP to opt out.";
 
 export const INVITE_CONSENT_HELPER_TEXT =
-  "By sending an invite, you confirm that the recipient is a friend or known contact and that they gave you permission to contact them.";
+  "By sending an invite, you confirm that the recipient is a friend or known contact and that they gave you permission to contact them. SMS invitations are not sent to purchased, scraped, imported, or bulk contact lists.";
 
 export function SmsConsentCheckbox(input: {
   checked: boolean;

@@ -14,5 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default function SmsConsentReviewPage() {
-  return <SmsConsentReviewClient />;
+  return (
+    <SmsConsentReviewClient
+      originatingNumber={process.env.TWILIO_FROM_NUMBER ?? null}
+    />
+  );
 }

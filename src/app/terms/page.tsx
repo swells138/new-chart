@@ -52,7 +52,8 @@ const sections = [
     title: "6. SMS and Service Messages",
     body: [
       "Transactional SMS messages may include one-time invitations, verification messages, account notices, connection approvals, and service notifications. Message frequency varies. Message and data rates may apply.",
-      "SMS recipients can reply STOP to opt out or HELP for assistance. MeshyLinks stores opt-out requests and suppresses future SMS to opted-out numbers unless the recipient opts back in where supported.",
+      "For assistance, reply HELP to the number that sent the message or contact support@meshylinks.com. To stop receiving SMS messages, reply STOP at any time. MeshyLinks stores opt-out requests and suppresses future SMS to opted-out numbers unless the recipient opts back in where supported.",
+      "Carriers are not liable for delayed or undelivered messages.",
     ],
   },
   {

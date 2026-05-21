@@ -21,7 +21,7 @@ export function renderInviteSms(input: {
   link: string;
 }) {
   const inviterName = input.inviterName?.trim() || "Someone";
-  return `${inviterName} invited you to join MeshyLinks and connect on the platform. Create your account here: ${input.link} Reply STOP to opt out.`;
+  return `${inviterName} invited you to join MeshyLinks and connect on the platform. Create your account here: ${input.link} Reply HELP for help or STOP to opt out.`;
 }
 
 export function renderVerificationSms(code: string) {
@@ -29,13 +29,13 @@ export function renderVerificationSms(code: string) {
 }
 
 export function renderConnectionApprovalSms(userName: string, link?: string) {
-  return `${userName} requested to connect with you on MeshyLinks. Review and approve here: ${link ?? "https://meshylinks.com/connections"} Reply STOP to opt out.`;
+  return `${userName} requested to connect with you on MeshyLinks. Review and approve here: ${link ?? "https://meshylinks.com/connections"} Reply HELP for help or STOP to opt out.`;
 }
 
 export function renderConnectionVerifiedSms(userName: string) {
-  return `MeshyLinks: Your connection with ${userName} has been successfully verified and is now visible on your chart. Reply STOP to opt out.`;
+  return `MeshyLinks: Your connection with ${userName} has been successfully verified and is now visible on your chart. Reply HELP for help or STOP to opt out.`;
 }
 
 export function renderLoginAuthSms(code: string) {
-  return `MeshyLinks: A login attempt was made for your account. Your authentication code is ${code}. If this was not you, please secure your account immediately. Reply STOP to opt out.`;
+  return `MeshyLinks: A login attempt was made for your account. Your authentication code is ${code}. If this was not you, please secure your account immediately. Reply HELP for help or STOP to opt out.`;
 }
