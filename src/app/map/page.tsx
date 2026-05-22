@@ -92,6 +92,7 @@ export default async function MapPage({
     : targetUserIdParam;
   let currentUserDbId: string | null = null;
   let currentUserIsPro = false;
+  let currentUserFreeSearchesUsed = 0;
   let clerkNameCandidates: string[] = [];
   const cookieStore = await cookies();
   const headersList = await headers();
@@ -117,6 +118,7 @@ export default async function MapPage({
 
         currentUserDbId = user.id;
         currentUserIsPro = getEffectiveIsPro(user);
+        currentUserFreeSearchesUsed = user.freeSearchesUsed ?? 0;
       }
     } catch (error) {
       console.error("Map page failed to initialize authenticated user", error);
@@ -177,6 +179,7 @@ export default async function MapPage({
         targetUserId={targetUserId}
         isSignedIn={sessionSignedIn}
         currentUserIsPro={currentUserIsPro}
+        currentUserFreeSearchesUsed={currentUserFreeSearchesUsed}
         userConnections={userConnections}
         privatePlaceholders={privatePlaceholders}
         baseUrl={baseUrl}

@@ -21,6 +21,7 @@ const profileSafeSelect = {
   links: true,
   profileImage: true,
   isPro: true,
+  freeSearchesUsed: true,
   email: true,
   phoneNumber: true,
 } as const;
@@ -100,6 +101,7 @@ function shapeProfile(user: {
   links: unknown;
   profileImage: string | null;
   isPro?: boolean | null;
+  freeSearchesUsed?: number | null;
   email: string | null;
   phoneNumber?: string | null;
 }) {
@@ -119,6 +121,7 @@ function shapeProfile(user: {
     links: normalizeLinks(user.links),
     profileImage: user.profileImage ?? "",
     isPro: getEffectiveIsPro(user),
+    freeSearchesUsed: user.freeSearchesUsed ?? 0,
     phoneNumber: user.phoneNumber ?? "",
   };
 }

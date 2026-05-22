@@ -11,26 +11,35 @@ interface PersonSearchResult {
   location: string;
 }
 
+interface PersonSearchResponse {
+  error?: string;
+  upgradeRequired?: boolean;
+  users?: PersonSearchResult[];
+}
+
 export function PersonSearch() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [upgradeRequired, setUpgradeRequired] = useState(false);
 
   const trimmedQuery = query.trim().toLowerCase();
 
   useEffect(() => {
-    if (!trimmedQuery) {
+    if (trimmedQuery.length < 2) {
       setResults([]);
       setIsSearching(false);
       setSearchError(null);
+      setUpgradeRequired(false);
       return;
     }
 
     const controller = new AbortController();
     setIsSearching(true);
     setSearchError(null);
+    setUpgradeRequired(false);
 
     const timeoutId = window.setTimeout(async () => {
       try {
@@ -38,12 +47,22 @@ export function PersonSearch() {
           `/api/users/search?q=${encodeURIComponent(trimmedQuery)}`,
           { signal: controller.signal },
         );
+        const data = (await response.json()) as PersonSearchResponse;
 
         if (!response.ok) {
-          throw new Error("Search request failed");
+          if (data.upgradeRequired) {
+            setResults([]);
+            setUpgradeRequired(true);
+            setSearchError(
+              data.error ??
+                "You have used your 5 free searches. Upgrade to Pro to keep searching.",
+            );
+            return;
+          }
+
+          throw new Error(data.error ?? "Search request failed");
         }
 
-        const data = await response.json() as { users?: PersonSearchResult[] };
         setResults(data.users ?? []);
       } catch (error) {
         if ((error as Error).name === "AbortError") {
@@ -56,7 +75,7 @@ export function PersonSearch() {
           setIsSearching(false);
         }
       }
-    }, 120);
+    }, 400);
 
     return () => {
       window.clearTimeout(timeoutId);
@@ -91,7 +110,7 @@ export function PersonSearch() {
         />
       </div>
 
-      {trimmedQuery ? (
+      {trimmedQuery.length >= 2 ? (
         <div className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-xl border border-[var(--border-soft)] bg-[var(--card)] shadow-lg">
           {results.length > 0 ? (
             <ul role="listbox" aria-label="Search results">
@@ -124,9 +143,20 @@ export function PersonSearch() {
               Searching...
             </p>
           ) : searchError ? (
-            <p className="px-4 py-3 text-sm font-semibold text-red-700 dark:text-red-400">
-              {searchError}
-            </p>
+            <div className="px-4 py-3">
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                {searchError}
+              </p>
+              {upgradeRequired ? (
+                <button
+                  type="button"
+                  onClick={() => router.push("/checkout")}
+                  className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--accent)] px-4 text-xs font-bold text-white shadow-sm transition hover:brightness-95"
+                >
+                  Get Pro
+                </button>
+              ) : null}
+            </div>
           ) : (
             <p className="px-4 py-3 text-sm font-semibold text-black/60 dark:text-white/65">
               No people found

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
+import { consumeSearchForUser } from "@/lib/search-limit";
 
 const MAX_RESULTS = 8;
 
@@ -66,11 +67,38 @@ export async function GET(request: Request) {
   try {
     const currentUser = await prisma.user.findUnique({
       where: { clerkId: clerkUserId },
-      select: { id: true },
+      select: {
+        id: true,
+        email: true,
+        isPro: true,
+        freeSearchesUsed: true,
+      },
     });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Profile is still syncing. Please try again shortly.", users: [] },
+        { status: 409 },
+      );
+    }
+
+    const searchLimit = await consumeSearchForUser(currentUser);
+    if (!searchLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: searchLimit.error,
+          upgradeRequired: true,
+          users: [],
+          searchesUsed: searchLimit.searchesUsed,
+          searchLimit: searchLimit.searchLimit,
+        },
+        { status: 402 },
+      );
+    }
+
     const users = await prisma.user.findMany({
       where: {
-        id: currentUser?.id ? { not: currentUser.id } : undefined,
+        id: { not: currentUser.id },
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { firstName: { contains: query, mode: "insensitive" } },
@@ -96,7 +124,11 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json({ users: users.map(shapeSearchResult) });
+    return NextResponse.json({
+      users: users.map(shapeSearchResult),
+      searchesUsed: searchLimit.searchesUsed,
+      searchLimit: searchLimit.searchLimit,
+    });
   } catch (error) {
     console.error("User search failed", error);
     return NextResponse.json(

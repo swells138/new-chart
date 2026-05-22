@@ -33,6 +33,7 @@ import type {
 import { Avatar } from "@/components/ui/avatar";
 import { PrivateChart } from "@/components/map/private-chart";
 import { calculateShortestConnectionPath } from "@/lib/connection-distance";
+import { FREE_SEARCH_LIMIT } from "@/lib/pro-user";
 
 // ─── Demo-style node colours ───────────────────────────────
 const NODE_PALETTE = [
@@ -396,6 +397,7 @@ interface Props {
   targetUserId?: string | null;
   isSignedIn?: boolean;
   currentUserIsPro?: boolean;
+  currentUserFreeSearchesUsed?: number;
   userConnections?: Relationship[];
   privatePlaceholders?: PlaceholderPerson[];
   baseUrl?: string;
@@ -577,6 +579,7 @@ export function RelationshipMap({
   targetUserId = null,
   isSignedIn = false,
   currentUserIsPro = false,
+  currentUserFreeSearchesUsed = 0,
   userConnections,
   privatePlaceholders = [],
   baseUrl = "",
@@ -656,6 +659,10 @@ export function RelationshipMap({
   // Whether the active user has an active Pro subscription. Populated from
   // /api/profile when we resolve the current DB user.
   const [hasPro, setHasPro] = useState(currentUserIsPro);
+  const [freeSearchesUsed, setFreeSearchesUsed] = useState(
+    currentUserFreeSearchesUsed,
+  );
+  const [searchLimitError, setSearchLimitError] = useState<string | null>(null);
   const [browserClerkImageUrl, setBrowserClerkImageUrl] = useState<
     string | null
   >(null);
@@ -732,15 +739,62 @@ export function RelationshipMap({
   const isSignedInEffective = Boolean(isSignedIn || hasBrowserSession);
   const needsAccountSync = isSignedInEffective && !hasDbUser;
 
-  function searchLoadedUsers() {
+  async function searchLoadedUsers() {
     const query = normalizeConnectionSearchValue(searchValue);
     setHasSearchedUsers(true);
     setSearchSelectedUser(null);
     setPathRevealSeed((seed) => seed + 1);
+    setSearchLimitError(null);
 
     if (!query) {
       setSearchResults([]);
       return;
+    }
+
+    if (!hasPro && freeSearchesUsed >= FREE_SEARCH_LIMIT) {
+      setSearchResults([]);
+      setSearchLimitError(
+        "You have used your 5 free searches. Upgrade to Pro to keep searching.",
+      );
+      return;
+    }
+
+    if (!hasPro) {
+      try {
+        const response = await authFetch("/api/users/search/usage", {
+          method: "POST",
+          cache: "no-store",
+        });
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          upgradeRequired?: boolean;
+          searchesUsed?: number;
+          searchLimit?: number;
+        };
+
+        if (!response.ok) {
+          if (body.upgradeRequired) {
+            setFreeSearchesUsed(body.searchesUsed ?? FREE_SEARCH_LIMIT);
+            setSearchResults([]);
+            setSearchLimitError(
+              body.error ??
+                "You have used your 5 free searches. Upgrade to Pro to keep searching.",
+            );
+            return;
+          }
+
+          throw new Error(body.error ?? "Search request failed");
+        }
+
+        if (typeof body.searchesUsed === "number") {
+          setFreeSearchesUsed(body.searchesUsed);
+        }
+      } catch (error) {
+        console.error(error);
+        setSearchResults([]);
+        setSearchLimitError("Search is unavailable right now.");
+        return;
+      }
     }
 
     const matches = visibleDirectoryUsers.filter((user) =>
@@ -894,6 +948,7 @@ export function RelationshipMap({
             isPro?: boolean;
             hasPro?: boolean;
             pro?: { active?: boolean };
+            freeSearchesUsed?: number;
           };
           error?: string;
         };
@@ -915,6 +970,9 @@ export function RelationshipMap({
           Boolean(body.profile?.hasPro) ||
           Boolean(body.profile?.pro?.active);
         setHasPro(profileIsPro);
+        if (typeof body.profile?.freeSearchesUsed === "number") {
+          setFreeSearchesUsed(body.profile.freeSearchesUsed);
+        }
         if (!dbUserId) {
           if (!silent) {
             setConnectionError(
@@ -2160,6 +2218,12 @@ export function RelationshipMap({
     }
   }
 
+  const hasReachedFreeSearchLimit = !hasPro && freeSearchesUsed >= FREE_SEARCH_LIMIT;
+  const freeSearchesRemaining = Math.max(
+    FREE_SEARCH_LIMIT - freeSearchesUsed,
+    0,
+  );
+
   return (
     <div className={`space-y-5 sm:space-y-8 ${showSecondaryActions ? "pb-80 lg:pb-0" : ""}`}>
       <section className="paper-card rounded-2xl p-4 md:p-5">
@@ -2981,9 +3045,9 @@ export function RelationshipMap({
                 ) : null}
                 <form
                   className="flex flex-col gap-2"
-                  onSubmit={(event) => {
+                  onSubmit={async (event) => {
                     event.preventDefault();
-                    searchLoadedUsers();
+                    await searchLoadedUsers();
                   }}
                 >
                   <input
@@ -2997,29 +3061,49 @@ export function RelationshipMap({
                       setHasSearchedUsers(false);
                       setSearchResults([]);
                       setSearchSelectedUser(null);
+                      setSearchLimitError(null);
                     }}
                     className="min-h-10 rounded-xl border border-[var(--border-soft)] bg-white/75 px-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-65 dark:bg-white/[0.06]"
                   />
                   <button
                     type="submit"
-                    disabled={!searchValue.trim()}
+                    disabled={!searchValue.trim() || hasReachedFreeSearchLimit}
                     className="min-h-10 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-black/55 disabled:cursor-not-allowed disabled:opacity-65 dark:text-white/60"
                   >
                     Search
                   </button>
                 </form>
                 <p
-                  className="text-xs text-black/58 dark:text-white/58"
+                  className={`text-xs ${
+                    searchLimitError
+                      ? "font-semibold text-red-700 dark:text-red-400"
+                      : "text-black/58 dark:text-white/58"
+                  }`}
                   aria-live="polite"
                 >
-                  {!hasSearchedUsers
+                  {searchLimitError
+                    ? searchLimitError
+                    : hasReachedFreeSearchLimit
+                      ? "You have used your 5 free searches. Upgrade to Pro to keep searching."
+                      : !hasSearchedUsers
                     ? searchValue.trim()
-                      ? "Press Search to look for a matching user."
+                      ? hasPro
+                        ? "Press Search to look for a matching user."
+                        : `${freeSearchesRemaining} free search${freeSearchesRemaining === 1 ? "" : "es"} left.`
                       : "Search for a user to see how many connections away they are."
                     : searchResults.length > 0
                       ? `${searchResults.length} matching user${searchResults.length === 1 ? "" : "s"} found.`
                       : "No matching user found."}
                 </p>
+                {searchLimitError || hasReachedFreeSearchLimit ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/checkout")}
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[var(--accent)] px-4 text-sm font-bold text-white shadow-sm transition hover:brightness-95"
+                  >
+                    Get Pro
+                  </button>
+                ) : null}
                 {searchSelectedUser ? (
                   <div className="rounded-xl border border-[var(--border-soft)] bg-black/[0.025] p-3 dark:bg-white/[0.05]">
                     <div className="flex items-center gap-3">

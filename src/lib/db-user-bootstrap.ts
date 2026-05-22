@@ -14,6 +14,7 @@ const bootstrapUserSelect = {
   relationshipStatus: true,
   featured: true,
   isPro: true,
+  freeSearchesUsed: true,
   connectionScore: true,
   totalConnections: true,
   secondDegreeConnections: true,

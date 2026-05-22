@@ -31,6 +31,7 @@ model User {
   stripeCustomerId           String?  @unique
   stripeSubscriptionId       String?
   isPro                      Boolean  @default(false)
+  freeSearchesUsed           Int      @default(0)
   connectionScore            Int      @default(0)
   totalConnections           Int      @default(0)
   secondDegreeConnections    Int      @default(0)
