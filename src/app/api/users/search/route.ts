@@ -3,6 +3,8 @@ import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { consumeSearchForUser } from "@/lib/search-limit";
+import { demoUsers } from "@/lib/demo-data";
+import { DEMO_USER_ID, isDemoModeEnabled } from "@/lib/demo-mode";
 
 const MAX_RESULTS = 8;
 
@@ -38,6 +40,32 @@ function shapeSearchResult(user: {
 export async function GET(request: Request) {
   const clerkUserId = await resolveClerkUserId(request);
   if (!clerkUserId) {
+    if (isDemoModeEnabled()) {
+      const { searchParams } = new URL(request.url);
+      const query = normalizeQuery(searchParams.get("q")).toLowerCase();
+      const users =
+        query.length < 2
+          ? []
+          : demoUsers
+              .filter((user) => user.id !== DEMO_USER_ID)
+              .filter((user) =>
+                [user.name, user.firstName, user.lastName, user.handle, user.location]
+                  .filter(Boolean)
+                  .some((value) => value!.toLowerCase().includes(query)),
+              )
+              .slice(0, MAX_RESULTS)
+              .map((user) => ({
+                id: user.id,
+                name: user.name,
+                handle: user.handle,
+                location: user.location,
+                profileImage: user.profileImage,
+                featured: user.featured,
+              }));
+
+      return NextResponse.json({ users, searchesUsed: 0, searchLimit: 5 });
+    }
+
     return NextResponse.json({ error: "Unauthorized", users: [] }, { status: 401 });
   }
 

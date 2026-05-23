@@ -11,17 +11,17 @@ export const SMS_OPT_IN_CONFIRMATION_MESSAGE =
   "MeshyLinks: You are now opted in to receive transactional SMS messages related to account verification, invitations, login authentication, and important service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for assistance or STOP to opt out.";
 
 export const SMS_HELP_MESSAGE =
-  "MeshyLinks support: Reply STOP to unsubscribe from SMS messages. Message and data rates may apply. For assistance, contact support@meshylinks.com.";
+  "MeshyLinks support: For assistance, contact support@meshylinks.com. Reply STOP to unsubscribe from SMS messages. Message and data rates may apply.";
 
 export const SMS_STOP_CONFIRMATION_MESSAGE =
-  "You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe.";
+  "MeshyLinks: You have successfully been unsubscribed. You will not receive any more messages from this number. Reply START to resubscribe.";
 
 export function renderInviteSms(input: {
   inviterName?: string | null;
   link: string;
 }) {
   const inviterName = input.inviterName?.trim() || "Someone";
-  return `${inviterName} invited you to join MeshyLinks and connect on the platform. Create your account here: ${input.link} Reply HELP for help or STOP to opt out.`;
+  return `MeshyLinks: ${inviterName} invited you to join and connect on the platform. Create your account here: ${input.link} Reply HELP for help or STOP to opt out.`;
 }
 
 export function renderVerificationSms(code: string) {
@@ -29,7 +29,7 @@ export function renderVerificationSms(code: string) {
 }
 
 export function renderConnectionApprovalSms(userName: string, link?: string) {
-  return `${userName} requested to connect with you on MeshyLinks. Review and approve here: ${link ?? "https://meshylinks.com/connections"} Reply HELP for help or STOP to opt out.`;
+  return `MeshyLinks: ${userName} requested to connect with you. Review and approve here: ${link ?? "https://meshylinks.com/connections"} Reply HELP for help or STOP to opt out.`;
 }
 
 export function renderConnectionVerifiedSms(userName: string) {

@@ -10,7 +10,7 @@ const hasClerkKeys =
   );
 
 const AGE_COOKIE_NAME = "age_verified";
-const HIDDEN_ROUTES = new Set(["/feed", "/members"]);
+const HIDDEN_ROUTES = new Set<string>();
 
 function handleHiddenRoutes(request: NextRequest) {
   if (!HIDDEN_ROUTES.has(request.nextUrl.pathname)) {

@@ -16,6 +16,8 @@ import { prisma } from "@/lib/prisma";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 import GoProButton from "@/components/profile/go-pro-button";
 import { getEffectiveIsPro } from "@/lib/pro-user";
+import { demoProfile, demoRelationships, demoUsers } from "@/lib/demo-data";
+import { DEMO_USER_ID, isDemoModeEnabled } from "@/lib/demo-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -203,18 +205,84 @@ export default async function ProfilePage({
 }: {
   searchParams?: Promise<{ session_id?: string | string[] }>;
 }) {
-  if (!hasClerkKeys) {
+  async function renderDemoProfile() {
+    const connections: ProfileConnectionItem[] = demoRelationships
+      .filter(
+        (relationship) =>
+          relationship.source === DEMO_USER_ID ||
+          relationship.target === DEMO_USER_ID,
+      )
+      .map((relationship) => {
+        const otherId =
+          relationship.source === DEMO_USER_ID
+            ? relationship.target
+            : relationship.source;
+        const person = demoUsers.find((user) => user.id === otherId);
+        return {
+          id: relationship.id,
+          type: relationship.type,
+          person: {
+            name: person?.name ?? "Demo member",
+            handle: person?.handle ?? null,
+            location: person?.location ?? null,
+          },
+        };
+      });
+
     return (
-      <div className="mx-auto max-w-xl rounded-2xl border border-[var(--border-soft)] bg-white/70 p-6 text-sm dark:bg-black/20">
-        Auth is not configured yet. Add Clerk environment variables to enable
-        profile management.
+      <div className="space-y-4">
+        <SectionHeader
+          title="Your Profile"
+          subtitle="Demo account for reviewing the full MeshyLinks experience."
+        />
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <ProfileForm initialProfile={demoProfile} demoMode />
+          <aside className="paper-card rounded-2xl p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-xl font-semibold">Your Connections</h3>
+                <p className="mt-1 text-sm font-medium text-black/70 dark:text-white/75">
+                  Connection Score: 64
+                </p>
+                <p className="mt-1 text-sm text-black/60 dark:text-white/65">
+                  You are more connected than 92% of users
+                </p>
+              </div>
+              <span className="w-fit rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-bold text-[var(--accent)]">
+                Top 10%
+              </span>
+            </div>
+            <div className="mt-2">
+              <span className="inline-block rounded-full bg-[var(--accent)]/10 px-3 py-1 text-[var(--accent)] font-semibold">
+                Pro
+              </span>
+            </div>
+            <ProfileConnectionsList
+              initialConnections={connections}
+              currentUserId={DEMO_USER_ID}
+              demoMode
+            />
+          </aside>
+        </div>
       </div>
     );
+  }
+
+  if (!hasClerkKeys) {
+    if (isDemoModeEnabled()) {
+      return renderDemoProfile();
+    }
+
+    redirect("/map");
   }
 
   const { userId } = await auth();
 
   if (!userId) {
+    if (isDemoModeEnabled()) {
+      return renderDemoProfile();
+    }
+
     redirect("/login");
   }
 

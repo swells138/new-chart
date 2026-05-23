@@ -7,6 +7,7 @@ import {
 } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { getAllRelationships, getAllUsers } from "@/lib/prisma-queries";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 import type { Relationship, User } from "@/types/models";
 
 export const dynamic = "force-dynamic";
@@ -119,7 +120,7 @@ export default async function Home() {
     console.error("Home page failed to load public network data", error);
   }
 
-  const isSignedIn = Boolean(currentUserDbId);
+  const isSignedIn = Boolean(currentUserDbId) || isDemoModeEnabled();
   const mostConnectedStats = getMostConnectedPerson(
     chartUsers,
     chartRelationships,

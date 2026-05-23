@@ -3,13 +3,13 @@
 import Link from "next/link";
 
 export const SMS_DISCLOSURE_TEXT =
-  "By providing your phone number, you agree to receive transactional SMS messages from MeshyLinks related to account verification, invitations, login authentication, connection approvals, and important service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out.";
+  "By providing your phone number, you agree to receive transactional SMS messages from MeshyLinks related to account verification, invitations, login authentication, connection approvals, and important service notifications. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of purchase.";
 
 export const SMS_CONSENT_TEXT =
-  "I confirm I have permission to contact this person and send them a one-time invitation.";
+  "I confirm this recipient is a friend or known contact, gave me permission to contact them, and may receive a one-time transactional invitation SMS from MeshyLinks.";
 
 export const INVITE_ACTION_DISCLOSURE_TEXT =
-  "By clicking “Invite User,” you confirm that this recipient is a friend or known contact, that you have their permission to contact them, and that MeshyLinks may send them a one-time transactional invitation SMS. MeshyLinks does not send recurring marketing or promotional messages to invited users. Message frequency is one message per manual invitation. Message and data rates may apply. Reply HELP for help or STOP to opt out.";
+  "By clicking Invite User, you confirm that this recipient is a friend or known contact, that you have their permission to contact them, and that MeshyLinks may send them a one-time transactional invitation SMS. MeshyLinks does not send recurring marketing or promotional messages to invited users. Message frequency is one message per manual invitation. Message and data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of purchase.";
 
 export const INVITE_CONSENT_HELPER_TEXT =
   "By sending an invite, you confirm that the recipient is a friend or known contact and that they gave you permission to contact them. SMS invitations are not sent to purchased, scraped, imported, or bulk contact lists.";
@@ -33,6 +33,9 @@ export function SmsConsentCheckbox(input: {
         />
         <span className="leading-relaxed text-black/80 dark:text-white/85">
           {input.label ?? SMS_CONSENT_TEXT}{" "}
+          <span className="mt-2 block text-xs text-black/65 dark:text-white/70">
+            {SMS_DISCLOSURE_TEXT}
+          </span>
           <span className="block pt-2 text-xs text-black/65 dark:text-white/70">
             <Link
               href="https://meshylinks.com/privacy"

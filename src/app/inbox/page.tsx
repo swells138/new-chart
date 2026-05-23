@@ -4,6 +4,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
 import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,30 @@ const threads = [
     preview: "Need one more volunteer for setup at 6.",
     time: "3h",
     unread: true,
+  },
+];
+
+const demoNotifications = [
+  {
+    id: "demo-n1",
+    content: "Ivy Morgan accepted your invite. Review /map?chart=private&focus=manage",
+    read: false,
+    createdAt: new Date(Date.now() - 11 * 60 * 1000),
+    senderName: "Ivy Morgan",
+  },
+  {
+    id: "demo-n2",
+    content: "Mara Sol added a connection that may overlap with your network.",
+    read: false,
+    createdAt: new Date(Date.now() - 62 * 60 * 1000),
+    senderName: "Mara Sol",
+  },
+  {
+    id: "demo-n3",
+    content: "Cam Rivera is pending invite verification.",
+    read: true,
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+    senderName: "Cam Rivera",
   },
 ];
 
@@ -96,12 +121,16 @@ export default async function InboxPage({
 }: {
   searchParams?: Promise<{ notificationId?: string | string[] }>;
 }) {
+  const demoMode = isDemoModeEnabled();
+
   if (hasClerkKeys) {
     const { userId } = await auth();
     if (!userId) {
-      redirect("/login");
+      if (!demoMode) {
+        redirect("/login");
+      }
     }
-  } else {
+  } else if (!demoMode) {
     redirect("/login");
   }
 
@@ -118,7 +147,7 @@ export default async function InboxPage({
     read: boolean;
     createdAt: Date;
     senderName: string | null;
-  }[] = [];
+  }[] = demoMode ? demoNotifications : [];
 
   if (hasClerkKeys) {
     const { userId } = await auth();

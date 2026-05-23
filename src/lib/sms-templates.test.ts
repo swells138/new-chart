@@ -13,7 +13,7 @@ describe("sms templates", () => {
         link: "https://meshylinks.com/invite/test",
       }),
     ).toBe(
-      "Avery invited you to join MeshyLinks and connect on the platform. Create your account here: https://meshylinks.com/invite/test Reply HELP for help or STOP to opt out.",
+      "MeshyLinks: Avery invited you to join and connect on the platform. Create your account here: https://meshylinks.com/invite/test Reply HELP for help or STOP to opt out.",
     );
   });
 
@@ -24,7 +24,7 @@ describe("sms templates", () => {
         "https://meshylinks.com/connections/test",
       ),
     ).toBe(
-      "Avery requested to connect with you on MeshyLinks. Review and approve here: https://meshylinks.com/connections/test Reply HELP for help or STOP to opt out.",
+      "MeshyLinks: Avery requested to connect with you. Review and approve here: https://meshylinks.com/connections/test Reply HELP for help or STOP to opt out.",
     );
   });
 

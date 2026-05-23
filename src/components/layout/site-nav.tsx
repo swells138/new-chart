@@ -12,6 +12,7 @@ import {
   useUser,
 } from "@clerk/nextjs";
 import { isModeratorEmailAllowed } from "@/lib/moderation/config";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 const PUBLIC_MODERATOR_EMAILS = process.env.NEXT_PUBLIC_MODERATOR_EMAILS ?? null;
 
@@ -29,6 +30,7 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const hasClerkKeys = clerkEnabled;
+  const demoMode = isDemoModeEnabled();
   const publicLinks = links.filter((l) => !l.requiresAuth);
 
   return (
@@ -47,7 +49,7 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
           </Link>
 
           <div className="hidden items-center gap-3 md:flex">
-            {hasClerkKeys ? <SignedInPersonSearch /> : null}
+            {hasClerkKeys ? <SignedInPersonSearch /> : demoMode ? <PersonSearch /> : null}
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
@@ -62,7 +64,11 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
                 {link.label}
               </Link>
             ))}
-            {hasClerkKeys && <ClerkDesktopProtectedLinks pathname={pathname} />}
+            {hasClerkKeys ? (
+              <ClerkDesktopProtectedLinks pathname={pathname} />
+            ) : demoMode ? (
+              <DemoProtectedLinks pathname={pathname} />
+            ) : null}
             <ThemeToggle />
             <div className="ml-2 flex items-center gap-2 border-l border-[var(--border-soft)] pl-3">
               <DesktopAuthControls clerkEnabled={hasClerkKeys} />
@@ -84,7 +90,7 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
 
         {menuOpen && (
           <div className="mt-3 grid gap-2 border-t border-[var(--border-soft)] pt-3 md:hidden">
-            {hasClerkKeys ? <SignedInPersonSearch /> : null}
+            {hasClerkKeys ? <SignedInPersonSearch /> : demoMode ? <PersonSearch /> : null}
             {publicLinks.map((link) => (
               <Link
                 key={link.href}
@@ -100,9 +106,11 @@ export function SiteNav({ clerkEnabled = false }: { clerkEnabled?: boolean }) {
                 {link.label}
               </Link>
             ))}
-            {hasClerkKeys && (
+            {hasClerkKeys ? (
               <ClerkMobileProtectedLinks pathname={pathname} onClick={() => setMenuOpen(false)} />
-            )}
+            ) : demoMode ? (
+              <DemoMobileProtectedLinks pathname={pathname} onClick={() => setMenuOpen(false)} />
+            ) : null}
             <div className="border-t border-[var(--border-soft)] pt-2">
               <MobileAuthControls clerkEnabled={hasClerkKeys} onAction={() => setMenuOpen(false)} />
             </div>
@@ -117,6 +125,82 @@ function SignedInPersonSearch() {
   const { isLoaded, isSignedIn } = useUser();
   if (!isLoaded || !isSignedIn) return null;
   return <PersonSearch />;
+}
+
+function DemoProtectedLinks({ pathname }: { pathname: string }) {
+  return (
+    <>
+      {links
+        .filter((link) => link.requiresAuth)
+        .map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={clsx(
+              "rounded-full px-4 py-2 text-sm font-semibold transition",
+              pathname === link.href
+                ? "bg-[var(--accent)] text-white"
+                : "hover:bg-white/70 dark:hover:bg-black/30",
+            )}
+          >
+            {link.label}
+          </Link>
+        ))}
+      <Link
+        href="/inbox"
+        className={clsx(
+          "rounded-full px-4 py-2 text-sm font-semibold transition",
+          pathname === "/inbox"
+            ? "bg-[var(--accent)] text-white"
+            : "hover:bg-white/70 dark:hover:bg-black/30",
+        )}
+      >
+        Inbox
+      </Link>
+    </>
+  );
+}
+
+function DemoMobileProtectedLinks({
+  pathname,
+  onClick,
+}: {
+  pathname: string;
+  onClick: () => void;
+}) {
+  return (
+    <>
+      {links
+        .filter((link) => link.requiresAuth)
+        .map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            onClick={onClick}
+            className={clsx(
+              "rounded-xl px-3 py-2 text-sm font-semibold transition",
+              pathname === link.href
+                ? "bg-[var(--accent)] text-white"
+                : "hover:bg-white/70 dark:hover:bg-black/30",
+            )}
+          >
+            {link.label}
+          </Link>
+        ))}
+      <Link
+        href="/inbox"
+        onClick={onClick}
+        className={clsx(
+          "rounded-xl px-3 py-2 text-sm font-semibold transition",
+          pathname === "/inbox"
+            ? "bg-[var(--accent)] text-white"
+            : "hover:bg-white/70 dark:hover:bg-black/30",
+        )}
+      >
+        Inbox
+      </Link>
+    </>
+  );
 }
 
 function ClerkDesktopProtectedLinks({ pathname }: { pathname: string }) {
@@ -213,6 +297,19 @@ function DesktopAuthControls({ clerkEnabled }: { clerkEnabled: boolean }) {
   const hasClerkKeys = clerkEnabled;
 
   if (!hasClerkKeys) {
+    if (isDemoModeEnabled()) {
+      return (
+        <Link
+          href="/profile"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-white"
+          aria-label="Demo account"
+          title="Demo account"
+        >
+          SW
+        </Link>
+      );
+    }
+
     return (
       <>
         <Link
@@ -276,6 +373,21 @@ function MobileAuthControls({
   const hasClerkKeys = clerkEnabled;
 
   if (!hasClerkKeys) {
+    if (isDemoModeEnabled()) {
+      return (
+        <Link
+          href="/profile"
+          onClick={onAction}
+          className="flex items-center gap-3 px-3 py-2"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-white">
+            SW
+          </span>
+          <span className="text-sm font-semibold">Demo account</span>
+        </Link>
+      );
+    }
+
     return (
       <>
         <Link

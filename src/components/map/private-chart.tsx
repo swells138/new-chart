@@ -17,6 +17,7 @@ import {
   INVITE_ACTION_DISCLOSURE_TEXT,
   SmsConsentCheckbox,
 } from "@/components/ui/sms-consent-checkbox";
+import { isDemoUserId } from "@/lib/demo-mode";
 
 const ALL_TYPES: RelationshipType[] = [
   "Talking",
@@ -159,6 +160,7 @@ export function PrivateChart({
   >(null);
   const highlightTimeoutRef = useRef<number | null>(null);
   const { getToken } = useAuth();
+  const isDemo = isDemoUserId(currentUserId);
 
   useEffect(() => {
     return () => {
@@ -487,6 +489,33 @@ export function PrivateChart({
       return;
     }
 
+    if (isDemo) {
+      setPrivateWebEdges([
+        {
+          id: "demo-web-ivy-cam",
+          ownerId: currentUserId,
+          sourcePlaceholderId: "demo-private-ivy",
+          targetPlaceholderId: "demo-private-cam",
+          relationshipType: "Situationship",
+          note: "They know each other from the same dinner.",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setConfirmedWebEdges([]);
+      setMixedWebEdges([
+        {
+          id: "demo-mixed-ivy-mara",
+          ownerId: currentUserId,
+          placeholderId: "demo-private-ivy",
+          userId: "demo-user-mara",
+          relationshipType: "Talking",
+          note: "Mara introduced us.",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadPrivateWebEdges() {
@@ -581,7 +610,7 @@ export function PrivateChart({
     return () => {
       cancelled = true;
     };
-  }, [authFetch, currentUserId]);
+  }, [authFetch, currentUserId, isDemo]);
 
   useEffect(() => {
     if (webNodeOptions.length === 0) {
@@ -626,6 +655,55 @@ export function PrivateChart({
     setIsSavingAnyWebEdge(true);
     setActionError(null);
     setActionMessage(null);
+
+    if (isDemo) {
+      const createdAt = new Date().toISOString();
+      const id = `demo-web-${Date.now()}`;
+      if (sourceKind === "p" && targetKind === "p") {
+        setPrivateWebEdges((prev) => [
+          {
+            id,
+            ownerId: currentUserId ?? "demo-user",
+            sourcePlaceholderId: sourceId,
+            targetPlaceholderId: targetId,
+            relationshipType: webRelationshipType,
+            note: webNote.trim(),
+            createdAt,
+          },
+          ...prev,
+        ]);
+      } else if (sourceKind === "u" && targetKind === "u") {
+        setConfirmedWebEdges((prev) => [
+          {
+            id,
+            ownerId: currentUserId ?? "demo-user",
+            sourceUserId: sourceId,
+            targetUserId: targetId,
+            relationshipType: webRelationshipType,
+            note: webNote.trim(),
+            createdAt,
+          },
+          ...prev,
+        ]);
+      } else {
+        setMixedWebEdges((prev) => [
+          {
+            id,
+            ownerId: currentUserId ?? "demo-user",
+            placeholderId: sourceKind === "p" ? sourceId : targetId,
+            userId: sourceKind === "u" ? sourceId : targetId,
+            relationshipType: webRelationshipType,
+            note: webNote.trim(),
+            createdAt,
+          },
+          ...prev,
+        ]);
+      }
+      setWebNote("");
+      setActionMessage("Demo private link created.");
+      setIsSavingAnyWebEdge(false);
+      return;
+    }
 
     try {
       if (sourceKind === "p" && targetKind === "p") {
@@ -731,6 +809,19 @@ export function PrivateChart({
     setDeletingAnyWebEdgeId(edge.id);
     setActionError(null);
     setActionMessage(null);
+    if (isDemo) {
+      if (edge.edgeKind === "placeholder") {
+        setPrivateWebEdges((prev) => prev.filter((item) => item.id !== edge.id));
+      } else if (edge.edgeKind === "confirmed") {
+        setConfirmedWebEdges((prev) => prev.filter((item) => item.id !== edge.id));
+      } else {
+        setMixedWebEdges((prev) => prev.filter((item) => item.id !== edge.id));
+      }
+      setActionMessage("Demo private link removed.");
+      setDeletingAnyWebEdgeId(null);
+      return;
+    }
+
     try {
       const endpoint =
         edge.edgeKind === "placeholder"
@@ -795,6 +886,46 @@ export function PrivateChart({
     const name = addName.trim();
     if (!name) {
       setAddError("A name is required.");
+      return;
+    }
+
+    if (isDemo) {
+      setIsAdding(true);
+      setAddError(null);
+      setAddHint(null);
+      setAddSuccessMessage(null);
+      clearDuplicateCheckState();
+      const createdPlaceholder: PlaceholderPerson = {
+        id: `demo-private-${Date.now()}`,
+        ownerId: currentUserId ?? "demo-user",
+        name,
+        offerToNameMatch: addOfferToNameMatch,
+        email: addEmail.trim(),
+        phoneNumber: addPhoneNumber.trim(),
+        relationshipType: addType,
+        note: addNote.trim(),
+        inviteToken: null,
+        linkedUserId: null,
+        claimStatus: "unclaimed",
+        createdAt: new Date().toISOString(),
+      };
+      const nextPrivateCount = placeholders.length + 1;
+      window.setTimeout(() => {
+        setPlaceholders((prev) => [createdPlaceholder, ...prev]);
+        onPrivateConnectionAdded?.();
+        if (nextPrivateCount === 2 || nextPrivateCount === 3) {
+          highlightConnection(`private-${createdPlaceholder.id}`);
+        }
+        setAddName("");
+        setAddOfferToNameMatch(true);
+        setAddEmail("");
+        setAddPhoneNumber("");
+        setAddNote("");
+        setAddSuccessMessage(
+          "Demo person added privately. Add an email or phone, then generate an invite to review the SMS consent CTA.",
+        );
+        setIsAdding(false);
+      }, 250);
       return;
     }
 
@@ -973,6 +1104,24 @@ export function PrivateChart({
     setWorkingId(id);
     setActionError(null);
     setActionMessage(null);
+    if (isDemo) {
+      const token = `demo-${id}-invite`;
+      setPlaceholders((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, inviteToken: token, claimStatus: "invited" }
+            : p,
+        ),
+      );
+      setActionMessage(
+        hasInviteContact
+          ? "Demo invite ready. The SMS consent CTA was accepted for this one-time invitation."
+          : "Demo invite link generated.",
+      );
+      setWorkingId(null);
+      return;
+    }
+
     try {
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
@@ -1007,6 +1156,19 @@ export function PrivateChart({
     setWorkingId(id);
     setActionError(null);
     setActionMessage(null);
+    if (isDemo) {
+      setPlaceholders((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, inviteToken: null, claimStatus: "unclaimed" }
+            : p,
+        ),
+      );
+      setActionMessage("Demo invite link revoked.");
+      setWorkingId(null);
+      return;
+    }
+
     try {
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
@@ -1033,6 +1195,22 @@ export function PrivateChart({
   async function handleDelete(id: string) {
     setWorkingId(id);
     setActionError(null);
+    if (isDemo) {
+      setPlaceholders((prev) => prev.filter((p) => p.id !== id));
+      setPrivateWebEdges((prev) =>
+        prev.filter(
+          (edge) =>
+            edge.sourcePlaceholderId !== id && edge.targetPlaceholderId !== id,
+        ),
+      );
+      setMixedWebEdges((prev) =>
+        prev.filter((edge) => edge.placeholderId !== id),
+      );
+      setActionMessage("Demo connection removed.");
+      setWorkingId(null);
+      return;
+    }
+
     try {
       const res = await authFetch("/api/private-connections", {
         method: "DELETE",
@@ -1106,6 +1284,27 @@ export function PrivateChart({
   async function handleSaveEdit(id: string) {
     setIsSaving(true);
     setEditError(null);
+    if (isDemo) {
+      setPlaceholders((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                name: editName.trim(),
+                offerToNameMatch: editOfferToNameMatch,
+                email: editEmail.trim(),
+                phoneNumber: editPhoneNumber.trim(),
+                relationshipType: editType,
+                note: editNote.trim(),
+              }
+            : p,
+        ),
+      );
+      setEditingId(null);
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const res = await authFetch("/api/private-connections", {
         method: "PATCH",
@@ -1163,6 +1362,16 @@ export function PrivateChart({
     setPublicConnectingPlaceholderId(candidate.placeholderId);
     setActionError(null);
     setActionMessage(null);
+    if (isDemo) {
+      setActionMessage(`Demo public connection request sent to ${candidate.name}.`);
+      setPublicConnectCandidates((prev) => {
+        const next = { ...prev };
+        delete next[candidate.placeholderId];
+        return next;
+      });
+      setPublicConnectingPlaceholderId(null);
+      return true;
+    }
 
     try {
       const res = await authFetch("/api/relationships", {
@@ -1228,6 +1437,11 @@ export function PrivateChart({
     setReportingId(p.id);
     setActionError(null);
     setActionMessage(null);
+    if (isDemo) {
+      setActionMessage("Demo report submitted. Thank you for flagging this node.");
+      setReportingId(null);
+      return;
+    }
 
     try {
       const res = await authFetch("/api/private-connections/report", {

@@ -94,7 +94,13 @@ export interface ProfileFormData {
   interests: string[];
 }
 
-export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormData }) {
+export function ProfileForm({
+  initialProfile,
+  demoMode = false,
+}: {
+  initialProfile: ProfileFormData;
+  demoMode?: boolean;
+}) {
   const [formData, setFormData] = useState<ProfileFormData>(initialProfile);
   const [interestsInput, setInterestsInput] = useState(initialProfile.interests.join(", "));
   const [handleLocked, setHandleLocked] = useState(Boolean(initialProfile.handle));
@@ -120,6 +126,14 @@ export function ProfileForm({ initialProfile }: { initialProfile: ProfileFormDat
     setSaving(true);
     setMessage(null);
     setError(null);
+
+    if (demoMode) {
+      window.setTimeout(() => {
+        setMessage("Demo profile updated.");
+        setSaving(false);
+      }, 300);
+      return;
+    }
 
     try {
       const response = await fetch("/api/profile", {

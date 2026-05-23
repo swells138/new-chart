@@ -3,10 +3,15 @@ import { resolveClerkUserId } from "@/lib/clerk-auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getRequestIp } from "@/lib/rate-limit";
 import { consumeSearchForUser } from "@/lib/search-limit";
+import { isDemoModeEnabled } from "@/lib/demo-mode";
 
 export async function POST(request: Request) {
   const clerkUserId = await resolveClerkUserId(request);
   if (!clerkUserId) {
+    if (isDemoModeEnabled()) {
+      return NextResponse.json({ searchesUsed: 0, searchLimit: 5 });
+    }
+
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
