@@ -1,6 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
 import { DemoGraph } from "@/components/home/demo-graph";
-import { GuestChartBuilder } from "@/components/home/guest-chart-builder";
 import {
   relationships as fallbackRelationships,
   users as fallbackUsers,
@@ -151,7 +150,7 @@ export default async function Home() {
           </p>
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
             <a
-              href={isSignedIn ? "/map" : "#start"}
+              href={isSignedIn ? "/map" : "/login"}
               className="inline-flex min-w-44 items-center justify-center rounded-full bg-[#ff8f84] px-10 py-4 text-base font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:-translate-y-0.5 hover:brightness-95"
             >
               Start your network
@@ -326,7 +325,7 @@ export default async function Home() {
         </p>
         <div className="mt-6 flex justify-center">
           <a
-            href={isSignedIn ? "/map" : "#start"}
+            href={isSignedIn ? "/map" : "/login"}
             className="inline-flex items-center justify-center rounded-full bg-[#ff8f84] px-10 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:-translate-y-0.5"
           >
             Start your network
@@ -334,8 +333,6 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ─── GUEST CHART BUILDER ──────────────────────────────── */}
-      {!isSignedIn ? <GuestChartBuilder /> : null}
     </div>
   );
 }

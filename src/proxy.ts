@@ -1,4 +1,4 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -11,6 +11,24 @@ const hasClerkKeys =
 
 const AGE_COOKIE_NAME = "age_verified";
 const HIDDEN_ROUTES = new Set<string>();
+const isProtectedRoute = createRouteMatcher([
+  "/",
+  "/map(.*)",
+  "/profile(.*)",
+  "/members(.*)",
+  "/feed(.*)",
+  "/inbox(.*)",
+  "/claim-connections(.*)",
+  "/checkout(.*)",
+  "/moderation(.*)",
+  "/report(.*)",
+  "/api/claim-connections(.*)",
+  "/api/private-connections(.*)",
+  "/api/profile(.*)",
+  "/api/relationships(.*)",
+  "/api/report(.*)",
+  "/api/users(.*)",
+]);
 
 function handleHiddenRoutes(request: NextRequest) {
   if (!HIDDEN_ROUTES.has(request.nextUrl.pathname)) {
@@ -52,7 +70,7 @@ function handleAgeGate(request: NextRequest) {
   return NextResponse.redirect(redirectUrl);
 }
 
-const proxyWithAuth = clerkMiddleware((_, request) => {
+const proxyWithAuth = clerkMiddleware(async (auth, request) => {
   const hiddenRouteResponse = handleHiddenRoutes(request);
   if (hiddenRouteResponse) {
     return hiddenRouteResponse;
@@ -61,6 +79,10 @@ const proxyWithAuth = clerkMiddleware((_, request) => {
   const ageGateResponse = handleAgeGate(request);
   if (ageGateResponse) {
     return ageGateResponse;
+  }
+
+  if (isProtectedRoute(request)) {
+    await auth.protect();
   }
 
   return NextResponse.next();

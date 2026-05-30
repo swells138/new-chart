@@ -4,11 +4,11 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Contact MeshyLinks support for account, privacy, invitation, SMS opt-out, and connection removal questions.",
+    "Contact MeshyLinks support for account, privacy, invitation, and connection removal questions.",
   openGraph: {
     title: "Contact | MeshyLinks",
     description:
-      "Get help with MeshyLinks account, privacy, invitation, SMS, and connection removal requests.",
+      "Get help with MeshyLinks account, privacy, invitation, and connection removal requests.",
     url: "/contact",
   },
 };
@@ -24,8 +24,8 @@ export default function ContactPage() {
           Contact MeshyLinks
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-black/75 dark:text-white/80">
-          For account help, invitation questions, privacy requests, SMS
-          opt-outs, or connection removal requests, reach the MeshyLinks team.
+          For account help, invitation questions, privacy requests, or
+          connection removal requests, reach the MeshyLinks team.
         </p>
       </header>
 
@@ -35,7 +35,7 @@ export default function ContactPage() {
           <div className="mt-5 space-y-4 text-sm leading-relaxed text-black/75 dark:text-white/80">
             <p>
               Email MeshyLinks support for account help, privacy requests,
-              invitation questions, SMS opt-outs, and removal requests.
+              invitation questions, and removal requests.
             </p>
             <a
               href="mailto:support@meshylinks.com?subject=MeshyLinks%20support%20request"
@@ -59,10 +59,6 @@ export default function ContactPage() {
               >
                 support@meshylinks.com
               </a>
-            </p>
-            <p>
-              SMS recipients can reply STOP to opt out of MeshyLinks text
-              messages at any time.
             </p>
             <p>
               For removal or safety issues, you can also use the{" "}

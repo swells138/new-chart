@@ -1,5 +1,5 @@
 export const DEMO_USER_ID = "demo-user-sydney";
-export const DEMO_CLERK_ID = "demo_clerk_twilio_review";
+export const DEMO_CLERK_ID = "demo_clerk_email_only";
 
 export function isDemoModeEnabled() {
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";

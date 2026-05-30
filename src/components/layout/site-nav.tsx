@@ -22,7 +22,7 @@ function isModeratorEmail(email: string | null | undefined) {
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/map", label: "Map" },
+  { href: "/map", label: "Map", requiresAuth: true },
   { href: "/profile", label: "Profile", requiresAuth: true },
 ];
 

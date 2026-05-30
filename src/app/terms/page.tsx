@@ -30,7 +30,7 @@ const sections = [
   {
     title: "3. Invitation Consent",
     body: [
-      "MeshyLinks lets users manually invite people by email or SMS. You must have permission to contact each recipient before sending an invitation.",
+      "MeshyLinks lets users manually invite people by email. You must have permission to contact each recipient before sending an invitation.",
       "You may not use MeshyLinks to send unwanted messages, bulk outreach, scraped contact data, purchased lists, or automated marketing campaigns.",
     ],
   },
@@ -49,18 +49,17 @@ const sections = [
     ],
   },
   {
-    title: "6. SMS and Service Messages",
+    title: "6. Email and Service Messages",
     body: [
-      "Transactional SMS messages may include one-time invitations, verification messages, account notices, connection approvals, and service notifications. Message frequency varies. Message and data rates may apply.",
-      "For assistance, reply HELP to the number that sent the message or contact support@meshylinks.com. To stop receiving SMS messages, reply STOP at any time. MeshyLinks stores opt-out requests and suppresses future SMS to opted-out numbers unless the recipient opts back in where supported.",
-      "Carriers are not liable for delayed or undelivered messages.",
+      "Transactional email messages may include one-time invitations, account notices, connection approvals, and service notifications.",
+      "For assistance, contact support@meshylinks.com.",
     ],
   },
   {
-    title: "7. SMS Messaging Policy",
+    title: "7. Invitation Messaging Policy",
     body: [
       "Users send invitations manually. Invitations are one-time, user-initiated messages sent only after a user takes direct action and confirms they have permission to contact the recipient.",
-      "MeshyLinks does not send unsolicited bulk marketing SMS, recurring promotional SMS campaigns, auto-imported contact messages, purchased-list messages, or scraped-contact messages.",
+      "MeshyLinks does not send unsolicited bulk marketing, recurring promotional campaigns, auto-imported contact messages, purchased-list messages, or scraped-contact messages.",
     ],
   },
   {
@@ -72,7 +71,7 @@ const sections = [
   {
     title: "9. Third-Party Services",
     body: [
-      "MeshyLinks may rely on third-party providers for authentication, hosting, payments, analytics, email, and SMS delivery. Your use of those features may also be subject to the applicable provider’s terms.",
+      "MeshyLinks may rely on third-party providers for authentication, hosting, payments, analytics, and email delivery. Your use of those features may also be subject to the applicable provider’s terms.",
     ],
   },
   {

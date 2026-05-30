@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS "SmsMessageLog";
+DROP TABLE IF EXISTS "SmsOptOut";
+DROP TABLE IF EXISTS "SmsConsentEvent";

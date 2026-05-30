@@ -9,12 +9,6 @@ import { currentUser } from "@clerk/nextjs/server";
 import { getActiveUserLockMessage } from "@/lib/moderation/locks";
 import { findExistingUserSuggestion } from "@/lib/existing-user-suggestions";
 import { sendNodeInviteEmail } from "@/lib/email";
-import { renderInviteSms } from "@/lib/sms-templates";
-import {
-  normalizeSmsPhoneNumber,
-  recordSmsConsent,
-  sendTransactionalSms,
-} from "@/lib/sms";
 
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
@@ -61,7 +55,6 @@ const patchSchema = z
     note: z.string().trim().max(2000).optional().or(z.literal("")),
     offerToNameMatch: z.boolean().optional(),
     inviteConsent: z.boolean().optional(),
-    smsConsent: z.boolean().optional(),
   })
   .strict();
 
@@ -165,37 +158,16 @@ function hashInviteToken(token: string) {
 
 function getInviteFailureReason(error: unknown) {
   if (error instanceof Error) {
-    const details: string[] = [error.message];
-
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      typeof error.code === "number"
-    ) {
-      details.push(`Twilio code ${error.code}`);
-    }
-
-    return details.join(" ").slice(0, 500);
+    return error.message.slice(0, 500);
   }
 
   return "Invite delivery failed.";
 }
 
-function getSiteUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.NEXT_PUBLIC_BASE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.BASE_URL ??
-    "https://meshylinks.com"
-  ).replace(/\/+$/, "");
-}
-
 function getDuplicateInviteMessage(method: string) {
-  return method === "phone"
-    ? "An invite was already attempted for this phone number recently."
-    : "An invite was already sent to this email recently.";
+  return method === "email"
+    ? "An invite was already sent to this email recently."
+    : "An invite was already created recently.";
 }
 
 async function findRecentInvite(input: {
@@ -249,7 +221,7 @@ async function findRecentInvite(input: {
 async function insertNodeInvite(input: {
   placeholderId: string;
   ownerId: string;
-  contactMethod: "email" | "phone";
+  contactMethod: "email";
   contactValue: string;
   token: string;
   status: "pending" | "failed" | "expired" | "accepted" | "opted_out";
@@ -710,24 +682,15 @@ export async function PATCH(request: Request) {
 
   if (action === "generateInvite") {
     const targetEmail = (existing.email ?? "").trim();
-    const targetPhone = (existing.phoneNumber ?? "").trim();
-    const normalizedTargetPhone = targetPhone
-      ? normalizeSmsPhoneNumber(targetPhone)
-      : "";
-    const contactMethod = normalizedTargetPhone
-      ? "phone"
-      : targetEmail
-        ? "email"
-        : null;
-    const contactValue =
-      contactMethod === "phone" ? normalizedTargetPhone : targetEmail;
+    const contactMethod = targetEmail ? "email" : null;
+    const contactValue = targetEmail;
 
     // Require at least one contact method
     if (!contactMethod || !contactValue) {
       // Still generate a token to allow copying, but don't send.
     }
 
-    // If sending an email or SMS invite, require the sender to confirm permission.
+    // If sending an email invite, require the sender to confirm permission.
     const requestBody = parsed.data as {
       inviteConsent?: boolean;
       consentSource?: string;
@@ -790,9 +753,7 @@ export async function PATCH(request: Request) {
     if (!contactMethod || !contactValue) {
       return NextResponse.json({
         placeholder: normalizePlaceholder(updated),
-        message: targetPhone
-          ? "Invite link ready. Enter a valid phone number to send by SMS."
-          : "Invite link ready.",
+        message: "Invite link ready. Add an email to send it directly.",
       });
     }
 
@@ -803,60 +764,11 @@ export async function PATCH(request: Request) {
     const ownerName = owner?.name ?? owner?.handle ?? "Someone";
 
     try {
-      if (contactMethod === "phone") {
-        await recordSmsConsent({
-          phoneNumber: contactValue,
-          consented: true,
-          source: "invite",
-          userId: existing.ownerId,
-        });
-
-        const inviteLink = `${getSiteUrl()}/invite/${token}`;
-        const smsResult = await sendTransactionalSms({
-          to: contactValue,
-          body: renderInviteSms({
-            inviterName: ownerName,
-            link: inviteLink,
-          }),
-          type: "invite",
-          userId: existing.ownerId,
-          inviteToken: token,
-        });
-
-        if (smsResult.skipped) {
-          const reason =
-            smsResult.reason === "opted_out"
-              ? "Recipient replied STOP"
-              : "SMS configuration is missing";
-          await insertNodeInvite({
-            placeholderId: updated.id,
-            ownerId: existing.ownerId,
-            contactMethod,
-            contactValue,
-            token,
-            status: "failed",
-            failedAt: new Date(),
-            failureReason: reason,
-          });
-
-          return NextResponse.json(
-            {
-              error:
-                smsResult.reason === "opted_out"
-                  ? "This phone number has opted out of SMS. Share the invite link manually or ask them to reply START first."
-                  : "SMS is not configured. Share the invite link manually or add email delivery.",
-              placeholder: normalizePlaceholder(updated),
-            },
-            { status: 409 },
-          );
-        }
-      } else {
-        await sendNodeInviteEmail({
-          to: contactValue,
-          token,
-          inviterName: ownerName,
-        });
-      }
+      await sendNodeInviteEmail({
+        to: contactValue,
+        token,
+        inviterName: ownerName,
+      });
 
       await insertNodeInvite({
         placeholderId: updated.id,

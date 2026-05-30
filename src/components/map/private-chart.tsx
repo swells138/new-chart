@@ -13,10 +13,6 @@ import type {
 } from "@/types/models";
 import type { PrivateDuplicateMatch } from "@/lib/private-duplicate-matches";
 import { chooseExistingPrivatePerson } from "@/lib/private-duplicate-flow";
-import {
-  INVITE_ACTION_DISCLOSURE_TEXT,
-  SmsConsentCheckbox,
-} from "@/components/ui/sms-consent-checkbox";
 import { isDemoUserId } from "@/lib/demo-mode";
 
 const ALL_TYPES: RelationshipType[] = [
@@ -406,7 +402,6 @@ export function PrivateChart({
   const [addName, setAddName] = useState("");
   const [addOfferToNameMatch, setAddOfferToNameMatch] = useState(true);
   const [addEmail, setAddEmail] = useState("");
-  const [addPhoneNumber, setAddPhoneNumber] = useState("");
   const [addType, setAddType] = useState<RelationshipType>("Talking");
   const [addNote, setAddNote] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -464,7 +459,6 @@ export function PrivateChart({
   const [editName, setEditName] = useState("");
   const [editOfferToNameMatch, setEditOfferToNameMatch] = useState(false);
   const [editEmail, setEditEmail] = useState("");
-  const [editPhoneNumber, setEditPhoneNumber] = useState("");
   const [editType, setEditType] = useState<RelationshipType>("Talking");
   const [editNote, setEditNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -473,10 +467,8 @@ export function PrivateChart({
   // Invite/action state
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [
-    inviteConsentByPlaceholderId,
-    setInviteConsentByPlaceholderId,
-  ] = useState<Record<string, boolean>>({});
+  const [inviteConsentByPlaceholderId, setInviteConsentByPlaceholderId] =
+    useState<Record<string, boolean>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
@@ -876,7 +868,6 @@ export function PrivateChart({
       name,
       offerToNameMatch: addOfferToNameMatch,
       email: addEmail.trim() || undefined,
-      phoneNumber: addPhoneNumber.trim() || undefined,
       relationshipType: addType,
       note: addNote.trim() || undefined,
     };
@@ -901,7 +892,7 @@ export function PrivateChart({
         name,
         offerToNameMatch: addOfferToNameMatch,
         email: addEmail.trim(),
-        phoneNumber: addPhoneNumber.trim(),
+        phoneNumber: "",
         relationshipType: addType,
         note: addNote.trim(),
         inviteToken: null,
@@ -919,10 +910,9 @@ export function PrivateChart({
         setAddName("");
         setAddOfferToNameMatch(true);
         setAddEmail("");
-        setAddPhoneNumber("");
         setAddNote("");
         setAddSuccessMessage(
-          "Demo person added privately. Add an email or phone, then generate an invite to review the SMS consent CTA.",
+          "Demo person added privately. Add an email, then generate an invite.",
         );
         setIsAdding(false);
       }, 250);
@@ -943,7 +933,6 @@ export function PrivateChart({
           body: JSON.stringify({
             name,
             email: addEmail.trim() || undefined,
-            phoneNumber: addPhoneNumber.trim() || undefined,
           }),
         });
         const body = (await res.json()) as {
@@ -1040,7 +1029,6 @@ export function PrivateChart({
       setAddName("");
       setAddOfferToNameMatch(true);
       setAddEmail("");
-      setAddPhoneNumber("");
       setAddNote("");
       setAddSuccessMessage(
         skipDuplicateCheck
@@ -1067,14 +1055,13 @@ export function PrivateChart({
     setAddName("");
     setAddOfferToNameMatch(true);
     setAddEmail("");
-    setAddPhoneNumber("");
     setAddNote("");
     setAddSuccessMessage(choice.message);
     highlightConnection(`private-${choice.existingPersonId}`);
   }
 
   function requiresInviteConsentForInvite(p: PlaceholderPerson) {
-    return Boolean(p.email.trim() || p.phoneNumber.trim());
+    return Boolean(p.email.trim());
   }
 
   function setPlaceholderInviteConsent(id: string, checked: boolean) {
@@ -1086,9 +1073,7 @@ export function PrivateChart({
 
   async function handleGenerateInvite(id: string) {
     const placeholder = placeholders.find((p) => p.id === id);
-    const hasInviteContact = Boolean(
-      placeholder?.email.trim() || placeholder?.phoneNumber.trim(),
-    );
+    const hasInviteContact = Boolean(placeholder?.email.trim());
     const requiresInviteConsent = placeholder
       ? requiresInviteConsentForInvite(placeholder)
       : false;
@@ -1115,7 +1100,7 @@ export function PrivateChart({
       );
       setActionMessage(
         hasInviteContact
-          ? "Demo invite ready. The SMS consent CTA was accepted for this one-time invitation."
+          ? "Demo email invite ready."
           : "Demo invite link generated.",
       );
       setWorkingId(null);
@@ -1275,7 +1260,6 @@ export function PrivateChart({
     setEditName(p.name);
     setEditOfferToNameMatch(p.offerToNameMatch);
     setEditEmail(p.email);
-    setEditPhoneNumber(p.phoneNumber);
     setEditType(p.relationshipType);
     setEditNote(p.note);
     setEditError(null);
@@ -1293,7 +1277,6 @@ export function PrivateChart({
                 name: editName.trim(),
                 offerToNameMatch: editOfferToNameMatch,
                 email: editEmail.trim(),
-                phoneNumber: editPhoneNumber.trim(),
                 relationshipType: editType,
                 note: editNote.trim(),
               }
@@ -1315,7 +1298,6 @@ export function PrivateChart({
           name: editName.trim(),
           offerToNameMatch: editOfferToNameMatch,
           email: editEmail.trim() || undefined,
-          phoneNumber: editPhoneNumber.trim() || undefined,
           relationshipType: editType,
           note: editNote.trim() || undefined,
         }),
@@ -2357,23 +2339,6 @@ export function PrivateChart({
                         disabled={isAdding || isCheckingDuplicates}
                       />
                     </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
-                        Their phone
-                      </span>
-                      <input
-                        type="text"
-                        value={addPhoneNumber}
-                        onChange={(e) => {
-                          setAddPhoneNumber(e.target.value);
-                          clearDuplicateCheckState();
-                        }}
-                        placeholder="Connection's phone"
-                        maxLength={40}
-                        className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-                        disabled={isAdding || isCheckingDuplicates}
-                      />
-                    </label>
                   </div>
                   <label className="block">
                     <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">
@@ -2629,8 +2594,7 @@ export function PrivateChart({
                     const isOwned =
                       currentUserId !== null && p.ownerId === currentUserId;
                     const hasInviteEmail = Boolean(p.email.trim());
-                    const hasInvitePhone = Boolean(p.phoneNumber.trim());
-                    const hasInviteContact = hasInviteEmail || hasInvitePhone;
+                    const hasInviteContact = hasInviteEmail;
                     const requiresInviteConsent =
                       requiresInviteConsentForInvite(p);
                     const hasInviteConsent =
@@ -2675,14 +2639,6 @@ export function PrivateChart({
                               onChange={(e) => setEditEmail(e.target.value)}
                               maxLength={200}
                               placeholder="Email"
-                              className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                            />
-                            <input
-                              type="text"
-                              value={editPhoneNumber}
-                              onChange={(e) => setEditPhoneNumber(e.target.value)}
-                              maxLength={40}
-                              placeholder="Phone"
                               className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
                             />
                             <input
@@ -2752,16 +2708,9 @@ export function PrivateChart({
                                 </div>
                               </div>
                             </div>
-                            {!hasInviteContact && !hasInvitePhone ? (
+                            {!hasInviteContact ? (
                               <p className="mt-2 text-[11px] text-white/45">
                                 No email needed. Create a link and send it yourself.
-                              </p>
-                            ) : null}
-                            {hasInvitePhone ? (
-                              <p className="mt-2 text-[11px] font-semibold text-emerald-200">
-                                SMS invite enabled. This sends one
-                                user-initiated invitation after consent is
-                                confirmed.
                               </p>
                             ) : null}
                             {inviteLink ? (
@@ -2785,16 +2734,24 @@ export function PrivateChart({
                               </div>
                             ) : null}
                             {requiresInviteConsent ? (
-                              <div className="mt-3 text-black dark:text-white">
-                                <SmsConsentCheckbox
+                              <label className="mt-3 flex items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-[11px] text-white/78">
+                                <input
+                                  type="checkbox"
                                   checked={hasInviteConsent}
-                                  onChange={(checked) =>
-                                    setPlaceholderInviteConsent(p.id, checked)
+                                  onChange={(event) =>
+                                    setPlaceholderInviteConsent(
+                                      p.id,
+                                      event.target.checked,
+                                    )
                                   }
                                   required
-                                  consentSourceLabel="Connection invite"
+                                  className="mt-0.5 h-3.5 w-3.5"
                                 />
-                              </div>
+                                <span>
+                                  I confirm I have permission to email this
+                                  person a one-time invitation.
+                                </span>
+                              </label>
                             ) : null}
                             <div className="mt-3 flex min-w-0 flex-wrap items-start gap-2">
                               {isOwned &&
@@ -2828,7 +2785,8 @@ export function PrivateChart({
                                   </button>
                                   {hasInviteContact ? (
                                     <p className="mt-2 max-w-md text-[11px] leading-relaxed text-white/65">
-                                      {INVITE_ACTION_DISCLOSURE_TEXT}
+                                      This sends a one-time email invitation to
+                                      the address saved on this private profile.
                                     </p>
                                   ) : null}
                                 </div>
@@ -2933,32 +2891,18 @@ export function PrivateChart({
             className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
             disabled={isAdding || isCheckingDuplicates}
           />
-          <div className="grid gap-2 md:grid-cols-2">
-            <input
-              type="email"
-              value={addEmail}
-              onChange={(e) => {
-                setAddEmail(e.target.value);
-                clearDuplicateCheckState();
-              }}
-              placeholder="Email (optional)"
-              maxLength={200}
-              className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-              disabled={isAdding || isCheckingDuplicates}
-            />
-            <input
-              type="text"
-              value={addPhoneNumber}
-              onChange={(e) => {
-                setAddPhoneNumber(e.target.value);
-                clearDuplicateCheckState();
-              }}
-              placeholder="Phone (optional)"
-              maxLength={40}
-              className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
-              disabled={isAdding || isCheckingDuplicates}
-            />
-          </div>
+          <input
+            type="email"
+            value={addEmail}
+            onChange={(e) => {
+              setAddEmail(e.target.value);
+              clearDuplicateCheckState();
+            }}
+            placeholder="Email (optional)"
+            maxLength={200}
+            className="w-full rounded-xl border border-[var(--border-soft)] bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-black/40 dark:placeholder:text-white/40"
+            disabled={isAdding || isCheckingDuplicates}
+          />
           <label className="flex items-start gap-2 rounded-xl border border-[var(--border-soft)] px-3 py-2.5 text-xs text-black/70 dark:text-white/75">
             <input
               type="checkbox"
@@ -3189,8 +3133,7 @@ export function PrivateChart({
               const isOwned =
                 currentUserId !== null && p.ownerId === currentUserId;
               const hasInviteEmail = Boolean(p.email.trim());
-              const hasInvitePhone = Boolean(p.phoneNumber.trim());
-              const hasInviteContact = hasInviteEmail || hasInvitePhone;
+              const hasInviteContact = hasInviteEmail;
               const requiresInviteConsent = requiresInviteConsentForInvite(p);
               const hasInviteConsent =
                 inviteConsentByPlaceholderId[p.id] ?? false;
@@ -3238,14 +3181,6 @@ export function PrivateChart({
                         onChange={(e) => setEditEmail(e.target.value)}
                         maxLength={200}
                         placeholder="Email (optional)"
-                        className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
-                      />
-                      <input
-                        type="text"
-                        value={editPhoneNumber}
-                        onChange={(e) => setEditPhoneNumber(e.target.value)}
-                        maxLength={40}
-                        placeholder="Phone (optional)"
                         className="w-full rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-xs text-white outline-none placeholder:text-white/30"
                       />
                       <input
@@ -3371,22 +3306,15 @@ export function PrivateChart({
                         </p>
                       ) : null}
 
-                      {p.email || p.phoneNumber ? (
+                      {p.email ? (
                         <div className="mt-2 space-y-1 text-[11px] text-white/45">
                           {p.email ? <p>{p.email}</p> : null}
-                          {p.phoneNumber ? <p>{p.phoneNumber}</p> : null}
                         </div>
                       ) : null}
 
-                      {!hasInviteContact && !hasInvitePhone ? (
+                      {!hasInviteContact ? (
                         <p className="mt-2 text-[11px] text-white/45">
-                          Add an email or phone number before sending an invite.
-                        </p>
-                      ) : null}
-                      {hasInvitePhone ? (
-                        <p className="mt-2 text-[11px] font-semibold text-emerald-200">
-                          SMS invite enabled. This sends one user-initiated
-                          invitation after consent is confirmed.
+                          Add an email before sending an invite.
                         </p>
                       ) : null}
 
@@ -3417,16 +3345,24 @@ export function PrivateChart({
                       {requiresInviteConsent &&
                       p.claimStatus !== "claimed" &&
                       p.claimStatus !== "denied" ? (
-                        <div className="mt-3 text-black dark:text-white">
-                          <SmsConsentCheckbox
+                        <label className="mt-3 flex items-start gap-2 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-[11px] text-white/78">
+                          <input
+                            type="checkbox"
                             checked={hasInviteConsent}
-                            onChange={(checked) =>
-                              setPlaceholderInviteConsent(p.id, checked)
+                            onChange={(event) =>
+                              setPlaceholderInviteConsent(
+                                p.id,
+                                event.target.checked,
+                              )
                             }
                             required
-                            consentSourceLabel="Connection invite"
+                            className="mt-0.5 h-3.5 w-3.5"
                           />
-                        </div>
+                          <span>
+                            I confirm I have permission to email this person a
+                            one-time invitation.
+                          </span>
+                        </label>
                       ) : null}
 
                       {/* Action buttons */}
@@ -3460,7 +3396,8 @@ export function PrivateChart({
                               </button>
                               {hasInviteContact ? (
                                 <p className="mt-2 max-w-md text-[11px] leading-relaxed text-white/65">
-                                  {INVITE_ACTION_DISCLOSURE_TEXT}
+                                  This sends a one-time email invitation to the
+                                  address saved on this private profile.
                                 </p>
                               ) : null}
                             </div>

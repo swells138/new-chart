@@ -56,10 +56,6 @@ model User {
   privateMixedConnectionEdges           PrivateMixedConnectionEdge[]     @relation("PrivateMixedConnectionEdgeOwner")
   privateMixedConnectionEdgeUsers       PrivateMixedConnectionEdge[]     @relation("PrivateMixedConnectionEdgeUser")
 
-  smsConsentEvents SmsConsentEvent[]
-  smsOptOuts       SmsOptOut[]       @relation("SmsOptOutUser")
-  smsMessageLogs   SmsMessageLog[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -186,50 +182,6 @@ model NodeInvite {
   @@index([placeholderId, status])
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([contactValue, createdAt(sort: Desc)])
-}
-
-// SMS consent events (checkbox consent captured in-app)
-model SmsConsentEvent {
-  id          String   @id @default(cuid())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  phoneNumber String
-  consented   Boolean
-  source      String // signup | login | invite | profile | unknown
-  createdAt   DateTime @default(now())
-
-  @@index([phoneNumber, createdAt(sort: Desc)])
-  @@index([userId, createdAt(sort: Desc)])
-}
-
-// Global opt-out registry (do not message these numbers)
-model SmsOptOut {
-  phoneNumber    String   @id
-  optedOutAt     DateTime
-  optedOutUserId String?
-  optedOutUser   User?    @relation("SmsOptOutUser", fields: [optedOutUserId], references: [id], onDelete: SetNull)
-  lastMessageSid String?
-  updatedAt      DateTime @updatedAt
-}
-
-// Outbound message logging (Twilio SID + delivery status callbacks)
-model SmsMessageLog {
-  id               String   @id @default(cuid())
-  userId           String?
-  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  phoneNumber      String
-  inviteToken      String?
-  messageType      String
-  body             String
-  twilioMessageSid String?
-  status           String // queued | sent | delivered | failed | blocked_opted_out | skipped_missing_config | ...
-  error            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([phoneNumber, createdAt(sort: Desc)])
-  @@index([twilioMessageSid])
-  @@index([userId, createdAt(sort: Desc)])
 }
 
 model PrivateConnectionEdge {

@@ -4,11 +4,11 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "Privacy practices for MeshyLinks accounts, invitations, SMS communications, and user-generated connection data.",
+    "Privacy practices for MeshyLinks accounts, email invitations, and user-generated connection data.",
   openGraph: {
     title: "Privacy Policy | MeshyLinks",
     description:
-      "How MeshyLinks handles account information, invitations, SMS communications, and privacy rights.",
+      "How MeshyLinks handles account information, email invitations, and privacy rights.",
     url: "/privacy",
   },
 };
@@ -29,16 +29,6 @@ const sections = [
     ],
   },
   {
-    title: "SMS Messaging Policy",
-    body: [
-      "MeshyLinks users send invitations manually. Each invitation is a one-time, user-initiated message sent only after the user enters recipient contact information and confirms they have permission to contact that person.",
-      "Recipients can reply STOP to opt out of future SMS from MeshyLinks. Opt-out requests are stored and future SMS to opted-out numbers are suppressed unless the recipient opts back in where supported.",
-      "MeshyLinks does not send unsolicited bulk marketing SMS, does not auto-import contacts, does not purchase or scrape contact lists, and does not provide bulk contact-list upload tools for mass texting.",
-      "Mobile phone numbers and SMS opt-in information are not shared with third parties or affiliates for marketing or promotional purposes.",
-      "Phone numbers may also be used for transactional account messages such as verification, authentication, connection approvals, and important service notices.",
-    ],
-  },
-  {
     title: "Profile and Connection Data",
     body: [
       "MeshyLinks stores user-generated profile and connection data so users can map, verify, and manage their connection network.",
@@ -50,7 +40,7 @@ const sections = [
     body: [
       "Users are responsible for ensuring they have permission to contact recipients before sending an invitation through MeshyLinks.",
       "Invite links and tokens are generated so recipients can review, claim, accept, decline, or manage connection information associated with them.",
-      "Invitation delivery events, errors, opt-out events, and related audit information may be stored to operate the service and prevent abuse.",
+      "Invitation delivery events, errors, and related audit information may be stored to operate the service and prevent abuse.",
     ],
   },
   {
@@ -70,14 +60,13 @@ const sections = [
   {
     title: "Third-Party Services",
     body: [
-      "MeshyLinks may use service providers to operate the platform, including Twilio for SMS delivery and opt-out processing, Clerk for authentication, Stripe for payments, Vercel for hosting and analytics, and email providers for transactional email.",
-      "These providers process information as needed to perform services for MeshyLinks and are not authorized by us to sell recipient phone numbers or use mobile opt-in information for their own marketing or promotional purposes.",
+      "MeshyLinks may use service providers to operate the platform, including Clerk for authentication, Stripe for payments, Vercel for hosting and analytics, and email providers for transactional email.",
+      "These providers process information as needed to perform services for MeshyLinks.",
     ],
   },
   {
     title: "Opt-Out and Privacy Rights",
     body: [
-      "SMS recipients can reply STOP to opt out at any time. They may reply START or follow available product flows to opt back in where supported.",
       "Users and recipients may contact MeshyLinks to request access, correction, deletion, or removal of information associated with them, subject to identity, safety, legal, and operational requirements.",
     ],
   },
@@ -104,8 +93,7 @@ export default function PrivacyPage() {
         </p>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-black/75 dark:text-white/80">
           This policy explains how MeshyLinks handles account information,
-          manually sent invitations, SMS communications, and user-generated
-          connection data.
+          manually sent email invitations, and user-generated connection data.
         </p>
       </header>
 
