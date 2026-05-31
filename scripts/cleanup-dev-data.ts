@@ -6,6 +6,8 @@ loadEnv();
 
 const DEV_USER_TERMS = ["holly", "sydney"];
 const LEGACY_TEST_USER_TERMS = [
+  "example-user-",
+  "example-",
   "test-user-",
   ".test",
   "test-jules-vance",
@@ -19,6 +21,7 @@ async function main() {
       OR: [
         { name: { contains: "test node", mode: "insensitive" as const } },
         { name: { startsWith: "test", mode: "insensitive" as const } },
+        { id: { contains: "example-", mode: "insensitive" as const } },
         ...DEV_USER_TERMS.map((term) => ({
           name: { contains: term, mode: "insensitive" as const },
         })),
@@ -55,7 +58,7 @@ async function main() {
   });
 
   console.log(`Removed ${testPlaceholderResult.count} test placeholders.`);
-  console.log(`Removed ${devUserResult.count} dev users (Holly/Sydney variants and legacy test examples).`);
+  console.log(`Removed ${devUserResult.count} dev users (Holly/Sydney variants and legacy test/example records).`);
 }
 
 main()
