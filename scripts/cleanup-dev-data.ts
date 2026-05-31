@@ -5,6 +5,13 @@ loadEnv({ path: ".env.local" });
 loadEnv();
 
 const DEV_USER_TERMS = ["holly", "sydney"];
+const DEMO_PERSON_NAMES = [
+  "Dani Park",
+  "Lena Ortiz",
+  "Mara Sol",
+  "Nico Chen",
+  "Rey Navarro",
+];
 const LEGACY_TEST_USER_TERMS = [
   "example-user-",
   "example-",
@@ -25,6 +32,9 @@ async function main() {
         ...DEV_USER_TERMS.map((term) => ({
           name: { contains: term, mode: "insensitive" as const },
         })),
+        ...DEMO_PERSON_NAMES.map((name) => ({
+          name: { equals: name, mode: "insensitive" as const },
+        })),
       ],
     },
   });
@@ -34,6 +44,9 @@ async function main() {
       OR: [
         ...DEV_USER_TERMS.map((term) => ({
           name: { contains: term, mode: "insensitive" as const },
+        })),
+        ...DEMO_PERSON_NAMES.map((name) => ({
+          name: { equals: name, mode: "insensitive" as const },
         })),
         ...DEV_USER_TERMS.map((term) => ({
           handle: { contains: term, mode: "insensitive" as const },

@@ -494,17 +494,7 @@ export function PrivateChart({
         },
       ]);
       setConfirmedWebEdges([]);
-      setMixedWebEdges([
-        {
-          id: "demo-mixed-ivy-mara",
-          ownerId: currentUserId,
-          placeholderId: "demo-private-ivy",
-          userId: "demo-user-mara",
-          relationshipType: "Talking",
-          note: "Mara introduced us.",
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      setMixedWebEdges([]);
       return;
     }
 
