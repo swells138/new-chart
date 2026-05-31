@@ -35,7 +35,7 @@ import { PrivateChart } from "@/components/map/private-chart";
 import { calculateShortestConnectionPath } from "@/lib/connection-distance";
 import { FREE_SEARCH_LIMIT } from "@/lib/pro-user";
 
-// ─── Demo-style node colours ───────────────────────────────
+// ─── Node colours ───────────────────────────────────────────
 const NODE_PALETTE = [
   "#ff8f84",
   "#a78bfa",

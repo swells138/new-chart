@@ -96,10 +96,8 @@ export interface ProfileFormData {
 
 export function ProfileForm({
   initialProfile,
-  demoMode = false,
 }: {
   initialProfile: ProfileFormData;
-  demoMode?: boolean;
 }) {
   const [formData, setFormData] = useState<ProfileFormData>(initialProfile);
   const [interestsInput, setInterestsInput] = useState(initialProfile.interests.join(", "));
@@ -126,14 +124,6 @@ export function ProfileForm({
     setSaving(true);
     setMessage(null);
     setError(null);
-
-    if (demoMode) {
-      window.setTimeout(() => {
-        setMessage("Demo profile updated.");
-        setSaving(false);
-      }, 300);
-      return;
-    }
 
     try {
       const response = await fetch("/api/profile", {

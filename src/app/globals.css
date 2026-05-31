@@ -132,31 +132,6 @@ h4 {
   }
 }
 
-/* ── Demo graph node hover effects ─────────────────────── */
-.demo-node-group {
-  cursor: default;
-  transition: transform 200ms ease;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.demo-node-group:hover {
-  transform: scale(1.12);
-}
-
-.demo-node-group .demo-node-circle {
-  transition: filter 200ms ease;
-}
-
-.demo-node-group:hover .demo-node-halo {
-  opacity: 0.4;
-}
-
-.demo-node-halo {
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
 .private-connection-line-reveal {
   animation: private-connection-line-reveal 700ms ease-out;
 }

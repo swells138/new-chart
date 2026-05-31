@@ -4,7 +4,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { prisma } from "@/lib/prisma";
 import { getApprovedConnectionUserIds } from "@/lib/prisma-queries";
-import { isDemoModeEnabled } from "@/lib/demo-mode";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -12,54 +11,6 @@ export const dynamic = "force-dynamic";
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
-const threads = [
-  {
-    id: "t1",
-    name: "Mara Sol",
-    preview: "Can we add your photos to the event recap?",
-    time: "11m",
-    unread: true,
-  },
-  {
-    id: "t2",
-    name: "Rey Navarro",
-    preview: "Poetry prompt draft is up in shared notes.",
-    time: "1h",
-    unread: false,
-  },
-  {
-    id: "t3",
-    name: "Dani Park",
-    preview: "Need one more volunteer for setup at 6.",
-    time: "3h",
-    unread: true,
-  },
-];
-
-const demoNotifications = [
-  {
-    id: "demo-n1",
-    content: "Ivy Morgan accepted your invite. Review /map?chart=private&focus=manage",
-    read: false,
-    createdAt: new Date(Date.now() - 11 * 60 * 1000),
-    senderName: "Ivy Morgan",
-  },
-  {
-    id: "demo-n2",
-    content: "Mara Sol added a connection that may overlap with your network.",
-    read: false,
-    createdAt: new Date(Date.now() - 62 * 60 * 1000),
-    senderName: "Mara Sol",
-  },
-  {
-    id: "demo-n3",
-    content: "Cam Rivera is pending invite verification.",
-    read: true,
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-    senderName: "Cam Rivera",
-  },
-];
 
 type InboxMessage = {
   id: string;
@@ -121,16 +72,12 @@ export default async function InboxPage({
 }: {
   searchParams?: Promise<{ notificationId?: string | string[] }>;
 }) {
-  const demoMode = isDemoModeEnabled();
-
   if (hasClerkKeys) {
     const { userId } = await auth();
     if (!userId) {
-      if (!demoMode) {
-        redirect("/login");
-      }
+      redirect("/login");
     }
-  } else if (!demoMode) {
+  } else {
     redirect("/login");
   }
 
@@ -147,7 +94,7 @@ export default async function InboxPage({
     read: boolean;
     createdAt: Date;
     senderName: string | null;
-  }[] = demoMode ? demoNotifications : [];
+  }[] = [];
 
   if (hasClerkKeys) {
     const { userId } = await auth();
@@ -201,7 +148,7 @@ export default async function InboxPage({
     unread: !n.read,
   }));
 
-  const displayedThreads = dynamicThreads.length > 0 ? dynamicThreads : threads;
+  const displayedThreads = dynamicThreads;
 
   // Categorize notifications into prioritized buckets for clearer UX
   function summarizeNotification(n: {

@@ -78,13 +78,13 @@ export async function POST(req: Request) {
           where: { stripeCustomerId: customerId },
           select: { id: true, email: true },
         });
-        const demotableUserIds = users
+        const downgradeableUserIds = users
           .filter((user) => !isHardcodedProEmail(user.email))
           .map((user) => user.id);
 
-        if (demotableUserIds.length > 0) {
+        if (downgradeableUserIds.length > 0) {
           await prisma.user.updateMany({
-            where: { id: { in: demotableUserIds } },
+            where: { id: { in: downgradeableUserIds } },
             data: { isPro: false },
           });
         }
@@ -99,13 +99,13 @@ export async function POST(req: Request) {
         where: { stripeSubscriptionId: subscriptionId },
         select: { id: true, email: true },
       });
-      const demotableUserIds = users
+      const downgradeableUserIds = users
         .filter((user) => !isHardcodedProEmail(user.email))
         .map((user) => user.id);
 
-      if (demotableUserIds.length > 0) {
+      if (downgradeableUserIds.length > 0) {
         await prisma.user.updateMany({
-          where: { id: { in: demotableUserIds } },
+          where: { id: { in: downgradeableUserIds } },
           data: { isPro: false },
         });
       }

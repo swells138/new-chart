@@ -1,12 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import { DemoGraph } from "@/components/home/demo-graph";
-import {
-  relationships as fallbackRelationships,
-  users as fallbackUsers,
-} from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { getAllRelationships, getAllUsers } from "@/lib/prisma-queries";
-import { isDemoModeEnabled } from "@/lib/demo-mode";
 import type { Relationship, User } from "@/types/models";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +8,6 @@ export const dynamic = "force-dynamic";
 const hasClerkKeys =
   Boolean(process.env.CLERK_SECRET_KEY) &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
-
-const EDGE_LEGEND = [
-  { label: "Dating", color: "#f472b6" },
-  { label: "Exes", color: "#ff8f84" },
-  { label: "Situationship", color: "#fb923c" },
-  { label: "Talking", color: "#a78bfa" },
-  { label: "Complicated", color: "#7aa2ff" },
-];
 
 type MostConnectedStats = {
   person: {
@@ -96,8 +82,8 @@ function getMostConnectedPerson(
 
 export default async function Home() {
   let currentUserDbId: string | null = null;
-  let chartUsers = fallbackUsers;
-  let chartRelationships = fallbackRelationships;
+  let chartUsers: User[] = [];
+  let chartRelationships: Relationship[] = [];
 
   if (hasClerkKeys) {
     const { userId } = await auth();
@@ -119,7 +105,7 @@ export default async function Home() {
     console.error("Home page failed to load public network data", error);
   }
 
-  const isSignedIn = Boolean(currentUserDbId) || isDemoModeEnabled();
+  const isSignedIn = Boolean(currentUserDbId);
   const mostConnectedStats = getMostConnectedPerson(
     chartUsers,
     chartRelationships,
@@ -154,12 +140,6 @@ export default async function Home() {
               className="inline-flex min-w-44 items-center justify-center rounded-full bg-[#ff8f84] px-10 py-4 text-base font-semibold text-white shadow-lg shadow-[#ff8f84]/30 transition hover:-translate-y-0.5 hover:brightness-95"
             >
               Start your network
-            </a>
-            <a
-              href="#demo"
-              className="inline-flex min-w-44 items-center justify-center rounded-full border border-white/25 bg-white/5 px-8 py-3 text-base font-semibold text-white/80 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/12"
-            >
-              View demo
             </a>
           </div>
 
@@ -250,40 +230,6 @@ export default async function Home() {
                 counted
               </p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── DEMO GRAPH ───────────────────────────────────────── */}
-      <section id="demo" className="scroll-mt-24 py-8 sm:py-10">
-        <div className="paper-card mx-auto max-w-5xl rounded-3xl p-5 sm:p-7">
-          <div className="text-center">
-            <h2 className="text-2xl font-semibold sm:text-3xl">
-              Peek inside a hidden network
-            </h2>
-            <p className="mt-2 text-sm text-black/60 dark:text-white/60 sm:text-base">
-              Click a node to explore. Relationship labels show the kind of tie
-              — dating, exes, situationships, and more.
-            </p>
-          </div>
-
-          <div className="mt-5 overflow-hidden rounded-2xl border border-black/10 bg-white/45 p-2 shadow-inner dark:border-white/15 dark:bg-black/20 sm:p-3">
-            <DemoGraph />
-          </div>
-
-          {/* Legend */}
-          <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2">
-            {EDGE_LEGEND.map(({ label, color }) => (
-              <div key={label} className="flex items-center gap-1.5 text-xs">
-                <div
-                  className="h-2 w-5 rounded-full"
-                  style={{ background: color }}
-                />
-                <span className="text-black/55 dark:text-white/55">
-                  {label}
-                </span>
-              </div>
-            ))}
           </div>
         </div>
       </section>

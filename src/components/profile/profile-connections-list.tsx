@@ -26,13 +26,11 @@ const connectionLabels: Record<string, string> = {
 interface Props {
   initialConnections: ProfileConnectionItem[];
   currentUserId: string;
-  demoMode?: boolean;
 }
 
 export function ProfileConnectionsList({
   initialConnections,
   currentUserId,
-  demoMode = false,
 }: Props) {
   const [connections, setConnections] = useState(initialConnections);
   const [workingId, setWorkingId] = useState<string | null>(null);
@@ -48,14 +46,6 @@ export function ProfileConnectionsList({
 
     setWorkingId(id);
     setError(null);
-
-    if (demoMode) {
-      window.setTimeout(() => {
-        setConnections((current) => current.filter((item) => item.id !== id));
-        setWorkingId(null);
-      }, 250);
-      return;
-    }
 
     try {
       const response = await fetch("/api/relationships", {
