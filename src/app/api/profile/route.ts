@@ -86,6 +86,15 @@ async function getOrCreateCurrentDbUser(clerkId: string) {
   return ensureDbUserByClerkId(clerkId);
 }
 
+function isMissingColumnError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2022"
+  );
+}
+
 function shapeProfile(user: {
   id: string;
   clerkId: string;
@@ -98,8 +107,8 @@ function shapeProfile(user: {
   location: string | null;
   relationshipStatus: string | null;
   interests: string[];
-  links: unknown;
-  profileImage: string | null;
+  links?: unknown;
+  profileImage?: string | null;
   isPro?: boolean | null;
   freeSearchesUsed?: number | null;
   email: string | null;
@@ -273,9 +282,7 @@ export async function PATCH(request: Request) {
       handleUpdate.handle = normalizedHandle;
     }
 
-    const updated = await prisma.user.update({
-      where: { clerkId: userId },
-      data: {
+    const updateData = {
         ...handleUpdate,
         ...(name !== undefined ? { name: name || null } : {}),
         ...(firstName !== undefined ? { firstName: firstName || null } : {}),
@@ -291,9 +298,37 @@ export async function PATCH(request: Request) {
           : {}),
         ...(interests !== undefined ? { interests } : {}),
         ...(links !== undefined ? { links } : {}),
-      },
-      select: profileSafeSelect,
-    });
+      };
+
+    try {
+      await prisma.user.update({
+        where: { clerkId: userId },
+        data: updateData,
+        select: { id: true },
+      });
+    } catch (error) {
+      if (!isMissingColumnError(error)) {
+        throw error;
+      }
+
+      await prisma.user.update({
+        where: { clerkId: userId },
+        data: {
+          ...handleUpdate,
+          ...(name !== undefined ? { name: name || null } : {}),
+          ...(pronouns !== undefined ? { pronouns: pronouns || null } : {}),
+          ...(bio !== undefined ? { bio: bio || null } : {}),
+          ...(location !== undefined ? { location: location || null } : {}),
+          ...(relationshipStatus !== undefined
+            ? { relationshipStatus: relationshipStatus || null }
+            : {}),
+          ...(interests !== undefined ? { interests } : {}),
+        },
+        select: { id: true },
+      });
+    }
+
+    const updated = await getOrCreateCurrentDbUser(userId);
 
     return NextResponse.json({ profile: shapeProfile(updated) });
   } catch (error) {

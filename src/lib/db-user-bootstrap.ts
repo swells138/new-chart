@@ -24,6 +24,45 @@ const bootstrapUserSelect = {
   updatedAt: true,
 } as const;
 
+const legacyBootstrapUserSelect = {
+  id: true,
+  clerkId: true,
+  name: true,
+  handle: true,
+  email: true,
+  pronouns: true,
+  bio: true,
+  location: true,
+  interests: true,
+  relationshipStatus: true,
+  featured: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+type BootstrapUser = {
+  id: string;
+  clerkId: string;
+  name: string | null;
+  handle: string | null;
+  email: string | null;
+  pronouns: string | null;
+  bio: string | null;
+  location: string | null;
+  interests: string[];
+  relationshipStatus: string | null;
+  featured: boolean;
+  isPro?: boolean | null;
+  freeSearchesUsed?: number | null;
+  connectionScore?: number | null;
+  totalConnections?: number | null;
+  secondDegreeConnections?: number | null;
+  profileImage?: string | null;
+  links?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 function makeSeed(clerkId: string) {
   const cleaned = clerkId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   return (cleaned.slice(-10) || "member");
@@ -31,6 +70,81 @@ function makeSeed(clerkId: string) {
 
 function isPrismaKnownError(error: unknown): error is { code?: string } {
   return typeof error === "object" && error !== null && "code" in error;
+}
+
+function isMissingColumnError(error: unknown) {
+  return isPrismaKnownError(error) && error.code === "P2022";
+}
+
+async function findUserByClerkId(clerkId: string): Promise<BootstrapUser | null> {
+  try {
+    return await prisma.user.findUnique({
+      where: { clerkId },
+      select: bootstrapUserSelect,
+    });
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    return prisma.user.findUnique({
+      where: { clerkId },
+      select: legacyBootstrapUserSelect,
+    });
+  }
+}
+
+async function findUserById(id: string): Promise<BootstrapUser | null> {
+  try {
+    return await prisma.user.findUnique({
+      where: { id },
+      select: bootstrapUserSelect,
+    });
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    return prisma.user.findUnique({
+      where: { id },
+      select: legacyBootstrapUserSelect,
+    });
+  }
+}
+
+async function updateUserById(
+  id: string,
+  data: {
+    name?: string | null;
+    email?: string | null;
+    profileImage?: string;
+    isPro?: boolean;
+  },
+) {
+  try {
+    await prisma.user.update({
+      where: { id },
+      data,
+      select: { id: true },
+    });
+  } catch (error) {
+    if (!isMissingColumnError(error)) {
+      throw error;
+    }
+
+    const legacyData = {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+    };
+
+    if (Object.keys(legacyData).length > 0) {
+      await prisma.user.update({
+        where: { id },
+        data: legacyData,
+        select: { id: true },
+      });
+    }
+  }
 }
 
 function makeLegacyUserId(clerkId: string) {
@@ -69,10 +183,7 @@ export async function ensureDbUserByClerkId(
   profileImage?: string | null,
   email?: string | null,
 ) {
-  const existing = await prisma.user.findUnique({
-    where: { clerkId },
-    select: bootstrapUserSelect,
-  });
+  const existing = await findUserByClerkId(clerkId);
 
   const preferredName = toPreferredDisplayName(name);
 
@@ -88,25 +199,19 @@ export async function ensureDbUserByClerkId(
         : {};
 
     if (preferredName && isPlaceholderDisplayName(existing.name)) {
-      return prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          name: preferredName,
-          ...profileImageUpdate,
-          ...emailUpdate,
-          ...proUpdate,
-        },
-        select: bootstrapUserSelect,
+      await updateUserById(existing.id, {
+        name: preferredName,
+        ...profileImageUpdate,
+        ...emailUpdate,
+        ...proUpdate,
       });
+      return (await findUserById(existing.id)) ?? existing;
     }
 
     const userUpdate = { ...profileImageUpdate, ...emailUpdate, ...proUpdate };
     if (Object.keys(userUpdate).length > 0) {
-      return prisma.user.update({
-        where: { id: existing.id },
-        data: userUpdate,
-        select: bootstrapUserSelect,
-      });
+      await updateUserById(existing.id, userUpdate);
+      return (await findUserById(existing.id)) ?? existing;
     }
 
     return existing;
@@ -156,10 +261,7 @@ export async function ensureDbUserByClerkId(
       // Schema drift in production (missing newer columns) should still allow bootstrap by clerkId.
       if (error.code === "P2022") {
         await insertLegacyCompatibleUser(clerkId);
-        const legacyRetry = await prisma.user.findUnique({
-          where: { clerkId },
-          select: bootstrapUserSelect,
-        });
+        const legacyRetry = await findUserByClerkId(clerkId);
 
         if (legacyRetry) {
           return legacyRetry;
@@ -172,10 +274,7 @@ export async function ensureDbUserByClerkId(
     }
   }
 
-  const retry = await prisma.user.findUnique({
-    where: { clerkId },
-    select: bootstrapUserSelect,
-  });
+  const retry = await findUserByClerkId(clerkId);
   if (retry) {
     return retry;
   }
