@@ -6,12 +6,6 @@ import { getClaimCandidatesForUser } from "@/lib/network-claims";
 import { ensureDbUserByClerkId } from "@/lib/db-user-bootstrap";
 import { getEffectiveIsPro } from "@/lib/pro-user";
 import { getAllRelationships, getAllUsers, getPrivateConnectionsByUser, getRelationshipsByUser } from "@/lib/prisma-queries";
-import {
-  demoPrivatePlaceholders,
-  demoRelationships,
-  demoUsers,
-} from "@/lib/demo-data";
-import { DEMO_USER_ID, isDemoModeEnabled } from "@/lib/demo-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +98,6 @@ export default async function MapPage({
   const headersList = await headers();
   const hasSessionCookie = cookieStore.has("__session");
   let sessionSignedIn = hasSessionCookie;
-  const demoMode = isDemoModeEnabled();
 
   if (hasClerkKeys) {
     try {
@@ -169,34 +162,6 @@ export default async function MapPage({
       console.error("Map page failed to load claim candidates", error);
       claimCandidates = [];
     }
-  }
-
-  if (!currentUserDbId && demoMode) {
-    const existingUserIds = new Set(allUsers.map((user) => user.id));
-    const existingRelationshipIds = new Set(relationships.map((relationship) => relationship.id));
-
-    currentUserDbId = DEMO_USER_ID;
-    currentUserIsPro = true;
-    currentUserFreeSearchesUsed = 0;
-    sessionSignedIn = true;
-    allUsers = [
-      ...demoUsers,
-      ...allUsers.filter((user) => !demoUsers.some((demoUser) => demoUser.id === user.id)),
-    ];
-    relationships = [
-      ...demoRelationships.filter((relationship) => !existingRelationshipIds.has(relationship.id)),
-      ...relationships,
-    ].filter(
-      (relationship) =>
-        demoRelationships.some((demoRelationship) => demoRelationship.id === relationship.id) ||
-        (existingUserIds.has(relationship.source) && existingUserIds.has(relationship.target)),
-    );
-    userConnections = demoRelationships.filter(
-      (relationship) =>
-        relationship.source === DEMO_USER_ID || relationship.target === DEMO_USER_ID,
-    );
-    privatePlaceholders = demoPrivatePlaceholders;
-    claimCandidates = [];
   }
 
   const baseUrl =
